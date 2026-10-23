@@ -282,19 +282,46 @@ button.ghost { background: transparent; color: var(--muted); }
 
 /* ------------------------------------------------------------------ settings */
 
+/*
+ * The sidebar column is a range, not a fixed 230px, and the main column is
+ * `minmax(0, 1fr)` so it can never be pushed wider than the row by its content.
+ * Before this, a sidebar whose content refused to shrink could paint into the
+ * main column (the tabs sat on top of the pane). The explicit `min-width: 0`
+ * and `overflow-wrap` below remove the last way for that to happen.
+ */
 .settings-wrap {
   display: grid;
-  grid-template-columns: 230px minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(180px, 230px) minmax(0, 1fr);
+  gap: 20px 28px;
   padding: 22px 28px 60px;
   align-items: start;
+  /* Capped and centred: the column is sidebar + card, so a wide window does not
+     leave the form as a thin strip beside a 900px void. */
+  max-width: 1080px;
+  margin: 0 auto;
 }
 
-.settings-side { position: sticky; top: 18px; display: grid; gap: 14px; }
+/*
+ * Not sticky. A sticky sidebar is the one thing that can paint over the pane
+ * when a browser disagrees about which element is the scroll container, and the
+ * tab list is short enough not to need it at any scroll position.
+ */
+.settings-side {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
 
 .tabs { display: grid; gap: 6px; min-width: 0; }
 
-#settings-tabs .tab { text-align: left; border-radius: 10px; padding: 9px 13px; }
+#settings-tabs .tab {
+  text-align: left;
+  border-radius: 10px;
+  padding: 9px 13px;
+  /* A long label wraps inside the pill instead of spilling onto the pane. */
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
 
 .advanced-toggle { padding: 2px 2px; }
 
@@ -303,6 +330,8 @@ button.ghost { background: transparent; color: var(--muted); }
 .settings-main { display: grid; gap: 16px; min-width: 0; }
 
 .pane { max-width: 760px; }
+/* The footer rule and the raw-JSON panel line up with the card above them. */
+.settings-footer, #json-panel { max-width: 760px; }
 
 /*
  * The footer used to be `position: sticky; bottom: 0` with a translucent
@@ -383,10 +412,17 @@ input[type="range"]::-moz-range-thumb {
 
 /* --------------------------------------------------------------- mobile view */
 
+/* Narrow desktop: narrower gutter, but still two columns. The single-column
+   layout is a phone layout, so it waits until 720px — a 800-900px browser
+   window (or a preview pane) was otherwise getting the phone layout. */
+@media (max-width: 1120px) {
+  .settings-wrap { grid-template-columns: 190px minmax(0, 1fr); gap: 16px; padding: 20px 20px 56px; }
+}
+
 /* Stacked layout: the group tabs become a scrolling chip strip above the form. */
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .settings-wrap { grid-template-columns: minmax(0, 1fr); padding: 16px 14px 56px; gap: 14px; }
-  .settings-side { position: static; gap: 10px; }
+  .settings-side { gap: 10px; }
   .tabs {
     display: flex;
     gap: 6px;
