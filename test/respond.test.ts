@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import test from 'node:test';
 
 import { clearCatalogCache } from '../src/catalog.js';
 import { defaultConfig, type Config } from '../src/config.js';
 import { handleChatCompletions } from '../src/pipeline.js';
+import { forwardUpstream } from '../src/respond.js';
 import { issuedCalls, pendingConfirmations } from '../src/state.js';
 import type { OpenAITool } from '../src/types.js';
 
@@ -202,4 +204,45 @@ test('naming the router model opts this request into the fast path', async () =>
   const calls = payload.choices[0].message.tool_calls;
   assert.equal(calls?.[0]?.function.name, 'HassTurnOn');
   assert.equal(JSON.parse(calls[0].function.arguments).name, 'light.desk_lamp');
+});
+
+test('a forwarded request renames the proxy model to the configured upstream model', async () => {
+  // A real local server stands in for the inference backend, so what gets
+  // asserted is the body the proxy actually sends.
+  const seen: Record<string, unknown>[] = [];
+  const server = createServer((request, response) => {
+    let body = '';
+    request.on('data', (piece) => { body += piece; });
+    request.on('end', () => {
+      seen.push(JSON.parse(body) as Record<string, unknown>);
+      response.writeHead(200, { 'content-type': 'application/json' });
+      response.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'ok' } }] }));
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : 0;
+
+  const config = defaultConfig();
+  config.upstream.baseUrl = `http://127.0.0.1:${port}/v1`;
+  config.upstream.model = 'gpt-4o-mini';
+
+  try {
+    for (const [requested, expected] of [
+      ['typesafe-router', 'gpt-4o-mini'], // the opt-in alias must not reach the server
+      ['', 'gpt-4o-mini'], // nothing named: use the configured model
+      ['llama3', 'llama3'], // a real model name is passed through untouched
+    ] as const) {
+      const { response } = fakeResponse();
+      const request = { model: requested, messages: [{ role: 'user', content: 'hi' }], stream: false };
+      await forwardUpstream(request, JSON.stringify(request), response as never, config);
+    }
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+
+  assert.equal(seen.length, 3);
+  assert.equal(seen[0]?.model, 'gpt-4o-mini', 'typesafe-router must be rewritten');
+  assert.equal(seen[1]?.model, 'gpt-4o-mini', 'an empty model must become the configured one');
+  assert.equal(seen[2]?.model, 'llama3', 'a real model name must pass through');
 });

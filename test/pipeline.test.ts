@@ -5,7 +5,10 @@ import { catalogFromPrompt, clearCatalogCache } from '../src/catalog.js';
 import { extract, extractListItem, extractMediaQuery } from '../src/extract.js';
 import { fastPathStatus, runPipeline } from '../src/pipeline.js';
 import { defaultConfig, type Config } from '../src/config.js';
-import type { OpenAITool } from '../src/types.js';
+import { NO_AREA, NO_SINGLE_ENTITY, Q, actionQuestion, buildQuestions } from '../src/questions.js';
+import { route } from '../src/router.js';
+import { inventoryFor } from '../src/toolcall.js';
+import type { Answer, OpenAITool } from '../src/types.js';
 
 const PROMPT = [
   'Available Devices:',
@@ -164,4 +167,50 @@ test('backend none forwards every request without deciding', async () => {
   );
   assert.equal(result.entry.backend, 'off');
   assert.match(result.entry.reason ?? '', /pass-through/);
+});
+
+test('the prompt parser keeps the room a device is listed in', () => {
+  const catalog = catalogFromPrompt(
+    [
+      'Available Devices:',
+      '- Kitchen Ceiling (light.kitchen_ceiling): off, in Kitchen',
+      '- Desk Lamp (light.desk_lamp): on, in the Office',
+      '- Garage Door (cover.garage_door): closed, area: Garage',
+    ].join('\n'),
+  );
+  assert.deepEqual(
+    catalog.areas.map((area) => area.name).sort(),
+    ['Garage', 'Kitchen', 'Office'],
+  );
+  assert.equal(catalog.entities.find((entity) => entity.id === 'light.kitchen_ceiling')?.areaName, 'Kitchen');
+  assert.equal(catalog.entities.find((entity) => entity.id === 'cover.garage_door')?.areaName, 'Garage');
+});
+
+test('a target several devices fit equally well asks instead of forwarding', () => {
+  const catalog = catalogFromPrompt(
+    ['Available Devices:', '- Bedroom Lamp (light.bedroom_lamp): off, in Bedroom', '- Living Room Lamp (light.living_room_lamp): off, in Living Room'].join('\n'),
+  );
+  const utterance = 'turn on the lamp';
+  const extraction = extract(utterance, { entityNames: catalog.entities.map((entity) => entity.name) });
+  const built = buildQuestions(catalog, extraction, { maxOptions: 40 });
+  const answers: Record<string, Answer> = {
+    [Q.category]: { type: 'choice', choice: 'command', probabilities: { command: 0.97, query: 0.01 }, confidence: 0.97 },
+    [Q.compound]: { type: 'noul', noul: 0.02 },
+    [Q.scope]: { type: 'choice', choice: 'single', probabilities: { single: 0.7 }, confidence: 0.7 },
+    [Q.targetEntity]: { type: 'choice', choice: NO_SINGLE_ENTITY, probabilities: { [NO_SINGLE_ENTITY]: 0.8 }, confidence: 0.8 },
+    [Q.targetArea]: { type: 'choice', choice: NO_AREA, probabilities: { [NO_AREA]: 0.9 }, confidence: 0.9 },
+    [Q.targetDomain]: { type: 'choice', choice: 'light', probabilities: { light: 0.95 }, confidence: 0.95 },
+    [actionQuestion('light')]: { type: 'choice', choice: 'turn_on', probabilities: { turn_on: 0.95 }, confidence: 0.95 },
+  };
+  const result = route({
+    utterance,
+    catalog,
+    answers,
+    built,
+    extraction,
+    config: config(),
+    inventory: inventoryFor(TOOLS),
+  });
+  assert.equal(result.plan.kind, 'clarify');
+  assert.deepEqual(result.plan.kind === 'clarify' ? result.plan.options : [], ['Bedroom Lamp', 'Living Room Lamp']);
 });

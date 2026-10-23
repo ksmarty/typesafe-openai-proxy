@@ -290,6 +290,7 @@ export function catalogFromPrompt(prompt: string): Catalog {
   const seen = new Set<string>();
   const idPattern = /\b([a-z_]+)\.([a-z0-9_]+)\b/g;
 
+
   for (const line of prompt.split(/\r?\n/)) {
     idPattern.lastIndex = 0;
     const match = idPattern.exec(line);
@@ -311,25 +312,53 @@ export function catalogFromPrompt(prompt: string): Catalog {
       .replace(/\s+/g, ' ')
       .trim();
 
+    const areaName = matchArea(line);
     entities.push({
       id,
       name: name ? titleCase(name) : (id.split('.')[1] ?? id).replace(/_/g, ' '),
       domain,
       state: (stateMatch?.[1] ?? 'unknown').trim().toLowerCase(),
+      ...(areaName ? { areaName, areaId: `area_${areaName.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` } : {}),
     });
   }
 
   const sorted = sortEntities(entities);
+  const areaByName = new Map<string, CatalogArea>();
+  for (const entity of sorted) {
+    if (!entity.areaName) continue;
+    const id = entity.areaId ?? `area_${entity.areaName.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`;
+    if (!areaByName.has(id)) areaByName.set(id, { id, name: entity.areaName });
+  }
+
   return {
-    areas: [],
+    areas: [...areaByName.values()].sort((a, b) => a.name.localeCompare(b.name)),
     entities: sorted,
     domains: domainsOf(sorted),
     source: 'prompt',
     builtAt: Date.now(),
     note: sorted.length
-      ? `${sorted.length} entities parsed from the request prompt`
+      ? `${sorted.length} entities${areaByName.size ? `, ${areaByName.size} areas` : ''} parsed from the request prompt`
       : 'nothing recognised in the request prompt',
   };
+}
+
+// Home Assistant's listing usually says where the device is: ", in Kitchen",
+// "in the Living Room", "area: Office". Without areas an area-scoped request
+// ("all the kitchen lights") can never resolve, so keep them.
+const AREA_PATTERN = /(?:\bin\s+(?:the\s+)?|\barea:\s*)([A-Za-z][\w' -]{1,38})/i;
+
+/** The area named on one prompt line, if any. */
+function matchArea(line: string): string | undefined {
+  const match = AREA_PATTERN.exec(line);
+  if (!match?.[1]) return undefined;
+  const name = match[1]
+    .replace(/\s*\(.*$/, '')
+    .replace(/[,;:.]+$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  // "in Kitchen" on a line about a light is an area; a trailing verb phrase is not.
+  if (name.length < 2 || name.length > 40) return undefined;
+  return name;
 }
 
 /** Cached catalog, rebuilt when stale. Never throws: falls back to the prompt. */

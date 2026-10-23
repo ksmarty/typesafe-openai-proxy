@@ -95,6 +95,13 @@ export interface Config {
     /** The inference server hass_local_openai_llm used to point at. Required. */
     baseUrl: string;
     apiKey: string;
+    /**
+     * Model name to send upstream when the request names the proxy's own model
+     * (`typesafe-router`) or names nothing. Without it, a forwarded request asks
+     * the inference server for a model called "typesafe-router", which does not
+     * exist and comes back as a 400.
+     */
+    model: string;
     timeoutMs: number;
   };
 }
@@ -150,7 +157,7 @@ export function defaultConfig(): Config {
     routing: { enabled: true, thresholds: { ...DEFAULT_THRESHOLDS }, traceLimit: 50 },
     speech: { afterTool: 'template', confirmSeconds: 90, templates: structuredClone(DEFAULT_TEMPLATES) },
     catalog: { haUrl: '', haToken: '', cacheMs: 30000, defaultArea: '' },
-    upstream: { baseUrl: '', apiKey: '', timeoutMs: 120000 },
+    upstream: { baseUrl: '', apiKey: '', model: '', timeoutMs: 120000 },
   };
 }
 
@@ -198,6 +205,7 @@ function applyEnv(config: Config): void {
   if (env.PROXY_API_KEY) config.server.apiKey = env.PROXY_API_KEY;
   if (env.UPSTREAM_BASE_URL) config.upstream.baseUrl = env.UPSTREAM_BASE_URL;
   if (env.UPSTREAM_API_KEY) config.upstream.apiKey = env.UPSTREAM_API_KEY;
+  if (env.UPSTREAM_MODEL) config.upstream.model = env.UPSTREAM_MODEL;
   if (env.SYSTEMONE_BASE_URL) config.decision.baseUrl = env.SYSTEMONE_BASE_URL;
   if (env.SYSTEMONE_API_KEY) config.decision.apiKey = env.SYSTEMONE_API_KEY;
   if (env.SYSTEMONE_MODEL) config.decision.model = env.SYSTEMONE_MODEL;

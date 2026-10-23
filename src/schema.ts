@@ -228,6 +228,15 @@ export function settingsGroups(): SettingsGroup[] {
         { key: 'upstream.baseUrl', label: 'Base URL', type: 'text', placeholder: 'http://llama:8081/v1' },
         { key: 'upstream.apiKey', label: 'API key', type: 'password', placeholder: 'optional' },
         {
+          key: 'upstream.model',
+          label: 'Model for forwarded requests',
+          type: 'text',
+          placeholder: 'e.g. gpt-4o-mini',
+          help:
+            'Used when a request names the proxy model (typesafe-router) or names none. ' +
+            'Without it, a forwarded request asks the server for "typesafe-router", which it does not have.',
+        },
+        {
           key: 'upstream.timeoutMs',
           label: 'Timeout',
           type: 'number',

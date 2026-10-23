@@ -103,7 +103,9 @@ No backend is configured out of the box. Two implementations share the same answ
 **System One** — the typed, calibrated model the reference project uses. Serve it locally with
 Ollama ≥ 0.35 (`jev` models) or use the hosted endpoint, then set the base URL and the model name.
 The proxy posts `{model, state, questions}` to `POST {baseUrl}/v1/systemone` and reads proportional
-answers back.
+answers back. Through OpenRouter the base URL is `https://openrouter.ai/api` and the model is
+`typesafe/jev-router` (whichever typed model the endpoint advertises is listed by
+`GET /api/models`, and the Settings page's **Test** button reports it).
 
 **Heuristic** — the offline fallback, for trying the routing without a model. It scores the same
 questions with rules and a softmax, so it needs nothing installed. It is noticeably more
@@ -140,9 +142,11 @@ enough to mean the model chose rather than hedged. Thresholds live in `src/confi
 | `riskyAction` | 0.85 | unlock/open/disarm |
 | `riskyTarget` | 0.75 | a lock, cover, garage, gate, door or window |
 
-Ambiguous targets produce a question listing the runners-up ("Which one did you mean: Kitchen
-Ceiling, Desk Lamp, Living Room Lamp?"). Risky actions produce a confirmation and arm a yes/no for
-90 s; "yes" then emits the held tool call.
+Ambiguous targets never reach the model. When the typed answer says no single device is named and
+the words fit several devices equally well, the reply is a question listing them ("Which one did you
+mean: Bedroom Lamp, Living Room Lamp?"), and when the speaker names a room instead ("the kitchen
+light", two lights in the kitchen) the tool call goes out with `{"area": "Kitchen", "domain": "light"}`.
+Risky actions produce a confirmation and arm a yes/no for 90 s; "yes" then emits the held tool call.
 
 ## Targeting, precisely
 
@@ -159,7 +163,9 @@ Two sources, used automatically:
 - **Home Assistant websocket** (needs `HA_URL` + `HA_TOKEN`): area, device, floor and entity
   registries plus live states. Authoritative, includes floors and device classes.
 - **The system prompt** Home Assistant sends with each request: tolerant parsing of the entity
-  listing. Version-dependent by nature, so it is the fallback, not the preference.
+  listing, including the room each line names ("…: off, in Kitchen", "area: Garage"), because an
+  area-scoped request cannot resolve without them. Version-dependent by nature, so it is the
+  fallback, not the preference.
 
 ## Endpoints
 

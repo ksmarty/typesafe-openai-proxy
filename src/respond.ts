@@ -7,7 +7,7 @@ import type { ServerResponse } from 'node:http';
 
 import { ACTION_VERBS } from './actions.js';
 import { cachedCatalog } from './catalog.js';
-import { loadConfig, type Config } from './config.js';
+import { ROUTER_MODEL, loadConfig, type Config } from './config.js';
 import { issuedCalls, stats } from './state.js';
 import type { Catalog, CatalogEntity, OpenAIChatRequest } from './types.js';
 import { fetchWithTimeout, uid } from './util.js';
@@ -112,6 +112,25 @@ export function respondToolCall(
   response.end();
 }
 
+/**
+ * The body to send on. The client's `model` is normally passed through untouched,
+ * but the proxy's own model name is not a model the inference server has: a
+ * request that used it to opt into the fast path and then fell through to the
+ * backend must be forwarded under the configured upstream model.
+ */
+function bodyForUpstream(rawBody: string, request: OpenAIChatRequest, active: Config): string {
+  const requested = (request.model ?? '').trim();
+  if (requested && requested !== ROUTER_MODEL) return rawBody;
+  const model = (active.upstream.model ?? '').trim();
+  if (!model) return rawBody;
+  try {
+    const parsed = JSON.parse(rawBody) as Record<string, unknown>;
+    return JSON.stringify({ ...parsed, model });
+  } catch {
+    return rawBody;
+  }
+}
+
 /** Hand the request, untouched, to the inference server hass_local_openai_llm used to use. */
 export async function forwardUpstream(
   request: OpenAIChatRequest,
@@ -139,6 +158,7 @@ export async function forwardUpstream(
   }
 
   const url = `${active.upstream.baseUrl.replace(/\/+$/, '')}/chat/completions`;
+  const body = bodyForUpstream(rawBody, request, active);
   try {
     const upstream = await fetchWithTimeout(
       url,
@@ -149,7 +169,7 @@ export async function forwardUpstream(
           accept: request.stream ? 'text/event-stream' : 'application/json',
           ...(active.upstream.apiKey ? { authorization: `Bearer ${active.upstream.apiKey}` } : {}),
         },
-        body: rawBody,
+        body,
       },
       active.upstream.timeoutMs,
     );
@@ -157,7 +177,15 @@ export async function forwardUpstream(
     if (!upstream.ok || !upstream.body) {
       stats.errors += 1;
       const text = await upstream.text().catch(() => '');
-      respondText(options, `The inference server returned ${upstream.status}. ${text.slice(0, 200)}`, response);
+      const hint =
+        (upstream.status === 400 || upstream.status === 404) && /model/i.test(text)
+          ? ' Set the model name for forwarded requests in Settings → Fallback inference server.'
+          : '';
+      respondText(
+        options,
+        `The inference server returned ${upstream.status}. ${text.slice(0, 200)}${hint}`,
+        response,
+      );
       return;
     }
 

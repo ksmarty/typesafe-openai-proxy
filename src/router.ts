@@ -33,7 +33,7 @@ import { buildToolCall, magnitudeStep, relativeTarget } from './toolcall.js';
 import type { ToolInventory } from './toolcall.js';
 import { INTENTS } from './actions.js';
 import { marginOf } from './systemone.js';
-import { round } from './util.js';
+import { round, normalise } from './util.js';
 
 export interface RouteContext {
   utterance: string;
@@ -366,6 +366,25 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
         };
       }
     }
+    if (!targetEntity && answer) {
+      // The words fit more than one device equally well. Ask, rather than guessing or
+      // handing the turn to the model: two lights called "kitchen …" are exactly the
+      // case a speaker expects a question about.
+      const tied = tiedNameCandidates(utterance, built.entityOptions);
+      if (tied.length >= 2) {
+        return {
+          plan: {
+            kind: 'clarify',
+            text: fill(said.clarify, { options: tied.map(entityLabel).join(', ') }),
+            options: tied.map(entityLabel),
+          },
+          gates,
+          reason: 'ambiguous target: several devices fit equally well',
+          category: 'command',
+          target: tied[0]?.id,
+        };
+      }
+    }
     if (!targetEntity) {
       // No single device: fall back to a room-wide request if a room is clear.
       const areaGateOk = gateChoice(gates, Q.targetArea, choiceOf(answers, Q.targetArea), t.area, t.minMargin);
@@ -386,7 +405,8 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
     }
   } else if (scope === 'area' || wantsHere) {
     const room = areaAnswerOf(answers, built);
-    if (room && gateChoice(gates, Q.targetArea, choiceOf(answers, Q.targetArea), t.area, t.minMargin)) {
+    const areaGateOk = gateChoice(gates, Q.targetArea, choiceOf(answers, Q.targetArea), t.area, t.minMargin);
+    if (room && areaGateOk) {
       targetRoom = room;
     } else if (wantsHere) {
       const spoken = config.catalog.defaultArea;
@@ -536,6 +556,37 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
     target: targets[0],
     risky,
   };
+}
+
+/**
+ * The devices whose names the utterance fits at least as well as the best match.
+ * Equality matters: `Kitchen Ceiling` and `Kitchen Overhead` both take one word from
+ * "the kitchen light", so neither may win by accident.
+ */
+function tiedNameCandidates(
+  utterance: string,
+  options: Map<string, CatalogEntity>,
+  limit = 3,
+): CatalogEntity[] {
+  const skip = new Set(['the', 'a', 'an', 'in', 'on', 'off', 'and', 'of', 'to', 'my', 'our', 'all', 'please', 'some']);
+  const words = new Set(
+    normalise(utterance)
+      .split(' ')
+      .filter((word) => word.length > 2 && !skip.has(word)),
+  );
+  if (words.size === 0) return [];
+
+  const scored = [...options.values()].map((entity) => {
+    const nameWords = normalise(entity.name).split(' ').filter((word) => word.length > 2);
+    const shared = nameWords.filter((word) => words.has(word)).length;
+    return { entity, shared };
+  });
+  const best = Math.max(...scored.map((entry) => entry.shared));
+  if (best === 0) return [];
+  return scored
+    .filter((entry) => entry.shared === best)
+    .slice(0, limit)
+    .map((entry) => entry.entity);
 }
 
 function areaAnswerOf(
