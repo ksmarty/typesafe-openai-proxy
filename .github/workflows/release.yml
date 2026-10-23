@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  # Re-release an existing tag without deleting it. Useful when the tag
+  # annotation was corrected, or when a release needs regenerating.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)release, e.g. v0.2.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          # Full history, so the tag object and its annotation are present.
+          fetch-depth: 0
+
+      # The release body comes from the annotated tag message, not from
+      # `generate_release_notes`.
+      #
+      # GitHub's generated notes are assembled from merged pull requests, so a
+      # repository that commits straight to main produces a release containing
+      # nothing but a "Full Changelog" link. The tag annotation is written by
+      # `auto-increment.yml` from the commit log at release time, which is the
+      # better source. `body_path` is used instead of letting the API generate
+      # the notes, because supplying both lets the server-side generation
+      # overwrite the curated text.
+      - name: Build release body from the annotated tag
+        id: notes
+        env:
+          TAG: ${{ github.event.inputs.tag || github.ref_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # A workflow_dispatch run may not have the tag locally yet.
+          git fetch --tags --force
+
+          if ! git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            echo "::error::Tag ${TAG} does not exist."
+            exit 1
+          fi
+
+          git tag -l --format='%(contents)' "$TAG" > /tmp/tag-message.md
+
+          if [ ! -s /tmp/tag-message.md ]; then
+            echo "::warning::Tag ${TAG} is lightweight with no annotation; falling back to the commit log."
+            git log -1 --format='%s%n%n%b' "$TAG" > /tmp/tag-message.md
+          fi
+
+          # The image and its usage belong in every release body: it is the page
+          # people land on when they decide whether to pull the thing.
+          VERSION="${TAG#v}"
+          IMAGE="ghcr.io/${REPOSITORY,,}"
+
+          cat /tmp/tag-message.md > /tmp/release-body.md
+          {
+            echo
+            echo '---'
+            echo
+            echo '## Container image'
+            echo
+            echo '```'
+            echo 'docker run -d --name typesafe-proxy -p 8080:8080 \'
+            echo '  -v /path/to/data:/app/data \'
+            echo '  -e UPSTREAM_BASE_URL=http://host.docker.internal:8081/v1 \'
+            echo "  ${IMAGE}:${VERSION}"
+            echo '```'
+            echo
+            echo "Point \`hass_local_openai_llm\`'s server URL at \`http://<this-host>:8080/v1\`."
+            echo "The dashboard is at \`http://<this-host>:8080/\`."
+            echo
+            echo "Tags published for this release: \`${VERSION}\`, \`${VERSION%.*}\`, \`latest\`."
+          } >> /tmp/release-body.md
+
+          echo "body=/tmp/release-body.md" >> "$GITHUB_OUTPUT"
+          head -40 /tmp/release-body.md
+
+      - name: Create the release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: ${{ github.event.inputs.tag || github.ref_name }}
+          body_path: ${{ steps.notes.outputs.body }}
+          draft: false
+          prerelease: false

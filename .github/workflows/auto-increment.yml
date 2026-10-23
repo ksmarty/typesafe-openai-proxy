@@ -1,0 +1,155 @@
+name: Auto-increment version
+
+# Cut a release on every push to main.
+#
+# ## Why this exists
+#
+# The release is the thing that publishes the versioned container image and the
+# GitHub Release. Cutting it by hand meant that when tagging was forgotten,
+# `latest` kept moving while no new version or image appeared at all.
+#
+# ## Why it dispatches instead of relying on the tag it pushes
+#
+# The bump commit and the tag are pushed with `GITHUB_TOKEN`, and **a push made
+# with `GITHUB_TOKEN` starts no workflow runs** — that is the mechanism that stops
+# a workflow triggering itself. So the tag this workflow pushes triggers neither
+# `docker-publish.yml` nor `release.yml`, and both are dispatched explicitly
+# below. `workflow_dispatch` is the documented exception: a dispatch does start a
+# run even when it comes from `GITHUB_TOKEN`.
+#
+# The alternative is a personal access token in a secret, so that the tag push
+# looks like a human push. That is a long-lived credential to rotate in exchange
+# for saving six lines, so it is not used here.
+#
+# ## What it does not do
+#
+# It does not wait for CI. A release is cut for whatever landed, so a push whose
+# tests fail still gets a version. Gate it on CI with a `workflow_run` trigger
+# (`workflows: ["CI"], types: [completed]`, `conclusion == 'success'`) if that
+# ever matters more than the release always existing.
+
+on:
+  push:
+    branches: [main]
+  # Bump by hand, e.g. to re-cut a release or to release a commit that was
+  # skipped. The version comes from package.json, so this always produces the
+  # next patch.
+  workflow_dispatch:
+
+# The bump job writes the release commit and the tag, and dispatches the two
+# workflows that publish. `actions: write` is what permits the dispatch.
+permissions:
+  contents: write
+  actions: write
+
+# Releases are serialised. Two pushes landing together must bump from each
+# other's result rather than both computing the same next version; the second
+# run then fails on the tag it finds already present instead of silently
+# publishing over the first.
+concurrency:
+  group: auto-increment-main
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    name: Bump, tag and release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # The commit this job pushes must not be bumped again. It starts no run of
+    # its own — see the header — so this guard only matters if the push is ever
+    # made with a token that does trigger workflows.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      !contains(github.event.head_commit.message, '[skip version]')
+    steps:
+      # Full history: the tag message is built from the commits since the
+      # previous release, and a shallow clone has none of them.
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Read the current version
+        id: current
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Compute the next patch version
+        id: next
+        env:
+          CURRENT: ${{ steps.current.outputs.version }}
+        run: |
+          set -euo pipefail
+          IFS=. read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          echo "version=${MAJOR}.${MINOR}.$((PATCH + 1))" >> "$GITHUB_OUTPUT"
+
+      # `npm version` rather than a rewrite of the two files: it updates the
+      # top-level `version` in package.json and both `version` fields in
+      # package-lock.json, and nothing else. Hand-editing the lock is how it
+      # drifts.
+      - name: Write the version into package.json and package-lock.json
+        env:
+          NEXT: ${{ steps.next.outputs.version }}
+        run: npm version "$NEXT" --no-git-tag-version --no-audit --no-fund
+
+      # The release body, which `release.yml` reads back out of the annotated
+      # tag. A generated changelog is thinner than a written one, and it is the
+      # price of releasing on every push.
+      - name: Build the tag message from the commits since the last release
+        id: notes
+        run: |
+          set -euo pipefail
+          PREVIOUS=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+          NOTES="$(mktemp)"
+          {
+            if [ -n "$PREVIOUS" ]; then
+              printf '### Changes since %s\n\n' "$PREVIOUS"
+              RANGE="${PREVIOUS}..HEAD"
+            else
+              printf '### Changes\n\n'
+              RANGE="HEAD"
+            fi
+            git log --no-merges --format='- %s (`%h`)' "$RANGE"
+          } > "$NOTES"
+          echo "file=${NOTES}" >> "$GITHUB_OUTPUT"
+          echo "previous=${PREVIOUS}" >> "$GITHUB_OUTPUT"
+          cat "$NOTES"
+
+      - name: Commit the bump and tag it
+        env:
+          NEXT: ${{ steps.next.outputs.version }}
+          NOTES: ${{ steps.notes.outputs.file }}
+        run: |
+          set -euo pipefail
+
+          if git rev-parse -q --verify "refs/tags/v${NEXT}" >/dev/null; then
+            echo "::error::v${NEXT} already exists — package.json did not advance past the last release."
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "chore: release v${NEXT} [skip version]"
+          # Annotated, because `release.yml` uses the annotation as the release
+          # body and a lightweight tag has none.
+          #
+          # `--cleanup=verbatim` is not optional: git strips lines beginning with
+          # `#` from a message read from a file, which silently ate the
+          # `### Changes since …` heading and left the body as a bare list.
+          git tag -a --cleanup=verbatim "v${NEXT}" -F "$NOTES"
+          git push origin HEAD:main
+          git push origin "v${NEXT}"
+
+      - name: Publish the versioned image and the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEXT: ${{ steps.next.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh workflow run docker-publish.yml --ref main -f "version=${NEXT}"
+          gh workflow run release.yml --ref main -f "tag=v${NEXT}"

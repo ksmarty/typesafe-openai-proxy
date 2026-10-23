@@ -1,0 +1,22 @@
+{
+  "name": "typesafe-openai-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "An OpenAI-compatible proxy that gives hass_local_openai_llm a typed, calibrated fast path: one System One decision call per command instead of an LLM turn.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.6"
+  },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test \"test/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

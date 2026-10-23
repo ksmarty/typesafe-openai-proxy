@@ -1,0 +1,436 @@
+/**
+ * One description of every setting the proxy has, shared by the API and the dashboard.
+ *
+ * The dashboard renders itself from this list and the server clamps values with it, so a
+ * setting cannot exist in one place and be missing from the other. `test/schema.test.ts`
+ * walks the default config and fails if any leaf is not described here.
+ */
+
+import type { DecisionThresholds } from './config.js';
+
+export type FieldType =
+  | 'text'
+  | 'password'
+  | 'number'
+  | 'slider'
+  | 'checkbox'
+  | 'select'
+  | 'templates';
+
+export interface SettingsField {
+  /** Dotted path into the config object, e.g. `routing.thresholds.entity`. */
+  key: string;
+  label: string;
+  help?: string;
+  type: FieldType;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: { value: string; label: string }[];
+  unit?: string;
+  placeholder?: string;
+  /** Shown only when the reader asks for the advanced view. */
+  advanced?: boolean;
+}
+
+export interface SettingsGroup {
+  id: string;
+  title: string;
+  description: string;
+  fields: SettingsField[];
+}
+
+const THRESHOLD_HELP: Record<keyof DecisionThresholds, { label: string; help: string }> = {
+  minMargin: {
+    label: 'Minimum margin',
+    help: 'How far the top answer must beat the runner-up before any gate is trusted.',
+  },
+  actTerse: {
+    label: 'Command, no target named',
+    help: 'A bare command like "lights on" has to be this sure before the proxy takes it over.',
+  },
+  actExplicit: {
+    label: 'Command, target named',
+    help: 'A command that names a device, room or kind of device needs at least this much.',
+  },
+  clarifyFloor: {
+    label: 'Clarify floor',
+    help: 'Below this the proxy does not even ask — it forwards to your model.',
+  },
+  categoryQuery: { label: 'Category: question', help: 'Confidence that the request is a question.' },
+  categoryInformation: {
+    label: 'Category: information',
+    help: 'Confidence that the request wants prose rather than an action.',
+  },
+  categoryCancel: { label: 'Category: cancel', help: 'Confidence that the request cancels the last one.' },
+  categoryUnclear: { label: 'Category: unclear', help: 'Confidence that the request is not readable.' },
+  queryKind: { label: 'Question kind', help: 'Confidence in which kind of question is being asked.' },
+  domain: { label: 'Kind of device', help: 'Confidence in the domain (light, cover, lock…).' },
+  entity: { label: 'Single device', help: 'Confidence that one specific entity is meant.' },
+  area: { label: 'Room', help: 'Confidence in the room.' },
+  scope: { label: 'Target width', help: 'Confidence in how wide the request reaches (one, a room, the house).' },
+  scopeWholeHouse: { label: 'Target width: whole house', help: 'A stricter bar for "turn everything off".' },
+  actionProbability: { label: 'Action', help: 'Confidence in what should happen to the target.' },
+  noulRisky: { label: 'Risky (model said so)', help: 'How strongly the model must call a request risky.' },
+  noulCompound: { label: 'Compound (model said so)', help: 'How strongly the model must call a request compound.' },
+  noulHereRelative: { label: 'Here-relative (model said so)', help: 'How strongly "here" must be meant.' },
+  riskyAction: { label: 'Risky action', help: 'Confirmation threshold for unlock, open and disarm.' },
+  riskyTarget: { label: 'Risky target', help: 'Confirmation threshold for locks, covers, garages, gates, doors and windows.' },
+};
+
+function thresholdFields(advanced: boolean): SettingsField[] {
+  return (Object.keys(THRESHOLD_HELP) as (keyof DecisionThresholds)[]).map((key) => ({
+    key: `routing.thresholds.${key}`,
+    label: THRESHOLD_HELP[key].label,
+    help: THRESHOLD_HELP[key].help,
+    type: 'slider' as const,
+    min: 0,
+    max: 1,
+    step: 0.01,
+    advanced,
+  }));
+}
+
+export function settingsGroups(): SettingsGroup[] {
+  return [
+    {
+      id: 'decision',
+      title: 'Decision model',
+      description:
+        'The typed, calibrated model that decides each request. Nothing is decided until one is configured — with the backend off, every request is forwarded and installing the proxy changes no behaviour.',
+      fields: [
+        {
+          key: 'decision.backend',
+          label: 'Backend',
+          type: 'select',
+          options: [
+            { value: 'none', label: 'Off — forward everything' },
+            { value: 'systemone', label: 'System One (typed decision model)' },
+            { value: 'heuristic', label: 'Heuristic (built-in matcher, no model)' },
+          ],
+          help: 'Switching to System One with no base URL set leaves the proxy forwarding until one is filled in.',
+        },
+        {
+          key: 'decision.baseUrl',
+          label: 'Base URL',
+          type: 'text',
+          placeholder: 'http://localhost:11434',
+          help: 'A local Ollama (≥ 0.35, jev models) or the hosted endpoint. Called at {baseUrl}/v1/systemone.',
+        },
+        {
+          key: 'decision.model',
+          label: 'Model',
+          type: 'text',
+          placeholder: 'the model name your server serves',
+        },
+        { key: 'decision.apiKey', label: 'API key', type: 'password', placeholder: 'optional' },
+        {
+          key: 'decision.autoStart',
+          label: 'Start deciding on its own',
+          type: 'checkbox',
+          help: 'Off by default. Until you switch it on, the fast path only runs when a request opts in with the model name "typesafe-router".',
+        },
+        {
+          key: 'decision.timeoutMs',
+          label: 'Timeout',
+          type: 'number',
+          min: 500,
+          max: 600000,
+          step: 100,
+          unit: 'ms',
+          help: 'How long to wait for a decision before forwarding instead.',
+        },
+        {
+          key: 'decision.historyTurns',
+          label: 'Conversation turns in context',
+          type: 'number',
+          min: 0,
+          max: 10,
+          step: 1,
+          help: 'Turns of history sent with the decision request. 0 is the fastest.',
+        },
+        {
+          key: 'decision.alwaysConfirmRisky',
+          label: 'Ask before risky actions',
+          type: 'checkbox',
+          help: 'Unlocking, opening a garage or gate, and disarming are always confirmed.',
+        },
+        {
+          key: 'decision.maxOptions',
+          label: 'Options per question',
+          type: 'number',
+          min: 2,
+          max: 4096,
+          step: 1,
+          advanced: true,
+          help: 'Ollama caps choice questions at 26; raise this for other backends.',
+        },
+        {
+          key: 'decision.maxEntities',
+          label: 'Entities in the state',
+          type: 'number',
+          min: 1,
+          max: 5000,
+          step: 10,
+          advanced: true,
+        },
+        {
+          key: 'decision.inlineEntityDescriptions',
+          label: 'Inline entity descriptions',
+          type: 'checkbox',
+          advanced: true,
+          help: 'Spend more tokens per request to describe each entity to the decision model.',
+        },
+      ],
+    },
+    {
+      id: 'catalog',
+      title: 'Home Assistant catalog',
+      description:
+        'Where the entity list comes from. With a URL and token the proxy reads the registries and live states over the websocket; without one it parses the entity list out of the prompt Home Assistant sends.',
+      fields: [
+        {
+          key: 'catalog.haUrl',
+          label: 'Home Assistant URL',
+          type: 'text',
+          placeholder: 'http://homeassistant.local:8123',
+        },
+        {
+          key: 'catalog.haToken',
+          label: 'Long-lived token',
+          type: 'password',
+          placeholder: 'only used to read the catalog',
+        },
+        {
+          key: 'catalog.defaultArea',
+          label: 'Spoken-from area',
+          type: 'text',
+          placeholder: 'Kitchen',
+          help: 'What "turn on the lights here" means when no area is named.',
+        },
+        {
+          key: 'catalog.cacheMs',
+          label: 'Cache lifetime',
+          type: 'number',
+          min: 0,
+          max: 3600000,
+          step: 1000,
+          unit: 'ms',
+        },
+      ],
+    },
+    {
+      id: 'upstream',
+      title: 'Fallback inference server',
+      description:
+        'Anything the proxy will not decide is forwarded here untouched — this is the server hass_local_openai_llm used before the proxy existed.',
+      fields: [
+        { key: 'upstream.baseUrl', label: 'Base URL', type: 'text', placeholder: 'http://llama:8081/v1' },
+        { key: 'upstream.apiKey', label: 'API key', type: 'password', placeholder: 'optional' },
+        {
+          key: 'upstream.timeoutMs',
+          label: 'Timeout',
+          type: 'number',
+          min: 1000,
+          max: 600000,
+          step: 1000,
+          unit: 'ms',
+        },
+      ],
+    },
+    {
+      id: 'speech',
+      title: 'Speech',
+      description: 'What Home Assistant says after a tool call has run.',
+      fields: [
+        {
+          key: 'speech.afterTool',
+          label: 'After a tool runs',
+          type: 'select',
+          options: [
+            { value: 'template', label: 'Speak it locally (fastest)' },
+            { value: 'upstream', label: 'Let the model phrase it' },
+            { value: 'empty', label: 'Say nothing' },
+          ],
+          help: 'Home Assistant\'s own intent response is preferred when it carries speech; these templates are the fallback.',
+        },
+        {
+          key: 'speech.confirmSeconds',
+          label: 'Confirmation stays armed for',
+          type: 'number',
+          min: 5,
+          max: 3600,
+          step: 5,
+          unit: 's',
+        },
+        {
+          key: 'speech.templates',
+          label: 'Templates',
+          type: 'templates',
+          help: 'Per language: {entity} and {action} are substituted.',
+        },
+      ],
+    },
+    {
+      id: 'routing',
+      title: 'Routing gates',
+      description:
+        'A gate passes only when the answer clears its own threshold and the top answer beats the runner-up by the minimum margin. Everything that fails a gate is forwarded, so raising a threshold only makes the proxy quieter.',
+      fields: [
+        { key: 'routing.enabled', label: 'Fast path enabled', type: 'checkbox' },
+        {
+          key: 'routing.traceLimit',
+          label: 'Decisions kept in the trace',
+          type: 'number',
+          min: 10,
+          max: 1000,
+          step: 10,
+        },
+        ...thresholdFields(false),
+      ],
+    },
+    {
+      id: 'server',
+      title: 'Server',
+      description: 'The endpoint hass_local_openai_llm points at.',
+      fields: [
+        { key: 'server.host', label: 'Bind address', type: 'text', placeholder: '0.0.0.0' },
+        { key: 'server.port', label: 'Port', type: 'number', min: 1, max: 65535, step: 1 },
+        {
+          key: 'server.apiKey',
+          label: 'Bearer token',
+          type: 'password',
+          placeholder: 'empty accepts any caller',
+          help: 'Set this and the same value must be the API key in hass_local_openai_llm.',
+        },
+      ],
+    },
+  ];
+}
+
+export function allFields(): SettingsField[] {
+  return settingsGroups().flatMap((group) => group.fields);
+}
+
+export function fieldFor(key: string): SettingsField | undefined {
+  return allFields().find((field) => field.key === key);
+}
+
+export function getPath(source: unknown, key: string): unknown {
+  return key.split('.').reduce<unknown>((value, part) => {
+    if (value === null || typeof value !== 'object') return undefined;
+    return (value as Record<string, unknown>)[part];
+  }, source);
+}
+
+export function setPath(target: Record<string, unknown>, key: string, value: unknown): void {
+  const parts = key.split('.');
+  const last = parts.pop();
+  if (!last) return;
+  let cursor = target;
+  for (const part of parts) {
+    const next = cursor[part];
+    if (next === null || typeof next !== 'object') cursor[part] = {};
+    cursor = cursor[part] as Record<string, unknown>;
+  }
+  cursor[last] = value;
+}
+
+function decimalsOf(step: number | undefined): number {
+  if (!step || Number.isInteger(step)) return 0;
+  const text = String(step);
+  return text.includes('.') ? text.split('.')[1]!.length : 0;
+}
+
+function coerce(field: SettingsField, value: unknown): unknown {
+  if (field.type === 'checkbox') return Boolean(value);
+  if (field.type === 'select') {
+    const allowed = field.options?.map((option) => option.value) ?? [];
+    return allowed.includes(String(value)) ? String(value) : undefined;
+  }
+  if (field.type === 'number' || field.type === 'slider') {
+    const num = typeof value === 'number' ? value : Number(value);
+    if (!Number.isFinite(num)) return undefined;
+    const decimals = decimalsOf(field.step);
+    const rounded = decimals === 0 ? Math.round(num) : Number(num.toFixed(decimals));
+    const min = field.min ?? Number.NEGATIVE_INFINITY;
+    const max = field.max ?? Number.POSITIVE_INFINITY;
+    return Math.min(max, Math.max(min, rounded));
+  }
+  if (field.type === 'templates') {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+    const out: Record<string, { done: string; clarify: string; confirm: string }> = {};
+    for (const [language, template] of Object.entries(value as Record<string, unknown>)) {
+      if (!template || typeof template !== 'object') continue;
+      const candidate = template as Record<string, unknown>;
+      out[language] = {
+        done: typeof candidate.done === 'string' ? candidate.done : '',
+        clarify: typeof candidate.clarify === 'string' ? candidate.clarify : '',
+        confirm: typeof candidate.confirm === 'string' ? candidate.confirm : '',
+      };
+    }
+    return out;
+  }
+  if (value === undefined || value === null) return undefined;
+  return String(value);
+}
+
+/**
+ * Drop incoming values that are not valid for their field, so the stored value is kept
+ * instead of an unknown string reaching the pipeline. Returns what was ignored.
+ */
+export function pruneInvalid(patch: Record<string, unknown>): { key: string; value: unknown }[] {
+  const dropped: { key: string; value: unknown }[] = [];
+  for (const field of allFields()) {
+    const value = getPath(patch, field.key);
+    if (value === undefined) continue;
+    if (coerce(field, value) !== undefined) continue;
+    dropPath(patch, field.key);
+    dropped.push({ key: field.key, value });
+  }
+  return dropped;
+}
+
+function dropPath(target: Record<string, unknown>, key: string): void {
+  const parts = key.split('.');
+  const last = parts.pop();
+  if (!last) return;
+  let cursor: Record<string, unknown> = target;
+  for (const part of parts) {
+    const next = cursor[part];
+    if (next === null || typeof next !== 'object') return;
+    cursor = next as Record<string, unknown>;
+  }
+  delete cursor[last];
+}
+
+/**
+ * Force every described setting into range and type. Returns the list of keys that were
+ * changed, so the API can tell the reader what it did rather than silently editing them.
+ */
+export function clampSettings(config: Record<string, unknown>): { key: string; value: unknown }[] {
+  const adjusted: { key: string; value: unknown }[] = [];
+  for (const field of allFields()) {
+    const current = getPath(config, field.key);
+    if (current === undefined) continue;
+    const next = coerce(field, current);
+    if (next === undefined) {
+      adjusted.push({ key: field.key, value: current });
+      continue;
+    }
+    if (JSON.stringify(next) !== JSON.stringify(current)) {
+      setPath(config, field.key, next);
+      adjusted.push({ key: field.key, value: next });
+    }
+  }
+  return adjusted;
+}
+
+/** Mask the secrets in a config object, in place. */
+export function maskSecrets(config: Record<string, unknown>, mask = '••••••'): void {
+  for (const field of allFields()) {
+    if (field.type !== 'password') continue;
+    const current = getPath(config, field.key);
+    if (typeof current === 'string' && current) setPath(config, field.key, mask);
+  }
+}

@@ -1,0 +1,476 @@
+/**
+ * One process: the OpenAI-compatible endpoint hass_local_openai_llm talks to, and the
+ * dashboard you use to watch it think.
+ */
+
+import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { extname, join, normalize, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { catalogFromHomeAssistant, cachedCatalog, clearCatalogCache, emptyCatalog, getCatalog } from './catalog.js';
+import { configPath, defaultConfig, loadConfig, publicConfig, resetConfig, ROUTER_MODEL, saveConfig } from './config.js';
+import { fastPathStatus, handleChatCompletions, runPipeline } from './pipeline.js';
+import { jsonResponse } from './respond.js';
+import { settingsGroups } from './schema.js';
+import { averageDecisionMs, pendingConfirmations, routableShare, startedAt, stats, trace } from './state.js';
+import { breakerState, listModels, resetBreaker } from './systemone.js';
+import { fetchWithTimeout } from './util.js';
+import type { Config } from './config.js';
+import type { Catalog, OpenAIChatRequest, TraceEntry } from './types.js';
+
+const here = fileURLToPath(new URL('.', import.meta.url));
+const publicDir = resolve(here, '..', 'public');
+
+const MIME: Record<string, string> = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json; charset=utf-8',
+  '.ico': 'image/x-icon',
+};
+
+async function body(request: IncomingMessage, limit = 8 * 1024 * 1024): Promise<string> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request) {
+    const buffer = chunk as Buffer;
+    size += buffer.length;
+    if (size > limit) throw new Error('request body too large');
+    chunks.push(buffer);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/** API bodies are small; malformed JSON is a client error, not a 500. */
+async function jsonBody<T>(request: IncomingMessage): Promise<T> {
+  const raw = await body(request, 1024 * 1024);
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    throw new HttpError(400, 'invalid JSON body');
+  }
+}
+
+class HttpError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function authorised(request: IncomingMessage, key: string): boolean {
+  if (!key) return true;
+  const header = request.headers.authorization ?? '';
+  const token = header.replace(/^Bearer\s+/i, '').trim();
+  return token === key;
+}
+
+async function serveStatic(response: ServerResponse, pathname: string): Promise<boolean> {
+  const relative = pathname === '/' ? 'index.html' : pathname.replace(/^\/+/, '');
+  const target = normalize(join(publicDir, relative));
+  if (target !== publicDir && !target.startsWith(publicDir + sep)) return false;
+  try {
+    const content = await readFile(target);
+    response.writeHead(200, {
+      'content-type': MIME[extname(target)] ?? 'application/octet-stream',
+      'cache-control': 'no-store',
+    });
+    response.end(content);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Env values are applied on top of the file on every load, so a saved setting can look like
+ * it did nothing. Name them (never their values) and let the dashboard say so.
+ */
+function activeEnvOverrides(): string[] {
+  const keys = [
+    'PORT',
+    'HOST',
+    'PROXY_API_KEY',
+    'UPSTREAM_BASE_URL',
+    'UPSTREAM_API_KEY',
+    'SYSTEMONE_BASE_URL',
+    'SYSTEMONE_API_KEY',
+    'SYSTEMONE_MODEL',
+    'DECISION_BACKEND',
+    'AUTO_START',
+    'HA_URL',
+    'HA_TOKEN',
+  ];
+  return keys.filter((key) => Boolean(process.env[key]));
+}
+
+function statusPayload(): Record<string, unknown> {
+  const active = loadConfig();
+  const catalog = cachedCatalog();
+  return {
+    ok: true,
+    product: 'typesafe-routing-proxy',
+    uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
+    config: publicConfig(),
+    configPath: configPath(),
+    decision: {
+      backend: active.decision.backend,
+      model: active.decision.model,
+      baseUrl: active.decision.baseUrl,
+      autoStart: active.decision.autoStart,
+      fastPath: fastPathStatus(active),
+      breaker: breakerState(),
+      averageMs: averageDecisionMs(),
+    },
+    catalog: {
+      source: catalog?.source ?? 'none',
+      entities: catalog?.entities.length ?? 0,
+      areas: catalog?.areas.length ?? 0,
+      builtAt: catalog?.builtAt ?? 0,
+      note: catalog?.note,
+    },
+    routerModel: ROUTER_MODEL,
+    stats: { ...stats, routableShare: Math.round(routableShare() * 1000) / 1000 },
+    pending: pendingConfirmations.size,
+    traceDepth: trace.length,
+  };
+}
+
+async function refreshCatalog(force: boolean): Promise<Catalog> {
+  const active = loadConfig();
+  if (force) clearCatalogCache();
+  if (!active.catalog.haUrl || !active.catalog.haToken) return cachedCatalog() ?? emptyCatalog();
+  if (force) return catalogFromHomeAssistant(active);
+  return getCatalog(active);
+}
+
+async function api(request: IncomingMessage, response: ServerResponse, url: URL, method: string): Promise<boolean> {
+  const path = url.pathname.replace(/^\/api/, '');
+
+  if (path === '/status' && method === 'GET') {
+    jsonResponse(response, 200, statusPayload());
+    return true;
+  }
+
+  if (path === '/trace' && method === 'GET') {
+    const limit = Math.max(1, Math.min(200, Number(url.searchParams.get('limit') ?? 50) || 50));
+    const items = trace.slice(0, limit);
+    jsonResponse(response, 200, { items, total: trace.length });
+    return true;
+  }
+
+  if (path === '/trace' && method === 'DELETE') {
+    trace.length = 0;
+    jsonResponse(response, 200, { ok: true });
+    return true;
+  }
+
+  if (path === '/catalog' && method === 'GET') {
+    const catalog = cachedCatalog();
+    jsonResponse(response, 200, { catalog });
+    return true;
+  }
+
+  if (path === '/catalog/refresh' && method === 'POST') {
+    const catalog = await refreshCatalog(true);
+    jsonResponse(response, 200, { ok: true, catalog });
+    return true;
+  }
+
+  if (path === '/config' && method === 'GET') {
+    jsonResponse(response, 200, { config: publicConfig(), path: configPath() });
+    return true;
+  }
+
+  if (path === '/config' && method === 'POST') {
+    const parsed = await jsonBody(request) as Record<string, unknown>;
+    const before = loadConfig();
+    const { config, adjusted } = saveConfig(parsed);
+    const restartRequired = before.server.port !== config.server.port || before.server.host !== config.server.host;
+    jsonResponse(response, 200, { ok: true, config: publicConfig(), adjusted, restartRequired });
+    return true;
+  }
+
+  if (path === '/config/reset' && method === 'POST') {
+    resetConfig();
+    jsonResponse(response, 200, { ok: true, config: publicConfig() });
+    return true;
+  }
+
+  // The dashboard renders itself from this, so a setting cannot exist on one side only.
+  if (path === '/schema' && method === 'GET') {
+    jsonResponse(response, 200, {
+      groups: settingsGroups(),
+      defaults: defaultConfig(),
+      envOverrides: activeEnvOverrides(),
+    });
+    return true;
+  }
+
+  if (path === '/test/ha' && method === 'POST') {
+    const parsed = await jsonBody(request) as { url?: string; token?: string };
+    const active = loadConfig();
+    const url = (parsed.url || active.catalog.haUrl).trim().replace(/\/+$/, '');
+    const token = parsed.token && parsed.token !== '••••••' ? parsed.token : active.catalog.haToken;
+    if (!url || !token) {
+      jsonResponse(response, 400, { ok: false, error: 'A URL and a long-lived token are both required.' });
+      return true;
+    }
+    try {
+      const catalog = await catalogFromHomeAssistant({
+        ...active,
+        catalog: { ...active.catalog, haUrl: url, haToken: token },
+      });
+      jsonResponse(response, 200, {
+        ok: true,
+        entities: catalog.entities.length,
+        areas: catalog.areas.length,
+        domains: catalog.domains.length,
+        sample: catalog.entities.slice(0, 5).map((entity) => `${entity.name} (${entity.id})`),
+        note: catalog.note,
+      });
+    } catch (error) {
+      jsonResponse(response, 200, { ok: false, error: error instanceof Error ? error.message : String(error) });
+    }
+    return true;
+  }
+
+  if (path === '/test/decision' && method === 'POST') {
+    const parsed = await jsonBody(request) as { url?: string; key?: string; model?: string };
+    const active = loadConfig();
+    const baseUrl = (parsed.url ?? active.decision.baseUrl).trim().replace(/\/+$/, '');
+    if (!baseUrl) {
+      jsonResponse(response, 200, {
+        ok: false,
+        error: 'No decision base URL set — the built-in heuristic is being used instead.',
+      });
+      return true;
+    }
+    try {
+      const models = await listModels({
+        ...active,
+        decision: {
+          ...active.decision,
+          baseUrl,
+          apiKey: parsed.key && parsed.key !== '••••••' ? parsed.key : active.decision.apiKey,
+        },
+      });
+      const typed = models.filter((model) => model.jev);
+      jsonResponse(response, 200, {
+        ok: true,
+        models: models.map((model) => model.id),
+        typed: typed.map((model) => model.id),
+        note: typed.length
+          ? `Typed decision model available: ${typed.map((model) => model.id).join(', ')}.`
+          : 'Reachable, but no model advertises the "jev" capability — decisions will fail and requests will be forwarded.',
+      });
+    } catch (error) {
+      jsonResponse(response, 200, { ok: false, error: error instanceof Error ? error.message : String(error) });
+    }
+    return true;
+  }
+
+  if (path === '/test/upstream' && method === 'POST') {
+    const parsed = await jsonBody(request) as { url?: string; key?: string };
+    const active = loadConfig();
+    const base = (parsed.url || active.upstream.baseUrl).trim().replace(/\/+$/, '');
+    const key = parsed.key && parsed.key !== '••••••' ? parsed.key : active.upstream.apiKey;
+    if (!base) {
+      jsonResponse(response, 400, { ok: false, error: 'Set the fallback server URL first.' });
+      return true;
+    }
+    try {
+      const started = Date.now();
+      const upstream = await fetchWithTimeout(
+        `${base}/models`,
+        { headers: key ? { authorization: `Bearer ${key}` } : {} },
+        Math.min(active.upstream.timeoutMs, 15000),
+      );
+      const text = await upstream.text();
+      let models: string[] = [];
+      try {
+        const parsedBody = JSON.parse(text) as { data?: { id?: string }[] };
+        models = (parsedBody.data ?? []).map((entry) => String(entry.id ?? '')).filter(Boolean).slice(0, 25);
+      } catch {
+        // Not a model list; the status code still tells the reader it is reachable.
+      }
+      jsonResponse(response, 200, {
+        ok: upstream.ok,
+        status: upstream.status,
+        ms: Date.now() - started,
+        models,
+        error: upstream.ok ? undefined : `HTTP ${upstream.status}: ${text.slice(0, 200)}`,
+      });
+    } catch (error) {
+      jsonResponse(response, 200, { ok: false, error: error instanceof Error ? error.message : String(error) });
+    }
+    return true;
+  }
+
+  if (path === '/breaker/reset' && method === 'POST') {
+    resetBreaker();
+    jsonResponse(response, 200, { ok: true, breaker: breakerState() });
+    return true;
+  }
+
+  if (path === '/probe' && method === 'POST') {
+    const parsed = await jsonBody(request) as { text?: string };
+    const text = (parsed.text ?? '').trim();
+    if (!text) {
+      jsonResponse(response, 400, { error: 'text is required' });
+      return true;
+    }
+    // The probe always decides, whatever the live configuration says, so the dashboard
+    // can be used to try the routing out before switching the fast path on.
+    const active = loadConfig();
+    const probeConfig: Config = {
+      ...active,
+      decision: { ...active.decision, backend: active.decision.backend === 'none' ? 'heuristic' : active.decision.backend },
+    };
+    const request0: OpenAIChatRequest = { model: ROUTER_MODEL, messages: [{ role: 'user', content: text }] };
+    const result = await runPipeline(request0, text, '', probeConfig);
+    jsonResponse(response, 200, {
+      route: result.route,
+      trace: result.entry,
+      probeBackend: probeConfig.decision.backend,
+      configuredBackend: active.decision.backend,
+      fastPath: fastPathStatus(active),
+    });
+    return true;
+  }
+
+  if (path === '/models' && method === 'GET') {
+    const active = loadConfig();
+    const models = active.decision.baseUrl ? await listModels(active) : [];
+    jsonResponse(response, 200, { models, backend: active.decision.backend });
+    return true;
+  }
+
+  return false;
+}
+
+export function createApp() {
+  return createServer((request, response) => {
+    void (async () => {
+      const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
+      const method = request.method ?? 'GET';
+      // Some supervisors mount the app under a path prefix; treat that as transparent.
+      url.pathname = url.pathname.replace(/^\/preview\/[^/]+/, '') || '/';
+
+      try {
+        if (url.pathname === '/health') {
+          const active = loadConfig();
+          jsonResponse(response, 200, {
+            ok: true,
+            routing: active.routing.enabled,
+            backend: active.decision.backend,
+            deciding: fastPathStatus(active).ready,
+            catalog: cachedCatalog()?.entities.length ?? 0,
+          });
+          return;
+        }
+
+        if (url.pathname.startsWith('/v1/')) {
+          if (!authorised(request, loadConfig().server.apiKey)) {
+            jsonResponse(response, 401, { error: { message: 'invalid api key', type: 'invalid_request_error' } });
+            return;
+          }
+
+          if (url.pathname === '/v1/models' && method === 'GET') {
+            const active = loadConfig();
+            jsonResponse(response, 200, {
+              object: 'list',
+              data: [
+                { id: 'typesafe-router', object: 'model', created: 0, owned_by: 'local' },
+                ...(active.decision.model ? [{ id: active.decision.model, object: 'model', created: 0, owned_by: 'typesafe' }] : []),
+              ],
+            });
+            return;
+          }
+
+          if (url.pathname === '/v1/chat/completions' && method === 'POST') {
+            const raw = await body(request);
+            let parsed: OpenAIChatRequest;
+            try {
+              parsed = JSON.parse(raw) as OpenAIChatRequest;
+            } catch {
+              jsonResponse(response, 400, { error: { message: 'invalid JSON body', type: 'invalid_request_error' } });
+              return;
+            }
+            await handleChatCompletions(parsed, raw, response);
+            return;
+          }
+
+          jsonResponse(response, 404, { error: { message: `unknown endpoint ${url.pathname}`, type: 'invalid_request_error' } });
+          return;
+        }
+
+        if (url.pathname.startsWith('/api/')) {
+          const handled = await api(request, response, url, method);
+          if (!handled) jsonResponse(response, 404, { error: `unknown endpoint ${url.pathname}` });
+          return;
+        }
+
+        if (await serveStatic(response, url.pathname)) return;
+        response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+        response.end('not found');
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const status = error instanceof HttpError ? error.status : 500;
+        if (!response.headersSent) jsonResponse(response, status, { error: message });
+        else response.end();
+      }
+    })();
+  });
+}
+
+export interface ServeOptions {
+  port: number;
+  host: string;
+}
+
+/** `--port 4100 --host 127.0.0.1`, for a supervisor that picks the port for us. */
+function flag(name: string): string | undefined {
+  const index = process.argv.findIndex((argument) => argument === `--${name}`);
+  if (index !== -1) {
+    const next = process.argv[index + 1];
+    if (next && !next.startsWith('--')) return next;
+  }
+  const inline = process.argv.find((argument) => argument.startsWith(`--${name}=`));
+  return inline ? inline.slice(name.length + 3) : undefined;
+}
+
+export function startFromArgs(): void {
+  const port = Number(flag('port'));
+  const host = flag('host');
+  startServer({
+    ...(Number.isFinite(port) && port > 0 ? { port } : {}),
+    ...(host ? { host } : {}),
+  });
+}
+
+export function startServer(options?: Partial<ServeOptions>) {
+  const active = loadConfig();
+  const port = options?.port ?? active.server.port;
+  const host = options?.host ?? active.server.host;
+  const server = createApp();
+  server.listen(port, host, () => {
+    process.stdout.write(`typesafe routing proxy listening on http://${host}:${port}\n`);
+    process.stdout.write(`  hass_local_openai_llm -> http://<this-host>:${port}/v1\n`);
+    process.stdout.write(`  dashboard            -> http://<this-host>:${port}/\n`);
+    if (!active.decision.baseUrl && active.decision.backend === 'systemone') {
+      process.stdout.write('  note: decision backend is systemone but no base URL is set — set one in the dashboard\n');
+    }
+  });
+  return server;
+}
+
+export type { TraceEntry };
+
+// Allow `tsx src/server.ts --port 4100` as well as `node dist/index.js`.
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  startFromArgs();
+}

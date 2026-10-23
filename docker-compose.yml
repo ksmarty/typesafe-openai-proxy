@@ -1,0 +1,28 @@
+services:
+  typesafe-proxy:
+    build: .
+    container_name: typesafe-proxy
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # Point hass_local_openai_llm's "server URL" at http://<this-host>:8080/v1
+      PORT: "8080"
+      PROXY_API_KEY: ""
+      # The model server your Home Assistant integration used before this proxy.
+      UPSTREAM_BASE_URL: "http://host.docker.internal:8081/v1"
+      # Nothing is decided out of the box: flip DECISION_BACKEND to "heuristic"
+      # (offline, no model) or "systemone" (typed decision model) when ready.
+      DECISION_BACKEND: "none"
+      # Typed decision model: local Ollama >= 0.35 serving jev, or https://api.typesafe.ai
+      SYSTEMONE_BASE_URL: ""
+      SYSTEMONE_API_KEY: ""
+      # No assumed default: name the model your decision server serves.
+      SYSTEMONE_MODEL: ""
+      # Optional: read the catalog over the websocket instead of parsing the prompt.
+      HA_URL: "http://homeassistant.local:8123"
+      HA_TOKEN: ""
+    volumes:
+      - ./data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
