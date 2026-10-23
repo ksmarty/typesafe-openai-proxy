@@ -291,7 +291,10 @@ button.ghost { background: transparent; color: var(--muted); }
  */
 .settings-wrap {
   display: grid;
-  grid-template-columns: minmax(180px, 230px) minmax(0, 1fr);
+  /* minmax(0, …): the track can never be widened by its content. With a
+     content-driven minimum the sidebar grew past its column and its labels and
+     the config path ran underneath the pane, cut off mid-word. */
+  grid-template-columns: minmax(0, 236px) minmax(0, 1fr);
   gap: 20px 28px;
   padding: 22px 28px 60px;
   align-items: start;
@@ -310,6 +313,16 @@ button.ghost { background: transparent; color: var(--muted); }
   display: grid;
   gap: 14px;
   min-width: 0;
+  max-width: 100%;
+  /* The saved-config path has no spaces in it; without this it lays out on one
+     line, overflows the column and is clipped by the pane. */
+  overflow-wrap: anywhere;
+}
+
+.settings-side code,
+.settings-side .hint {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .tabs { display: grid; gap: 6px; min-width: 0; }
@@ -320,7 +333,10 @@ button.ghost { background: transparent; color: var(--muted); }
   padding: 9px 13px;
   /* A long label wraps inside the pill instead of spilling onto the pane. */
   overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
   min-width: 0;
+  max-width: 100%;
 }
 
 .advanced-toggle { padding: 2px 2px; }
@@ -416,7 +432,7 @@ input[type="range"]::-moz-range-thumb {
    layout is a phone layout, so it waits until 720px — a 800-900px browser
    window (or a preview pane) was otherwise getting the phone layout. */
 @media (max-width: 1120px) {
-  .settings-wrap { grid-template-columns: 190px minmax(0, 1fr); gap: 16px; padding: 20px 20px 56px; }
+  .settings-wrap { grid-template-columns: minmax(0, 190px) minmax(0, 1fr); gap: 16px; padding: 20px 20px 56px; }
 }
 
 /* Stacked layout: the group tabs become a scrolling chip strip above the form. */
