@@ -2,16 +2,19 @@ FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci --no-audit --no-fund
-COPY tsconfig.json ./
+COPY tsconfig.json tsconfig.web.json ./
 COPY src ./src
-RUN npx tsc
+COPY web ./web
+COPY scripts ./scripts
+# The dashboard is bundled to public/app.js; the server itself compiles to dist/.
+RUN npx tsc && node scripts/build-ui.mjs
 
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
-COPY --from=build /app/node_modules ./node_modules
+# No node_modules at runtime: the server uses only Node built-ins and serves static assets.
 COPY --from=build /app/dist ./dist
-COPY public ./public
+COPY --from=build /app/public ./public
 COPY package.json ./
 RUN mkdir -p /app/data
 EXPOSE 8080

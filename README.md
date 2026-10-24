@@ -187,7 +187,7 @@ Two sources, used automatically:
 
 ## Dashboard
 
-`http://<host>:8080/` has two views.
+`http://<host>:8080/` is a Material UI app (React 19, built with esbuild into `public/app.js`) with two views.
 
 **Monitor** — status pills, counters, the circuit breaker, a *try a request* box that runs the
 decision path without executing anything, and the live trace: each turn shows its route, the tool
@@ -236,16 +236,24 @@ The backend-related variables are worth naming, because there is no default deci
 ## Development
 
 ```bash
-npm run typecheck
-npm test          # node:test through tsx; drives the real pipeline with the heuristic backend
+npm ci
+npm run typecheck   # server (tsc) and dashboard (tsc -p tsconfig.web.json)
+npm test            # node:test through tsx; drives the real pipeline with the heuristic backend
+npm run dev         # bundle the UI and serve http://localhost:8080
+npm run dev:ui      # the same, rebuilding the UI on every change
 npm run build && npm start
 ```
+
+React and Material UI are dev dependencies on purpose: the browser loads the pre-built
+`public/app.js`, so the runtime image needs no `node_modules` at all.
 
 Layout: `src/questions.ts` builds the typed question set, `src/systemone.ts` and
 `src/heuristic.ts` answer it, `src/router.ts` turns answers into a plan under the gates,
 `src/toolcall.ts` maps the plan onto the tool schemas Home Assistant actually offered,
 `src/schema.ts` describes every setting for both the API and the dashboard, `src/pipeline.ts` ties
-a chat request to a response, `src/server.ts` is the HTTP surface, `public/` is the dashboard.
+a chat request to a response, `src/server.ts` is the HTTP surface. The dashboard lives in `web/`
+(React + Material UI) and is bundled by `scripts/build-ui.mjs` into `public/app.js`; `public/index.html`
+is the shell.
 
 `test/schema.test.ts` walks the default config and fails if a setting is not described in
 `src/schema.ts`, so a new knob cannot be added without becoming editable.

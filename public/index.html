@@ -3,123 +3,26 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Typesafe Routing Proxy</title>
-    <link rel="stylesheet" href="styles.css" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="description" content="Dashboard for the Typesafe routing proxy: a calibrated fast path in front of hass_local_openai_llm." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2032%2032%22%3E%3Crect%20width%3D%2232%22%20height%3D%2232%22%20rx%3D%228%22%20fill%3D%22%230a0f1c%22%2F%3E%3Cpath%20d%3D%22M8%2021l6-10%204%207%203-4%203%207%22%20stroke%3D%22%235eead4%22%20stroke-width%3D%222.5%22%20fill%3D%22none%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E" />
+    <title>Typesafe routing proxy</title>
+    <style>
+      html,
+      body,
+      #root {
+        margin: 0;
+        min-height: 100%;
+        background: #0a0f1c;
+      }
+      body {
+        -webkit-font-smoothing: antialiased;
+      }
+    </style>
   </head>
   <body>
-    <header class="top">
-      <div class="brand">
-        <span class="dot" id="health-dot" aria-hidden="true"></span>
-        <div>
-          <h1>Typesafe routing proxy</h1>
-          <p class="sub">A calibrated fast path in front of <code>hass_local_openai_llm</code></p>
-        </div>
-      </div>
-      <div class="top-meta">
-        <span class="pill" id="pill-backend">backend —</span>
-        <span class="pill" id="pill-catalog">catalog —</span>
-        <span class="pill" id="pill-uptime">uptime —</span>
-      </div>
-      <nav class="nav" id="nav">
-        <button class="tab active" data-view="monitor">Monitor</button>
-        <button class="tab" data-view="settings">Settings</button>
-      </nav>
-    </header>
-
-    <main>
-      <section id="view-monitor" class="view grid">
-        <section class="card probe">
-          <h2>Try a request</h2>
-          <p class="hint">Runs the decision path without executing anything. Same gates as a real turn.</p>
-          <div class="row">
-            <input id="probe-input" type="text" placeholder="turn on the kitchen lights" autocomplete="off" />
-            <button id="probe-run" class="primary">Decide</button>
-          </div>
-          <div class="samples" id="probe-samples">
-            <button data-text="turn on the kitchen lights">turn on the kitchen lights</button>
-            <button data-text="make it brighter">make it brighter</button>
-            <button data-text="is the back door locked">is the back door locked</button>
-            <button data-text="how many lights are on">how many lights are on</button>
-            <button data-text="what is the temperature in the bedroom">what is the temperature in the bedroom</button>
-            <button data-text="unlock the front door">unlock the front door</button>
-            <button data-text="set the living room lamp to 20 percent">set the living room lamp to 20 percent</button>
-            <button data-text="write me a poem about the sea">write me a poem about the sea</button>
-          </div>
-          <div id="probe-result" class="probe-result empty">Nothing decided yet.</div>
-        </section>
-
-        <section class="card stats">
-          <h2>Since start</h2>
-          <div class="tiles">
-            <div class="tile"><span class="k">requests</span><span class="v" id="stat-requests">0</span></div>
-            <div class="tile"><span class="k">tool calls</span><span class="v" id="stat-toolCalls">0</span></div>
-            <div class="tile"><span class="k">forwarded</span><span class="v" id="stat-forwarded">0</span></div>
-            <div class="tile"><span class="k">passed through</span><span class="v" id="stat-bypassed">0</span></div>
-            <div class="tile"><span class="k">clarified</span><span class="v" id="stat-clarifications">0</span></div>
-            <div class="tile"><span class="k">confirmed</span><span class="v" id="stat-confirmations">0</span></div>
-            <div class="tile"><span class="k">errors</span><span class="v" id="stat-errors">0</span></div>
-            <div class="tile wide"><span class="k">average decision</span><span class="v" id="stat-avg">0 ms</span></div>
-          </div>
-          <div class="breaker" id="breaker"></div>
-          <div class="actions">
-            <button id="breaker-reset" class="ghost">Reset circuit breaker</button>
-          </div>
-        </section>
-
-        <section class="card trace">
-          <div class="trace-head">
-            <h2>Decisions</h2>
-            <div class="trace-tools">
-              <label class="check"><input id="auto-refresh" type="checkbox" checked /><span>live</span></label>
-              <button id="trace-clear" class="ghost">Clear</button>
-            </div>
-          </div>
-          <div id="trace-list" class="trace-list">
-            <p class="empty">No turns yet. Send something to Home Assistant, or try a request above.</p>
-          </div>
-        </section>
-      </section>
-
-      <section id="view-settings" class="view hidden">
-        <div class="settings-wrap">
-          <aside class="settings-side">
-            <div id="settings-tabs" class="tabs"></div>
-            <label class="check advanced-toggle">
-              <input id="show-advanced" type="checkbox" />
-              <span>Show advanced settings</span>
-            </label>
-            <p class="hint side-note">
-              Saved to <code id="config-path">data/config.json</code>. A restart picks up a
-              <code>host</code> or <code>port</code> change; everything else applies on the next request.
-            </p>
-          </aside>
-
-          <div class="settings-main">
-            <div id="env-warning" class="banner warn hidden"></div>
-            <div id="settings-panes" class="panes"></div>
-
-            <div class="settings-footer">
-              <button id="config-save" class="primary">Save settings</button>
-              <button id="config-reload">Reload</button>
-              <button id="config-reset" class="ghost">Reset everything</button>
-              <button id="config-json" class="ghost">Show JSON</button>
-              <span id="save-note" class="note"></span>
-            </div>
-
-            <details id="json-panel" class="json-panel">
-              <summary>Raw configuration</summary>
-              <p class="hint">The exact document written to disk. Editing here replaces the whole file.</p>
-              <textarea id="config-json-text" spellcheck="false" rows="18"></textarea>
-              <div class="actions">
-                <button id="config-json-apply">Apply JSON</button>
-                <span id="json-note" class="note"></span>
-              </div>
-            </details>
-          </div>
-        </div>
-      </section>
-    </main>
-
+    <div id="root"></div>
+    <noscript>This dashboard needs JavaScript. The OpenAI-compatible API at /v1/chat/completions works without it.</noscript>
     <script src="app.js" type="module"></script>
   </body>
 </html>

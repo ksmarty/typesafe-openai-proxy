@@ -7,3 +7,5 @@ data/
 .env.*
 !.env.example
 tmp/
+public/app.js
+public/app.js.map
