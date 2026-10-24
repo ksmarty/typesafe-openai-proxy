@@ -15,6 +15,7 @@ import { jsonResponse } from './respond.js';
 import { settingsGroups } from './schema.js';
 import { averageDecisionMs, pendingConfirmations, routableShare, startedAt, stats, trace } from './state.js';
 import { breakerState, listModels, resetBreaker } from './systemone.js';
+import { ensureUiBundle } from './ui.js';
 import { fetchWithTimeout } from './util.js';
 import type { Config } from './config.js';
 import type { Catalog, OpenAIChatRequest, TraceEntry } from './types.js';
@@ -457,10 +458,14 @@ export function startServer(options?: Partial<ServeOptions>) {
   const port = options?.port ?? active.server.port;
   const host = options?.host ?? active.server.host;
   const server = createApp();
-  server.listen(port, host, () => {
+  server.listen(port, host, async () => {
     process.stdout.write(`typesafe routing proxy listening on http://${host}:${port}\n`);
     process.stdout.write(`  hass_local_openai_llm -> http://<this-host>:${port}/v1\n`);
     process.stdout.write(`  dashboard            -> http://<this-host>:${port}/\n`);
+    const ui = await ensureUiBundle();
+    if (ui === 'unavailable') {
+      process.stdout.write('  note: public/app.js is missing — run npm run dev (or npm run build:ui) to bundle the dashboard\n');
+    }
     if (!active.decision.baseUrl && active.decision.backend === 'systemone') {
       process.stdout.write('  note: decision backend is systemone but no base URL is set — set one in the dashboard\n');
     }
