@@ -154,14 +154,22 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
         minWidth: 0,
       }}
     >
-      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }} noWrap>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ display: 'block', lineHeight: 1.25, overflowWrap: 'anywhere' }}
+      >
         {label}
       </Typography>
       <Typography variant="h6" sx={{ lineHeight: 1.3 }} noWrap>
         {value}
       </Typography>
       {hint ? (
-        <Typography variant="caption" color="text.disabled" noWrap sx={{ display: 'block' }}>
+        <Typography
+          variant="caption"
+          color="text.disabled"
+          sx={{ display: 'block', lineHeight: 1.25, overflowWrap: 'anywhere' }}
+        >
           {hint}
         </Typography>
       ) : null}

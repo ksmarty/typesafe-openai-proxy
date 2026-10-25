@@ -78,7 +78,13 @@ export function App() {
 
   return (
     <Box sx={{ minHeight: '100dvh', bgcolor: 'background.default' }}>
-      <AppBar position="sticky" elevation={0} color="transparent" sx={{ borderBottom: 1, borderColor: 'divider', bgcolor: 'rgba(10, 15, 28, 0.85)' }}>
+      <AppBar position="sticky" elevation={0} color="transparent" sx={{
+          borderBottom: 1,
+          borderColor: 'divider',
+          bgcolor: 'rgba(10, 15, 28, 0.9)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+        }}>
         <Toolbar sx={{ gap: 2, minHeight: { xs: 64 } }}>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center',  flex: 1, minWidth: 0 }}>
             <HealthDot ok={healthy} />
@@ -86,7 +92,12 @@ export function App() {
               <Typography variant="subtitle1" sx={{ fontWeight: 700, lineHeight: 1.2 }} noWrap>
                 Typesafe routing proxy
               </Typography>
-              <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                noWrap
+                sx={{ display: { xs: 'none', sm: 'block' } }}
+              >
                 A calibrated fast path in front of hass_local_openai_llm
               </Typography>
             </Box>
