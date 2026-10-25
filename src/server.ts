@@ -78,6 +78,9 @@ async function serveStatic(response: ServerResponse, pathname: string): Promise<
     response.writeHead(200, {
       'content-type': MIME[extname(target)] ?? 'application/octet-stream',
       'cache-control': 'no-store',
+      // The dashboard is sometimes framed from another origin (an IDE preview, Home Assistant
+      // iframe panel). Static assets are not secret, so allow the module script to load there.
+      'access-control-allow-origin': '*',
     });
     response.end(content);
     return true;
