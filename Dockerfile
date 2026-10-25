@@ -6,6 +6,8 @@ COPY tsconfig.json tsconfig.web.json ./
 COPY src ./src
 COPY web ./web
 COPY scripts ./scripts
+# The shell (index.html + favicon) is committed; the bundle is built into it below.
+COPY public ./public
 # The dashboard is bundled to public/app.js; the server itself compiles to dist/.
 RUN npx tsc && node scripts/build-ui.mjs
 
