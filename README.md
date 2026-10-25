@@ -42,19 +42,21 @@ npm install
 npm run dev          # http://localhost:8080 — dashboard, /v1 endpoint
 ```
 
-Docker instead:
+Docker instead — the whole file is four lines of real content:
 
 ```bash
-mkdir -p data
-docker compose up -d --build
+mkdir -p /opt/typesafe-proxy      # or your own path, e.g. /mnt/user/appdata/typesafe-proxy
+docker compose up -d              # image: ghcr.io/ksmarty/typesafe-openai-proxy:latest
 ```
 
-Or pull the published image:
+`docker-compose.yml` maps that host directory to `/app/data`; `config.json` lives there, so
+settings survive every update. Everything else is configured in the dashboard and saved into it.
+
+Or without compose:
 
 ```bash
 docker run -d --name typesafe-proxy -p 8080:8080 \
-  -v /path/to/data:/app/data \
-  -e UPSTREAM_BASE_URL=http://host.docker.internal:8081/v1 \
+  -v /opt/typesafe-proxy:/app/data \
   ghcr.io/ksmarty/typesafe-openai-proxy:latest
 ```
 

@@ -1,28 +1,24 @@
 services:
   typesafe-proxy:
-    build: .
+    image: ghcr.io/ksmarty/typesafe-openai-proxy:latest
     container_name: typesafe-proxy
     restart: unless-stopped
     ports:
       - "8080:8080"
-    environment:
-      # Point hass_local_openai_llm's "server URL" at http://<this-host>:8080/v1
-      PORT: "8080"
-      PROXY_API_KEY: ""
-      # The model server your Home Assistant integration used before this proxy.
-      UPSTREAM_BASE_URL: "http://host.docker.internal:8081/v1"
-      # Nothing is decided out of the box: flip DECISION_BACKEND to "heuristic"
-      # (offline, no model) or "systemone" (typed decision model) when ready.
-      DECISION_BACKEND: "none"
-      # Typed decision model: local Ollama >= 0.35 serving jev, or https://api.typesafe.ai
-      SYSTEMONE_BASE_URL: ""
-      SYSTEMONE_API_KEY: ""
-      # No assumed default: name the model your decision server serves.
-      SYSTEMONE_MODEL: ""
-      # Optional: read the catalog over the websocket instead of parsing the prompt.
-      HA_URL: "http://homeassistant.local:8123"
-      HA_TOKEN: ""
     volumes:
-      - ./data:/app/data
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      # Real host path -> the proxy's data directory. config.json lives here, so this
+      # is the only thing that has to survive a container update. Point the left side
+      # at your own drive, e.g. /mnt/user/appdata/typesafe-proxy or /srv/docker/typesafe-proxy.
+      - /opt/typesafe-proxy:/app/data
+
+    # Everything else (decision backend, upstream URL and key, catalog, thresholds) is
+    # set once in the dashboard at http://<host>:8080/ and saved into the volume above.
+    #
+    # To let the container reach a model server that runs on the Docker host itself,
+    # uncomment this block and use http://host.docker.internal:<port>/v1 as the
+    # upstream URL. Docker Desktop already resolves that name; on Linux this adds it.
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
+    #
+    # If the host directory belongs to another user, uncomment and match your uid:gid:
+    # user: "1000:1000"

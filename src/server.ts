@@ -473,6 +473,19 @@ export function startServer(options?: Partial<ServeOptions>) {
       process.stdout.write('  note: decision backend is systemone but no base URL is set — set one in the dashboard\n');
     }
   });
+
+  // Exit promptly on `docker stop` / `compose down` instead of waiting for the
+  // default 10 s SIGKILL timeout: stop accepting work, drop idle keep-alive
+  // sockets, and take a hard exit if something (an open stream) lingers.
+  const shutdown = (signal: string) => {
+    process.stdout.write(`${signal} received — closing\n`);
+    server.close(() => process.exit(0));
+    server.closeIdleConnections();
+    setTimeout(() => process.exit(0), 2000).unref();
+  };
+  process.once('SIGTERM', () => shutdown('SIGTERM'));
+  process.once('SIGINT', () => shutdown('SIGINT'));
+
   return server;
 }
 
