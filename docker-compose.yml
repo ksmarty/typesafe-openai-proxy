@@ -6,19 +6,13 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      # Real host path -> the proxy's data directory. config.json lives here, so this
-      # is the only thing that has to survive a container update. Point the left side
-      # at your own drive, e.g. /mnt/user/appdata/typesafe-proxy or /srv/docker/typesafe-proxy.
-      - /opt/typesafe-proxy:/app/data
-
-    # Everything else (decision backend, upstream URL and key, catalog, thresholds) is
-    # set once in the dashboard at http://<host>:8080/ and saved into the volume above.
-    #
-    # To let the container reach a model server that runs on the Docker host itself,
-    # uncomment this block and use http://host.docker.internal:<port>/v1 as the
-    # upstream URL. Docker Desktop already resolves that name; on Linux this adds it.
-    # extra_hosts:
-    #   - "host.docker.internal:host-gateway"
-    #
-    # If the host directory belongs to another user, uncomment and match your uid:gid:
+      # Real host path on the left -> the proxy's data directory on the right.
+      # config.json lives here, so this is the only thing that must survive an
+      # image update. Override TYPESAFE_DATA_PATH in .env to point it at your drive.
+      - ${TYPESAFE_DATA_PATH:-/opt/typesafe-proxy}:/app/data
+    # Lets the container reach a model server running on the Docker host as
+    # http://host.docker.internal:<port>/v1. Harmless if unused.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # If the host directory is owned by another user, uncomment and match your uid:gid:
     # user: "1000:1000"

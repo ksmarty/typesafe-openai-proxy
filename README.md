@@ -52,6 +52,15 @@ docker compose up -d              # image: ghcr.io/ksmarty/typesafe-openai-proxy
 `docker-compose.yml` maps that host directory to `/app/data`; `config.json` lives there, so
 settings survive every update. Everything else is configured in the dashboard and saved into it.
 
+To use a different drive, copy `.env.example` to `.env` and set `TYPESAFE_DATA_PATH` — compose
+substitutes it into the volume, so no edit to the YAML is needed:
+
+```bash
+cp .env.example .env
+echo 'TYPESAFE_DATA_PATH=/mnt/user/appdata/typesafe-proxy' >> .env   # your real path
+docker compose up -d
+```
+
 Or without compose:
 
 ```bash
