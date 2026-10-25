@@ -62,8 +62,15 @@ export function App() {
   }, [refresh]);
 
   useEffect(() => {
-    if (window.location.hash.replace('#', '') !== view) {
-      window.history.replaceState(null, '', `#${view}`);
+    // A sandboxed or cross-origin iframe (the app preview) refuses history writes with a
+    // SecurityError, and an uncaught throw here would blank the whole tree. The view still works
+    // without the hash, so a failed write is ignored.
+    try {
+      if (window.location.hash.replace('#', '') !== view) {
+        window.history.replaceState(null, '', `#${view}`);
+      }
+    } catch {
+      /* hash routing is a convenience, not a requirement */
     }
   }, [view]);
 

@@ -76,11 +76,30 @@ export interface TestResult {
   sample?: string[];
 }
 
+/**
+ * The dashboard is usually served from the origin root, but an iframe preview or a reverse proxy
+ * can mount it under a path prefix. Resolve every call against the page's own directory first and
+ * fall back to the origin root when that prefix is not proxied.
+ */
+function mountPath(): string {
+  const path = window.location.pathname;
+  if (path.endsWith('/')) return path;
+  return path.includes('.') ? path.slice(0, path.lastIndexOf('/') + 1) : `${path}/`;
+}
+
+function endpointAt(base: string, path: string): string {
+  const trimmed = path.replace(/^\/+/, '');
+  return base === '/' ? `/${trimmed}` : `${base}${trimmed}`;
+}
+
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, {
+  const options: RequestInit = {
     ...init,
     headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
-  });
+  };
+  const mounted = endpointAt(mountPath(), path);
+  let response = await fetch(mounted, options);
+  if (response.status === 404 && mounted !== path) response = await fetch(path, options);
   const text = await response.text();
   let body: unknown = null;
   try {
