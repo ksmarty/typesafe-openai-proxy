@@ -28,6 +28,7 @@ services:
       - traefik.http.routers.typesafe-ui.entrypoints=websecure
       - traefik.http.routers.typesafe-ui.tls.certresolver=letsencrypt
       - traefik.http.routers.typesafe-ui.middlewares=authentik@file
+      - traefik.http.routers.typesafe-ui.priority=90
       - traefik.http.routers.typesafe-ui.service=typesafe-proxy
 
       # ---- /v1 for hass_local_openai_llm: no Authentik ---------------------------
@@ -36,6 +37,8 @@ services:
       - traefik.http.routers.typesafe-api.rule=Host(`${PROXY_HOST}`) && PathPrefix(`/v1`)
       - traefik.http.routers.typesafe-api.entrypoints=websecure
       - traefik.http.routers.typesafe-api.tls.certresolver=letsencrypt
+      # Higher than the UI router, so /v1 is matched here even if a catch-all
+      # router lives in your file provider.
       - traefik.http.routers.typesafe-api.priority=100
       - traefik.http.routers.typesafe-api.service=typesafe-proxy
 
