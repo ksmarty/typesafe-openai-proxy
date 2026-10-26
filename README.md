@@ -308,6 +308,18 @@ that drops the cache and re-reads entities, areas and aliases immediately — if
 unsaved edits it saves them first, so a token typed a second ago is the token that gets used.
 The same action is on the Monitor page, and `POST /api/catalog/refresh` does it from a script.
 
+### Only what Assist can see
+
+The catalog asks Home Assistant which entities are exposed to the conversation agent
+(`homeassistant/expose_entity/list`) and lists only those, because that is the same list the
+voice assistant works from — the decision model then sees what can actually be acted on instead
+of every sensor in the registry. The refresh result says exactly what happened:
+`12 of 348 entities exposed to Assist, 5 areas`.
+
+If a core does not answer that command, the whole registry is listed instead and the note says so.
+Settings → Home Assistant catalog → **Only what Assist can see** turns the filter off when you want
+the decision model to know about everything (useful for read-only questions about sensors).
+
 ### Aliases
 
 Home Assistant's aliases are read and used, on both sides of a decision:

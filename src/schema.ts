@@ -224,6 +224,12 @@ export function settingsGroups(): SettingsGroup[] {
           help: 'What "turn on the lights here" means when no area is named.',
         },
         {
+          key: 'catalog.exposedOnly',
+          label: 'Only what Assist can see',
+          type: 'checkbox',
+          help: 'List the entities exposed to Assist instead of the whole registry. Turn this off to let the decision model see every entity.',
+        },
+        {
           key: 'catalog.cacheMs',
           label: 'Cache lifetime',
           type: 'number',

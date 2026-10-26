@@ -70,7 +70,12 @@ function domainsOf(entities: CatalogEntity[]): string[] {
 }
 
 /** One JSON message over Home Assistant's WebSocket API. */
-function wsQuery<T>(url: string, token: string, messages: Record<string, unknown>[], timeoutMs = 8000): Promise<T[]> {
+function wsQuery<T>(
+  url: string,
+  token: string,
+  messages: { type: string; optional?: boolean }[],
+  timeoutMs = 8000,
+): Promise<T[]> {
   return new Promise<T[]>((resolve, reject) => {
     const ws = new WebSocket(url);
     const results: T[] = [];
@@ -123,6 +128,13 @@ function wsQuery<T>(url: string, token: string, messages: Record<string, unknown
       }
       if (payload.type !== 'result') return;
       if (payload.success === false) {
+        // An optional command is skipped: older cores do not implement every endpoint.
+        const requested = messages[index];
+        if (requested?.optional) {
+          index += 1;
+          sendNext();
+          return;
+        }
         finish(new Error(payload.error?.message ?? 'Home Assistant refused the request'));
         return;
       }
@@ -206,20 +218,64 @@ function levelFrom(attributes: Record<string, unknown>): Pick<CatalogEntity, 'le
   return {};
 }
 
+/** `light.kitchen_ceiling` and nothing else. */
+function isEntityId(value: string): boolean {
+  return /^[a-z_]+\.[a-z0-9_]+$/.test(value);
+}
+
+/**
+ * Home Assistant answers `homeassistant/expose_entity/list` in more than one shape:
+ *   { exposed_entities: { conversation: { light.x: true } } }
+ *   { exposed_entities: { light.x: true } }
+ *   { light.x: { conversation: true } }
+ * All of them collapse to entity_id -> exposed. Returns null when the answer cannot
+ * be read, so the caller falls back to listing the registry instead of hiding entities.
+ */
+export function exposedToConversation(payload: unknown): Record<string, boolean> | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const root = payload as Record<string, unknown>;
+  const inner =
+    root.exposed_entities && typeof root.exposed_entities === 'object'
+      ? (root.exposed_entities as Record<string, unknown>)
+      : root;
+
+  const perAssistant = inner.conversation;
+  if (perAssistant && typeof perAssistant === 'object') {
+    const out: Record<string, boolean> = {};
+    for (const [id, value] of Object.entries(perAssistant as Record<string, unknown>)) {
+      if (isEntityId(id)) out[id] = value === true;
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
+  const out: Record<string, boolean> = {};
+  for (const [id, value] of Object.entries(inner)) {
+    if (!isEntityId(id)) continue;
+    if (typeof value === 'boolean') out[id] = value;
+    else if (value && typeof value === 'object') {
+      const record = value as Record<string, unknown>;
+      if (typeof record.conversation === 'boolean') out[id] = record.conversation;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 /** Structured catalog straight from Home Assistant. */
 export async function catalogFromHomeAssistant(config: Config): Promise<Catalog> {
   const base = config.catalog.haUrl.replace(/\/+$/, '');
   if (!base || !config.catalog.haToken) throw new Error('Home Assistant URL and token are not configured');
   const wsUrl = `${base.replace(/^http/, 'ws')}/api/websocket`;
 
-  const [areas, devices, floors, entities, states] = await wsQuery<
-    RegistryArea[] | RegistryDevice[] | RegistryFloor[] | RegistryEntity[] | StateRow[]
+  const [areas, devices, floors, entities, states, exposed] = await wsQuery<
+    RegistryArea[] | RegistryDevice[] | RegistryFloor[] | RegistryEntity[] | StateRow[] | unknown
   >(wsUrl, config.catalog.haToken, [
     { type: 'config/area_registry/list' },
     { type: 'config/device_registry/list' },
     { type: 'config/floor_registry/list' },
     { type: 'config/entity_registry/list' },
     { type: 'get_states' },
+    // What the user actually exposed to Assist. Optional: not every core answers it.
+    { type: 'homeassistant/expose_entity/list', optional: true },
   ], 12000);
 
   return catalogFromRegistries({
@@ -228,6 +284,8 @@ export async function catalogFromHomeAssistant(config: Config): Promise<Catalog>
     floors: (floors ?? []) as RegistryFloor[],
     entities: (entities ?? []) as RegistryEntity[],
     states: (states ?? []) as StateRow[],
+    exposed: exposedToConversation(exposed),
+    exposedOnly: config.catalog.exposedOnly,
   });
 }
 
@@ -238,6 +296,10 @@ export function catalogFromRegistries(input: {
   floors: RegistryFloor[];
   entities: RegistryEntity[];
   states: StateRow[];
+  /** entity_id -> exposed to the conversation agent, when Home Assistant can say. */
+  exposed?: Record<string, boolean> | null;
+  /** Restrict the catalog to exposed entities (default true). */
+  exposedOnly?: boolean;
 }): Catalog {
   const {
     areas: areaList,
@@ -271,12 +333,21 @@ export function catalogFromRegistries(input: {
     if (row.entity_id) stateById.set(row.entity_id, row);
   }
 
+  const exposed = input.exposed ?? null;
+  const exposedOnly = input.exposedOnly ?? true;
+  let registryCount = 0;
+
   const out: CatalogEntity[] = [];
   for (const entity of entityList) {
     const id = entity.entity_id;
     if (!id) continue;
     // Skip what a conversation agent would not be exposed anyway.
     if (entity.disabled_by || entity.hidden_by || entity.entity_category) continue;
+    registryCount += 1;
+    // When Home Assistant tells us what is exposed to Assist, that is the truth: it is
+    // the same list the voice assistant works from, so the decision model sees exactly
+    // what can be acted on instead of the whole registry.
+    if (exposed && exposedOnly && exposed[id] !== true) continue;
     const domain = id.split('.')[0];
     if (!domain) continue;
     const state = stateById.get(id);
@@ -313,7 +384,10 @@ export function catalogFromRegistries(input: {
     domains: domainsOf(entitiesSorted),
     source: 'ha-websocket',
     builtAt: Date.now(),
-    note: `${entitiesSorted.length} entities, ${areaById.size} areas from Home Assistant`,
+    note:
+      exposed && exposedOnly
+        ? `${entitiesSorted.length} of ${registryCount} entities exposed to Assist, ${areaById.size} areas`
+        : `${entitiesSorted.length} entities, ${areaById.size} areas from Home Assistant`,
   };
 }
 

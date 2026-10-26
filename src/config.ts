@@ -90,6 +90,12 @@ export interface Config {
     cacheMs: number;
     /** Area used for "turn on the lights" when no area is named. */
     defaultArea: string;
+    /**
+     * Keep only the entities Home Assistant exposes to Assist, instead of every entity
+     * in the registry. Same list the voice assistant works from, so the decision model
+     * sees what can actually be acted on.
+     */
+    exposedOnly: boolean;
   };
   upstream: {
     /** The inference server hass_local_openai_llm used to point at. Required. */
@@ -164,7 +170,7 @@ export function defaultConfig(): Config {
     },
     routing: { enabled: true, thresholds: { ...DEFAULT_THRESHOLDS }, traceLimit: 50 },
     speech: { afterTool: 'template', confirmSeconds: 90, templates: structuredClone(DEFAULT_TEMPLATES) },
-    catalog: { haUrl: '', haToken: '', cacheMs: 30000, defaultArea: '' },
+    catalog: { haUrl: '', haToken: '', cacheMs: 30000, defaultArea: '', exposedOnly: true },
     upstream: { baseUrl: '', apiKey: '', apiKeyFromDecision: false, model: '', timeoutMs: 120000 },
   };
 }
