@@ -96,6 +96,14 @@ export interface Config {
     baseUrl: string;
     apiKey: string;
     /**
+     * Reuse `decision.apiKey` for forwarded requests when no upstream key is set.
+     *
+     * Both servers are often the same provider — OpenRouter serving the decision
+     * model and the fallback model — so one key is enough, and it never has to be
+     * copied out of a field the dashboard only shows twelve characters of.
+     */
+    apiKeyFromDecision: boolean;
+    /**
      * Model name to send upstream when the request names the proxy's own model
      * (`typesafe-router`) or names nothing. Without it, a forwarded request asks
      * the inference server for a model called "typesafe-router", which does not
@@ -157,7 +165,7 @@ export function defaultConfig(): Config {
     routing: { enabled: true, thresholds: { ...DEFAULT_THRESHOLDS }, traceLimit: 50 },
     speech: { afterTool: 'template', confirmSeconds: 90, templates: structuredClone(DEFAULT_TEMPLATES) },
     catalog: { haUrl: '', haToken: '', cacheMs: 30000, defaultArea: '' },
-    upstream: { baseUrl: '', apiKey: '', model: '', timeoutMs: 120000 },
+    upstream: { baseUrl: '', apiKey: '', apiKeyFromDecision: false, model: '', timeoutMs: 120000 },
   };
 }
 
@@ -205,6 +213,9 @@ function applyEnv(config: Config): void {
   if (env.PROXY_API_KEY) config.server.apiKey = env.PROXY_API_KEY;
   if (env.UPSTREAM_BASE_URL) config.upstream.baseUrl = env.UPSTREAM_BASE_URL;
   if (env.UPSTREAM_API_KEY) config.upstream.apiKey = env.UPSTREAM_API_KEY;
+  if (env.UPSTREAM_API_KEY_FROM_DECISION !== undefined && env.UPSTREAM_API_KEY_FROM_DECISION !== '') {
+    config.upstream.apiKeyFromDecision = /^(1|true|yes|on)$/i.test(env.UPSTREAM_API_KEY_FROM_DECISION);
+  }
   if (env.UPSTREAM_MODEL) config.upstream.model = env.UPSTREAM_MODEL;
   if (env.SYSTEMONE_BASE_URL) config.decision.baseUrl = env.SYSTEMONE_BASE_URL;
   if (env.SYSTEMONE_API_KEY) config.decision.apiKey = env.SYSTEMONE_API_KEY;
@@ -227,6 +238,19 @@ export const SECRET_MASK = '••••••';
  * the proxy can be installed and tried without changing anything for existing clients.
  */
 export const ROUTER_MODEL = 'typesafe-router';
+
+/**
+ * The bearer token a forwarded request carries.
+ *
+ * An explicit upstream key always wins, so setting one is never overridden. When it is
+ * empty and `apiKeyFromDecision` is on, the decision model's key is reused — one
+ * OpenRouter key for both endpoints, without copying it out of a masked field.
+ */
+export function upstreamApiKey(config: Config): string {
+  const own = (config.upstream.apiKey ?? '').trim();
+  if (own) return own;
+  return config.upstream.apiKeyFromDecision ? (config.decision.apiKey ?? '').trim() : '';
+}
 
 function isSecretPath(key: string): boolean {
   return key.endsWith('.apiKey') || key.endsWith('.haToken');

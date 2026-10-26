@@ -18,6 +18,7 @@ import {
   resetConfigPaths,
   ROUTER_MODEL,
   saveConfig,
+  upstreamApiKey,
 } from './config.js';
 import { fastPathStatus, handleChatCompletions, runPipeline } from './pipeline.js';
 import { assistTools } from './toolcall.js';
@@ -389,7 +390,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
     const parsed = await jsonBody(request) as { url?: string; key?: string };
     const active = loadConfig();
     const base = (parsed.url || active.upstream.baseUrl).trim().replace(/\/+$/, '');
-    const key = secretOrStored(parsed.key, active.upstream.apiKey);
+    const key = secretOrStored(parsed.key, upstreamApiKey(active));
     if (!base) {
       jsonResponse(response, 400, { ok: false, error: 'Set the fallback server URL first.' });
       return true;

@@ -383,9 +383,21 @@ The backend-related variables are worth naming, because there is no default deci
 | `SYSTEMONE_MODEL` | *(empty)* | the model name that server serves — there is no assumed default |
 | `AUTO_START` | *(unset)* | `1` decides every request; otherwise only requests naming the `typesafe-router` model are decided |
 
+### One key for both servers
+
+The decision model and the fallback server are often the same provider — OpenRouter serving
+`typesafe/jev-router` for decisions and `openai/gpt-4o-mini` for prose. Turn on **Settings →
+Fallback inference server → Use the decision model's API key** (or set
+`UPSTREAM_API_KEY_FROM_DECISION=1`) and a forwarded request carries the decision key, so the key
+never has to be copied out of a field the dashboard only shows twelve characters of.
+
+A key typed into the upstream **API key** field always wins, so the setting can stay on while a
+different provider is used for prose. Nothing changes when the flag is off.
+
 ## What this deliberately does not do (yet)
 
-- **Compound requests** ("turn off the kitchen lights and lock the door") — detected and forwarded.
+- **Compound requests** are split when each clause names its own target ("turn off the kitchen
+  lights and lock the door"); a clause that needs a slot the fast path cannot fill is forwarded whole.
 - **Floor-wide commands** — detected and forwarded.
 - **Script/template field filling**, `set_mode`, and MQTT-specific actions — forwarded.
 - **Media search grammar** beyond a simple "play X on Y" query slot.

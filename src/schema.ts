@@ -242,6 +242,15 @@ export function settingsGroups(): SettingsGroup[] {
           help: 'Sent as a bearer token. After saving, only the first 12 characters stay visible; type a new key to replace it.',
         },
         {
+          key: 'upstream.apiKeyFromDecision',
+          label: "Use the decision model's API key",
+          type: 'checkbox',
+          help:
+            'Both servers are often the same provider — OpenRouter for the decision model and the fallback. ' +
+            'Turn this on to send the decision key here too, without copying it out of a masked field. ' +
+            'A key typed above still wins.',
+        },
+        {
           key: 'upstream.model',
           label: 'Model for forwarded requests',
           type: 'text',

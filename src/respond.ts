@@ -7,7 +7,7 @@ import type { ServerResponse } from 'node:http';
 
 import { ACTION_VERBS } from './actions.js';
 import { cachedCatalog } from './catalog.js';
-import { ROUTER_MODEL, loadConfig, type Config } from './config.js';
+import { ROUTER_MODEL, loadConfig, upstreamApiKey, type Config } from './config.js';
 import { issuedCalls, stats } from './state.js';
 import type { Catalog, CatalogEntity, OpenAIChatRequest } from './types.js';
 import { fetchWithTimeout, uid } from './util.js';
@@ -170,6 +170,7 @@ export async function forwardUpstream(
 
   const url = `${active.upstream.baseUrl.replace(/\/+$/, '')}/chat/completions`;
   const body = bodyForUpstream(rawBody, request, active);
+  const key = upstreamApiKey(active);
   try {
     const upstream = await fetchWithTimeout(
       url,
@@ -178,7 +179,7 @@ export async function forwardUpstream(
         headers: {
           'content-type': 'application/json',
           accept: request.stream ? 'text/event-stream' : 'application/json',
-          ...(active.upstream.apiKey ? { authorization: `Bearer ${active.upstream.apiKey}` } : {}),
+          ...(key ? { authorization: `Bearer ${key}` } : {}),
         },
         body,
       },
