@@ -124,6 +124,14 @@ function activeEnvOverrides(): string[] {
 }
 
 /** The package version, from the manifest that sits next to dist/ or src/. */
+let versionCache: string | null = null;
+
+/** Read the manifest once and remember it, so status can name the build it is. */
+export async function primeVersion(): Promise<string> {
+  versionCache = await packageVersion();
+  return versionCache;
+}
+
 async function packageVersion(): Promise<string> {
   try {
     const raw = await readFile(new URL('../package.json', import.meta.url), 'utf8');
@@ -154,6 +162,8 @@ function statusPayload(): Record<string, unknown> {
   return {
     ok: true,
     product: 'typesafe-routing-proxy',
+    // Which build is answering. Without it, "the fix is not there" is unanswerable.
+    version: versionCache ?? 'unknown',
     uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
     config: publicConfig(),
     configPath: configPath(),
@@ -621,6 +631,7 @@ export function startServer(options?: Partial<ServeOptions>) {
   const server = createApp();
   server.listen(port, host, async () => {
     installLogCapture();
+    await primeVersion();
     note(`listening on http://${host}:${port} (version from package.json, captured for /api/debug/bundle)`);
     process.stdout.write(`typesafe routing proxy listening on http://${host}:${port}\n`);
     process.stdout.write(`  hass_local_openai_llm -> http://<this-host>:${port}/v1\n`);

@@ -73,6 +73,11 @@ describe('refused requests are traced', () => {
     assert.ok(body.items.some((item) => item.route === 'refused' && item.httpStatus === 400));
   });
 
+  it('names the build it is, so a stale container is obvious', async () => {
+    const body = (await fetch(`${base}/api/status`).then((r) => r.json())) as { version?: string };
+    assert.match(String(body.version), /^\d+\.\d+\.\d+/);
+  });
+
   it('does not refuse a correct key', async () => {
     const response = await fetch(`${base}/v1/models`, { headers: { authorization: 'Bearer the-right-key' } });
     assert.equal(response.status, 200);

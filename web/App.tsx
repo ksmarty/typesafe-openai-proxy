@@ -141,6 +141,9 @@ export function App() {
               title={status?.catalog.note ?? undefined}
             />
             <Chip variant="outlined" label={`uptime: ${uptime(status?.uptimeSeconds ?? 0)}`} />
+            <Tooltip title="The build answering. Compare it with the release you meant to run.">
+              <Chip variant="outlined" label={`v${status?.version ?? '—'}`} />
+            </Tooltip>
           </Stack>
         </Toolbar>
         <Tabs

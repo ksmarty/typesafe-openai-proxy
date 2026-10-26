@@ -2,6 +2,8 @@ import type { SettingsGroup } from '../src/schema.js';
 import type { Gate, TraceEntry } from '../src/types.js';
 
 export interface Status {
+  /** The build answering, so the UI can name it. */
+  version?: string;
   ok: boolean;
   uptimeSeconds: number;
   configPath: string;
