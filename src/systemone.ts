@@ -24,6 +24,28 @@ export const SYSTEM_ONE_PATH = '/v1/systemone';
 export const MODELS_PATH = '/v1/models';
 export const MODELS_CAPABILITY = 'jev';
 
+/**
+ * Turn whatever was pasted into the base the contract expects.
+ *
+ * The wire contract is `{base}/v1/systemone`, so all of these are the same server:
+ *   https://openrouter.ai/api
+ *   https://openrouter.ai/api/
+ *   https://openrouter.ai/api/v1
+ *   https://openrouter.ai/api/v1/systemone
+ * People paste the endpoint they were given and get a 404 on
+ * `/systemone/v1/systemone` otherwise, so the path is stripped here rather than
+ * in every caller.
+ */
+export function decisionBase(raw: string): string {
+  const trimmed = (raw || '').trim().replace(/\/+$/, '');
+  if (!trimmed) return '';
+  return trimmed
+    .replace(/\/v1\/systemone$/i, '')
+    .replace(/\/systemone$/i, '')
+    .replace(/\/v1$/i, '')
+    .replace(/\/+$/, '');
+}
+
 const MAX_RETRIES = 3;
 const BACKOFF_MS = [250, 750, 2000];
 /** Consecutive failures before the breaker opens. */
@@ -147,7 +169,7 @@ function normaliseAnswer(raw: unknown): Answer | undefined {
 export async function decide(input: DecideInput): Promise<DecisionResponse> {
   const { config } = input;
   const started = Date.now();
-  const baseUrl = config.decision.baseUrl.replace(/\/+$/, '');
+  const baseUrl = decisionBase(config.decision.baseUrl);
   if (!baseUrl) throw new DecisionUnavailable('no decision base URL configured');
 
   if (breaker.failures >= BREAKER_THRESHOLD && Date.now() - breaker.openedAt < BREAKER_COOLDOWN_MS) {
@@ -178,14 +200,17 @@ export async function decide(input: DecideInput): Promise<DecisionResponse> {
 
       if (!response.ok) {
         const text = await response.text().catch(() => '');
+        const detail = `${baseUrl}${SYSTEM_ONE_PATH} answered ${response.status}${text ? `: ${text.slice(0, 200)}` : ''}`;
         // 4xx other than 408/429 will not get better by retrying - but a server
         // that keeps answering 404 is still failing, so it counts toward the breaker.
         if (response.status < 500 && response.status !== 408 && response.status !== 429) {
           breaker.failures += 1;
           breaker.openedAt = Date.now();
-          throw new DecisionUnavailable(`decision model returned ${response.status}: ${text.slice(0, 200)}`);
+          throw new DecisionUnavailable(
+            response.status === 404 ? `${detail} — the base URL should be the root that serves /v1/systemone, e.g. https://openrouter.ai/api` : detail,
+          );
         }
-        throw new Error(`decision model returned ${response.status}: ${text.slice(0, 200)}`);
+        throw new Error(detail);
       }
 
       const payload = (await response.json()) as Record<string, unknown>;
@@ -236,27 +261,45 @@ export function resetBreaker(): void {
 
 /** Which models does the configured decision server offer? */
 export async function listModels(config: Config): Promise<{ id: string; jev: boolean }[]> {
-  const baseUrl = config.decision.baseUrl.replace(/\/+$/, '');
+  const baseUrl = decisionBase(config.decision.baseUrl);
   if (!baseUrl) return [];
-  const response = await fetchWithTimeout(
-    `${baseUrl}${MODELS_PATH}`,
-    {
-      headers: config.decision.apiKey ? { authorization: `Bearer ${config.decision.apiKey}` } : {},
-    },
-    Math.min(config.decision.timeoutMs, 5000),
-  );
-  if (!response.ok) throw new Error(`models endpoint returned ${response.status}`);
-  const payload = (await response.json()) as { data?: { id?: string; capabilities?: string[]; details?: { family?: string } }[] };
-  return (payload.data ?? [])
-    .filter((entry) => typeof entry.id === 'string')
-    .map((entry) => ({
-      id: entry.id as string,
-      jev: Boolean(
-        entry.capabilities?.includes(MODELS_CAPABILITY) ||
-          entry.details?.family?.toLowerCase().includes('jev') ||
-          entry.id!.toLowerCase().includes('jev'),
-      ),
-    }));
+  const headers: Record<string, string> = config.decision.apiKey
+    ? { authorization: `Bearer ${config.decision.apiKey}` }
+    : {};
+  const timeout = Math.min(config.decision.timeoutMs, 5000);
+
+  // `/v1/models` is the contract; a root that only publishes `/models` is tolerated
+  // so a base URL one level off still tells you what it has.
+  const candidates = [`${baseUrl}${MODELS_PATH}`, `${baseUrl}/models`];
+  let lastStatus = 0;
+  let lastUrl = candidates[0] ?? '';
+  for (const url of candidates) {
+    const response = await fetchWithTimeout(url, { headers }, timeout);
+    if (response.ok) {
+      const payload = (await response.json()) as {
+        data?: { id?: string; capabilities?: string[]; details?: { family?: string } }[];
+      };
+      return (payload.data ?? [])
+        .filter((entry) => typeof entry.id === 'string')
+        .map((entry) => ({
+          id: entry.id as string,
+          jev: Boolean(
+            entry.capabilities?.includes(MODELS_CAPABILITY) ||
+              entry.details?.family?.toLowerCase().includes('jev') ||
+              entry.id!.toLowerCase().includes('jev'),
+          ),
+        }));
+    }
+    lastStatus = response.status;
+    lastUrl = url;
+    if (response.status !== 404) break;
+  }
+
+  const hint =
+    lastStatus === 404
+      ? ` — that path does not exist on ${baseUrl}. Use the server root (e.g. https://openrouter.ai/api), not the /v1/systemone endpoint.`
+      : '';
+  throw new Error(`models endpoint returned ${lastStatus} for ${lastUrl}${hint}`);
 }
 
 /** Top-two margin, used by every confidence gate. */

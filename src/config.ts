@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
-import { allFields, clampSettings, getPath, maskSecrets, pruneInvalid, setPath } from './schema.js';
+import { allFields, clampSettings, getPath, isMaskedValue, maskSecrets, pruneInvalid, setPath } from './schema.js';
 
 export type DecisionBackend = 'none' | 'systemone' | 'heuristic';
 
@@ -244,7 +244,7 @@ export function saveConfig(patch: unknown): { config: Config; adjusted: { key: s
   const incoming = (patch && typeof patch === 'object' ? patch : {}) as Record<string, unknown>;
   // A masked secret in the payload is the form echoing back what it was given, not a change.
   for (const field of allFields()) {
-    if (field.type === 'password' && isSecretPath(field.key) && getPath(incoming, field.key) === SECRET_MASK) {
+    if (field.type === 'password' && isSecretPath(field.key) && isMaskedValue(getPath(incoming, field.key), SECRET_MASK)) {
       setPath(incoming, field.key, getPath(current, field.key) ?? '');
     }
   }

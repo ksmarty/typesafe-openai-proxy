@@ -114,8 +114,10 @@ export function settingsGroups(): SettingsGroup[] {
           key: 'decision.baseUrl',
           label: 'Base URL',
           type: 'text',
-          placeholder: 'http://localhost:11434',
-          help: 'A local Ollama (≥ 0.35, jev models) or the hosted endpoint. Called at {baseUrl}/v1/systemone.',
+          placeholder: 'https://openrouter.ai/api',
+          help:
+            'The server root that answers /v1/systemone, e.g. https://openrouter.ai/api or ' +
+            'http://localhost:11434. Pasting the full /v1/systemone URL works too — the path is stripped.',
         },
         {
           key: 'decision.model',
@@ -123,7 +125,13 @@ export function settingsGroups(): SettingsGroup[] {
           type: 'text',
           placeholder: 'the model name your server serves',
         },
-        { key: 'decision.apiKey', label: 'API key', type: 'password', placeholder: 'optional' },
+        {
+          key: 'decision.apiKey',
+          label: 'API key',
+          type: 'password',
+          placeholder: 'optional',
+          help: 'Sent as a bearer token. After saving, only the first 12 characters stay visible; type a new key to replace it.',
+        },
         {
           key: 'decision.autoStart',
           label: 'Start deciding on its own',
@@ -226,7 +234,13 @@ export function settingsGroups(): SettingsGroup[] {
         'Anything the proxy will not decide is forwarded here untouched — this is the server hass_local_openai_llm used before the proxy existed.',
       fields: [
         { key: 'upstream.baseUrl', label: 'Base URL', type: 'text', placeholder: 'http://llama:8081/v1' },
-        { key: 'upstream.apiKey', label: 'API key', type: 'password', placeholder: 'optional' },
+        {
+          key: 'upstream.apiKey',
+          label: 'API key',
+          type: 'password',
+          placeholder: 'optional',
+          help: 'Sent as a bearer token. After saving, only the first 12 characters stay visible; type a new key to replace it.',
+        },
         {
           key: 'upstream.model',
           label: 'Model for forwarded requests',
@@ -435,11 +449,32 @@ export function clampSettings(config: Record<string, unknown>): { key: string; v
   return adjusted;
 }
 
+/** Characters of a stored secret that stay readable in the dashboard. */
+export const SECRET_PREFIX = 12;
+
+/**
+ * A stored secret is never sent to the browser in full, but showing nothing at all
+ * makes it impossible to tell which key is in use. Keep the first few characters
+ * (enough to tell `sk-or-v1-…` keys apart without revealing any of the secret body)
+ * and mask the rest.
+ */
+export function maskSecret(value: string, mask = '••••••'): string {
+  if (!value) return '';
+  // A short value would be almost entirely revealed by its prefix; mask it whole.
+  if (value.length <= SECRET_PREFIX + 4) return mask;
+  return `${value.slice(0, SECRET_PREFIX)}${mask}`;
+}
+
+/** True when a submitted value is the dashboard echoing a mask back rather than a new secret. */
+export function isMaskedValue(value: unknown, mask = '••••••'): boolean {
+  return typeof value === 'string' && value.includes(mask);
+}
+
 /** Mask the secrets in a config object, in place. */
 export function maskSecrets(config: Record<string, unknown>, mask = '••••••'): void {
   for (const field of allFields()) {
     if (field.type !== 'password') continue;
     const current = getPath(config, field.key);
-    if (typeof current === 'string' && current) setPath(config, field.key, mask);
+    if (typeof current === 'string' && current) setPath(config, field.key, maskSecret(current, mask));
   }
 }
