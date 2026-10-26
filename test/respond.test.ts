@@ -246,3 +246,48 @@ test('a forwarded request renames the proxy model to the configured upstream mod
   assert.equal(seen[1]?.model, 'gpt-4o-mini', 'an empty model must become the configured one');
   assert.equal(seen[2]?.model, 'llama3', 'a real model name must pass through');
 });
+
+test('a tool result from an earlier turn is not mistaken for the current one', async () => {
+  clearCatalogCache();
+  pendingConfirmations.clear();
+  issuedCalls.clear();
+
+  const { state, response } = fakeResponse();
+  const callId = 'call_old_1';
+  issuedCalls.set(callId, { action: 'turn_off', targets: ['light.kitchen_lights'], domain: 'light', at: Date.now() });
+
+  // Home Assistant replays the whole chat log: an old confirmation, then a brand-new question.
+  // The proxy used to answer the new question with the old action's sentence.
+  await handleChatCompletions(
+    {
+      model: 'm',
+      stream: false,
+      tools: TOOLS,
+      messages: [
+        { role: 'system', content: PROMPT },
+        { role: 'user', content: 'turn off the kitchen lights' },
+        {
+          role: 'assistant',
+          content: null,
+          tool_calls: [
+            { id: callId, type: 'function', function: { name: 'HassTurnOff', arguments: '{"name":"light.kitchen_lights"}' } },
+          ],
+        },
+        {
+          role: 'tool',
+          tool_call_id: callId,
+          content: JSON.stringify({ success: true, result: { speech: { plain: { speech_slots: { action: 'turned off', name: 'Kitchen Lights' } } } } }),
+        },
+        { role: 'assistant', content: 'Turned off Kitchen Lights.' },
+        { role: 'user', content: "What's two plus two?" },
+      ],
+    },
+    '{}',
+    response,
+    config(),
+  );
+
+  assert.doesNotMatch(state.body, /Turned off Kitchen Lights/, 'the previous turn must not answer this one');
+  // No upstream is configured here, so the proxy forwards rather than inventing an answer.
+  assert.match(state.body, /model server|needs your model|forwarded/i);
+});

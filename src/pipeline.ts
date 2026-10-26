@@ -371,9 +371,21 @@ export async function handleChatCompletions(
   const systemPrompt = systemPromptOf(messages);
   const key = sessionKey(request, systemPrompt);
 
-  // 1. A round carrying a tool result is a speech round.
-  const toolMessages = messages.filter((message) => message.role === 'tool');
-  const toolMessage = [...messages].reverse().find((message) => message.role === 'tool');
+  // 1. A round whose newest messages are tool results is a speech round.
+  //
+  // It has to be the newest thing in the request: a tool message further back is history.
+  // Home Assistant replays the whole chat log, so "contains a tool result" is not the same
+  // as "this turn is the answer to a tool call" — treating history as a speech round made
+  // the proxy answer a brand-new question with the previous action's sentence
+  // ("What's two plus two?" -> "Turned off Kitchen Lights.").
+  const trailingTools: OpenAIMessage[] = [];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role !== 'tool') break;
+    trailingTools.unshift(message);
+  }
+  const toolMessages = trailingTools;
+  const toolMessage = trailingTools[trailingTools.length - 1];
   if (toolMessage) {
     if (active.speech.afterTool === 'upstream') {
       await forwardUpstream(request, rawBody, response, override);
