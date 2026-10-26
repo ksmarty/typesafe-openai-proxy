@@ -70,11 +70,30 @@ export function respondText(options: ChunkOptions, text: string, response: Serve
   response.end();
 }
 
-export function respondToolCall(
+export interface PreparedCall {
+  id: string;
+  name: string;
+  args: string;
+}
+
+/**
+ * Answer with one or more tool calls.
+ *
+ * Home Assistant executes every call in the reply, in order, and sends one tool result
+ * per call, so a request that names two rooms can be satisfied in a single turn instead
+ * of one room per turn.
+ */
+export function respondToolCalls(
   options: ChunkOptions,
-  call: { id: string; name: string; args: string },
+  calls: PreparedCall[],
   response: ServerResponse,
 ): void {
+  const payload = calls.map((call) => ({
+    id: call.id,
+    type: 'function' as const,
+    function: { name: call.name, arguments: call.args },
+  }));
+
   if (!options.stream) {
     jsonResponse(response, 200, {
       id: options.id,
@@ -84,13 +103,7 @@ export function respondToolCall(
       choices: [
         {
           index: 0,
-          message: {
-            role: 'assistant',
-            content: null,
-            tool_calls: [
-              { id: call.id, type: 'function', function: { name: call.name, arguments: call.args } },
-            ],
-          },
+          message: { role: 'assistant', content: null, tool_calls: payload },
           finish_reason: 'tool_calls',
         },
       ],
@@ -102,9 +115,7 @@ export function respondToolCall(
   response.write(`data: ${chunk(options, { role: 'assistant' })}\n\n`);
   response.write(
     `data: ${chunk(options, {
-      tool_calls: [
-        { index: 0, id: call.id, type: 'function', function: { name: call.name, arguments: call.args } },
-      ],
+      tool_calls: payload.map((call, index) => ({ index, ...call })),
     })}\n\n`,
   );
   response.write(`data: ${chunk(options, {}, 'tool_calls')}\n\n`);
@@ -279,4 +290,22 @@ export function speechForLastTool(
   language?: string,
 ): string {
   return speechFor(callId, content, cachedCatalog(), language);
+}
+
+/**
+ * What to say after a turn that ran several calls.
+ *
+ * Home Assistant sends one tool result per call, so the round is spoken by joining what
+ * each call came back with. Anything empty (a failure, a call it does not recognise) is
+ * dropped rather than read out as a gap.
+ */
+export function speechForToolRound(
+  results: { callId?: string; content?: string }[],
+  language?: string,
+): string {
+  const catalog = cachedCatalog();
+  const said = results
+    .map((result) => speechFor(result.callId, result.content, catalog, language).trim())
+    .filter((line) => line.length > 0);
+  return [...new Set(said)].join(' ');
 }

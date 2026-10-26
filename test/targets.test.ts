@@ -66,7 +66,7 @@ test('two rooms in one sentence are two targets', () => {
   assert.deepEqual(targets.map((entry) => entry.name).sort(), ['Kitchen', 'Living Room']);
 });
 
-test('a request for two rooms is forwarded whole rather than half done', () => {
+test('a request for two rooms becomes one call per room, never one room only', () => {
   const result = routeFor('turn on the kitchen and living room lights', {
     [Q.category]: { type: 'choice', choice: 'command', probabilities: { command: 0.99 }, confidence: 0.99 },
     [Q.compound]: { type: 'noul', noul: 0.2 },
@@ -75,8 +75,13 @@ test('a request for two rooms is forwarded whole rather than half done', () => {
     [Q.targetDomain]: { type: 'choice', choice: 'light', probabilities: { light: 1 }, confidence: 1 },
     [actionQuestion('light')]: { type: 'choice', choice: 'turn_on', probabilities: { turn_on: 1 }, confidence: 1 },
   });
-  assert.equal(result.plan.kind, 'forward');
-  assert.match(result.reason, /more than one target \(Kitchen, Living Room\)/);
+  assert.equal(result.plan.kind, 'calls');
+  if (result.plan.kind !== 'calls') return;
+  assert.equal(result.plan.calls.length, 2);
+  assert.deepEqual(
+    result.plan.calls.map((call) => call.args.area).sort(),
+    ['Kitchen', 'Living Room'],
+  );
 });
 
 test('"all the lights" is not pulled back into the room the device sits in', () => {

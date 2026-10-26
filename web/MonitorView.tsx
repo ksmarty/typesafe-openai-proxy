@@ -154,19 +154,38 @@ type Plan = ProbeResponse['route']['plan'];
  * A decision test is only useful if it shows the call — intent name and slots —
  * or says plainly that no call is made (and why).
  */
+/** A plan that sends several calls, whether one action across targets or a split sentence. */
+function callsOf(plan: unknown): { tool: string; args: unknown }[] {
+  const record = (plan ?? {}) as { kind?: unknown; calls?: unknown; tool?: unknown; args?: unknown; pending?: unknown };
+  if (record.kind === 'calls' && Array.isArray(record.calls)) {
+    return record.calls.map((call) => {
+      const entry = (call ?? {}) as { tool?: unknown; args?: unknown };
+      return { tool: String(entry.tool ?? ''), args: entry.args ?? {} };
+    });
+  }
+  if (record.kind === 'confirm' && record.pending) return callsOf(record.pending);
+  if (record.kind === 'tool') return [{ tool: String(record.tool ?? ''), args: record.args ?? {} }];
+  return [];
+}
+
 function CallPanel({ plan }: { plan: Plan }) {
   const kind = String(plan.kind ?? '');
-  const pending = (plan.pending ?? null) as { tool?: unknown; args?: unknown } | null;
   const text = typeof plan.text === 'string' ? plan.text : '';
+  const calls = callsOf(plan);
   let heading = 'No Home Assistant call';
   let body = '';
 
-  if (kind === 'tool') {
+  if (kind === 'calls') {
+    heading = `${calls.length} Home Assistant calls, in this order`;
+    body = calls.map((call, index) => `${index + 1}. ${call.tool} ${pretty(call.args)}`).join('\n');
+  } else if (kind === 'tool') {
     heading = 'Home Assistant call';
     body = `${String(plan.tool)} ${pretty(plan.args ?? {})}`;
   } else if (kind === 'confirm') {
-    heading = 'Home Assistant call — after you confirm';
-    body = pending ? `${String(pending.tool)} ${pretty(pending.args ?? {})}` : text;
+    heading =
+      calls.length > 1 ? `Home Assistant calls — after you confirm` : 'Home Assistant call — after you confirm';
+    body =
+      calls.length === 0 ? text : calls.map((call, index) => `${calls.length > 1 ? `${index + 1}. ` : ''}${call.tool} ${pretty(call.args)}`).join('\n');
   } else if (kind === 'clarify') {
     heading = 'No call yet — it asks which one';
     body = text;
@@ -250,6 +269,7 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
 
 function TraceRow({ entry }: { entry: TraceEntry }) {
   const tool = entry.tool ? `${entry.tool} ${pretty(entry.args ?? {})}` : null;
+  const callLines = (entry.calls ?? []).map((call, index) => `${index + 1}. ${call.tool} ${pretty(call.args ?? {})}`);
   return (
     <Accordion disableGutters elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, '&:before': { display: 'none' }, mb: 1 }}>
       <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2 }}>
@@ -287,6 +307,14 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
             {entry.totalMs ? <Chip label={`${ms(entry.totalMs)} total`} variant="outlined" /> : null}
           </Stack>
           {tool ? <CodeBlock>{tool}</CodeBlock> : null}
+          {callLines.length ? (
+            <Box>
+              <Typography variant="overline" color="text.secondary">
+                {callLines.length} calls
+              </Typography>
+              <CodeBlock>{callLines.join('\n')}</CodeBlock>
+            </Box>
+          ) : null}
           {entry.toolsOffered ? (
             <Box>
               <Typography variant="overline" color="text.secondary">

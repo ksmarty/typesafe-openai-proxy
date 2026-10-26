@@ -220,6 +220,31 @@ mean: Bedroom Lamp, Living Room Lamp?"), and when the speaker names a room inste
 light", two lights in the kitchen) the tool call goes out with `{"area": "Kitchen", "domain": "light"}`.
 Risky actions produce a confirmation and arm a yes/no for 90 s; "yes" then emits the held tool call.
 
+### More than one thing at once
+
+One utterance can legitimately need several calls, and the proxy sends them in one response rather
+than answering half of it:
+
+- **One action over several targets** — "turn on the kitchen and living room lights" becomes two
+  calls, `{"area": "Kitchen", "domain": "light"}` then `{"area": "Living Room", "domain": "light"}`.
+  A room whose name is also the name of a device group ("Kitchen Lights") is counted once, and
+  "the kitchen ceiling" is a device, not the room it sits in.
+- **Two actions in one sentence** — "turn off the kitchen lights and lock the door" is split into its
+  clauses, each decided on its own against the same catalog, and the calls are sent in order. If any
+  clause is not something the fast path can call (a request for prose, a device kind this request
+  offers no intent for), the whole sentence is forwarded instead: a half-done compound request is
+  the one outcome worth avoiding.
+
+Home Assistant executes the calls in order and the follow-up round carries one tool result per call,
+so the spoken reply is assembled from every result.
+
+## Resetting settings
+
+**Reset this page** in the settings footer restores only the section you are looking at (`POST
+/api/config/reset` with `{"group": "catalog"}`); every other section keeps its values, including the
+Home Assistant token and the decision API key. `POST /api/config/reset` without a group is still a
+full reset to defaults.
+
 ## Targeting, precisely
 
 Home Assistant's intent filters accept an **entity id in the `name` slot** and match it exactly

@@ -134,7 +134,12 @@ export const probe = (text: string) =>
   call<ProbeResponse>('/api/probe', { method: 'POST', body: JSON.stringify({ text }) });
 export const saveConfig = (config: Record<string, unknown>) =>
   call<ConfigResponse>('/api/config', { method: 'POST', body: JSON.stringify(config) });
-export const resetConfig = () => call<ConfigResponse>('/api/config/reset', { method: 'POST' });
+/** Reset one settings page, or everything when no group is named. */
+export const resetConfig = (group?: string) =>
+  call<ConfigResponse & { group?: string; fields?: number }>('/api/config/reset', {
+    method: 'POST',
+    body: JSON.stringify(group ? { group } : {}),
+  });
 
 export const testHa = (url?: string, token?: string) =>
   call<TestResult>('/api/test/ha', { method: 'POST', body: JSON.stringify({ url, token }) });

@@ -263,6 +263,52 @@ export function saveConfig(patch: unknown): { config: Config; adjusted: { key: s
   return { config: cached, adjusted };
 }
 
+function readPath(root: Record<string, unknown>, parts: string[]): unknown {
+  let cursor: unknown = root;
+  for (const part of parts) {
+    if (!cursor || typeof cursor !== 'object') return undefined;
+    cursor = (cursor as Record<string, unknown>)[part];
+  }
+  return cursor;
+}
+
+function writePath(root: Record<string, unknown>, parts: string[], value: unknown): void {
+  let cursor: Record<string, unknown> = root;
+  for (const part of parts.slice(0, -1)) {
+    const next = cursor[part];
+    if (!next || typeof next !== 'object') cursor[part] = {};
+    cursor = cursor[part] as Record<string, unknown>;
+  }
+  cursor[parts[parts.length - 1] as string] = value;
+}
+
+/**
+ * Put only these settings back to their defaults.
+ *
+ * The dashboard resets the page you are looking at, not the whole file: wiping a Home
+ * Assistant token or a decision URL because someone wanted the look of one tab back is
+ * a data loss, not a reset.
+ */
+export function resetConfigPaths(paths: string[]): Config {
+  const defaults = defaultConfig() as unknown as Record<string, unknown>;
+  const next = structuredClone(loadConfig(true)) as unknown as Record<string, unknown>;
+  let touched = 0;
+  for (const path of paths) {
+    const parts = path.split('.').filter(Boolean);
+    if (!parts.length) continue;
+    const value = readPath(defaults, parts);
+    if (value === undefined) continue;
+    writePath(next, parts, structuredClone(value));
+    touched += 1;
+  }
+  if (!touched) return loadConfig(true);
+  mkdirSync(dirname(CONFIG_PATH), { recursive: true });
+  writeFileSync(CONFIG_PATH, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  cached = next as unknown as Config;
+  applyEnv(cached);
+  return cached;
+}
+
 /** Put every stored value back to the built-in default. */
 export function resetConfig(): Config {
   const config = defaultConfig();

@@ -25,14 +25,17 @@ import type {
   CatalogEntity,
   ChoiceAnswer,
   Gate,
+  MultiCallPlan,
   Plan,
   RouteResult,
+  ToolCall,
   ToolCallPlan,
 } from './types.js';
 import { buildToolCall, describeInventory, magnitudeStep, relativeTarget } from './toolcall.js';
 import type { ToolInventory } from './toolcall.js';
 import { INTENTS } from './actions.js';
 import { mentionedTargets, uniqueAreaMention, uniqueEntityMention } from './catalog.js';
+import type { MentionedTarget } from './catalog.js';
 import { marginOf } from './systemone.js';
 import { round, normalise } from './util.js';
 
@@ -317,6 +320,122 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
 
 // --- commands ---------------------------------------------------------------
 
+/**
+ * One action, several targets — "turn on the kitchen and living room lights".
+ *
+ * The decision model already answered which action applies to the sentence as a whole,
+ * so the only work left is one call per target, each validated against the intents the
+ * request actually offers. If any call cannot be built, the whole sentence is forwarded:
+ * acting on part of a request is the one outcome worth avoiding.
+ */
+function planMulti(ctx: RouteContext, gates: Gate[], mentioned: MentionedTarget[]): RouteResult {
+  const { answers, config, inventory, catalog } = ctx;
+  const t = config.routing.thresholds;
+  const said = templates(config, ctx.language);
+  const names = mentioned.map((target) => target.name).join(', ');
+
+  const entities = mentioned
+    .map((target) => (target.kind === 'entity' ? catalog.entities.find((entity) => entity.id === target.id) : undefined))
+    .filter((entity): entity is CatalogEntity => Boolean(entity));
+  const domains = new Set(entities.map((entity) => entity.domain));
+
+  let domain: string | undefined;
+  if (entities.length === mentioned.length && domains.size === 1) {
+    domain = [...domains][0];
+  } else {
+    // Rooms, or a mix of kinds: the sentence has to say what sort of thing it means.
+    const answer = choiceOf(answers, Q.targetDomain);
+    if (!gateChoice(gates, Q.targetDomain, answer, t.domain, t.minMargin)) {
+      return forward(`the request names more than one target (${names}) and not one kind of device`, gates, {
+        category: 'command',
+      });
+    }
+    domain = answer!.choice;
+  }
+  if (!domain || domain === NO_DOMAIN) return forward(`no kind of device for ${names}`, gates, { category: 'command' });
+
+  const actionKey = actionQuestion(domain);
+  const actionAnswer = choiceOf(answers, actionKey);
+  if (!actionAnswer) return forward(`no action question for ${domain}`, gates, { category: 'command' });
+  const probability = actionAnswer.probabilities[actionAnswer.choice] ?? actionAnswer.confidence;
+  const margin = marginOf(actionAnswer);
+  const passed = probability >= t.actionProbability && margin >= t.minMargin;
+  gates.push({
+    question: actionKey,
+    choice: actionAnswer.choice,
+    probability: round(probability, 3),
+    margin,
+    threshold: t.actionProbability,
+    passed,
+  });
+  if (!passed) return forward(`${domain} action is not confident enough for ${names}`, gates, { category: 'command' });
+  const action = actionAnswer.choice;
+  if (action === NOT_TARGETED) return forward('the request is not about that kind of device', gates, { category: 'command' });
+
+  const spec = specFor(domain, action);
+  if (!spec) return forward(`${domain}:${action} has no Home Assistant intent`, gates, { category: 'command' });
+  // A relative step needs a current level per device, and a mode or a colour is one
+  // value for one thing: neither reads sensibly across several targets.
+  if (spec.relative || spec.needsText) {
+    return forward(`${action} across ${mentioned.length} targets is not handled by the fast path`, gates, {
+      category: 'command',
+    });
+  }
+
+  let value: number | undefined;
+  if (spec.valueSlot) {
+    value = absoluteValue(ctx, spec.valueSlot, spec.valueKind);
+    if (value === undefined) return forward(`no value stated for ${action}`, gates, { category: 'command' });
+  }
+
+  const calls: ToolCall[] = [];
+  for (const target of mentioned) {
+    const entity = target.kind === 'entity' ? catalog.entities.find((candidate) => candidate.id === target.id) : undefined;
+    const call = buildToolCall({
+      intent: spec.intentType,
+      spec,
+      inventory,
+      target: {
+        ...(entity ? { entity } : {}),
+        ...(target.kind === 'area' ? { areaName: target.name } : {}),
+        ...(domain ? { domain } : {}),
+      },
+      action,
+      ...(value !== undefined ? { value } : {}),
+    });
+    if ('error' in call) return forward(call.error, gates, { category: 'command' });
+    calls.push({ tool: call.tool, args: call.args, targets: [target.id], action, domain });
+  }
+
+  const plan: MultiCallPlan = { kind: 'calls', calls, action, ...(domain ? { domain } : {}) };
+  const risky = isRisky(action, domain, {}, noulOf(answers, Q.risky), t);
+  if (risky && config.decision.alwaysConfirmRisky) {
+    const verb = CONFIRM_INFINITIVES[action] ?? ACTION_VERBS[action]?.toLowerCase() ?? action;
+    return {
+      plan: {
+        kind: 'confirm',
+        text: fill(said.confirm, { action: verb, entity: names }),
+        pending: plan,
+      },
+      gates,
+      reason: `${calls.length} calls, one confirmation`,
+      category: 'command',
+      action,
+      target: mentioned[0]?.id,
+      risky: true,
+    };
+  }
+
+  return {
+    plan,
+    gates,
+    reason: `${action} on ${mentioned.length} targets: ${names}`,
+    category: 'command',
+    action,
+    target: mentioned[0]?.id,
+  };
+}
+
 function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
   const { answers, config, inventory, extraction, built, catalog, utterance } = ctx;
   const t = config.routing.thresholds;
@@ -330,18 +449,11 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
   // cannot decide how wide the request is should not veto a room the sentence names.
   const namedRoom = uniqueAreaMention(catalog, utterance);
   const namedEntity = uniqueEntityMention(catalog, utterance);
-  // One target per turn. "The kitchen and the living room lights" is two requests, and
-  // the model that answers the scope question does not always flag it as compound, so
-  // read the sentence rather than trusting that gate alone.
+  // "The kitchen and the living room lights" is one action on two targets. The model
+  // answers the action question for the sentence as a whole, so each target only needs
+  // its own call: doing half of it, or handing the whole sentence back, is worse.
   const mentioned = mentionedTargets(catalog, utterance);
-  if (mentioned.length >= 2) {
-    return forward(
-      `the request names more than one target (${mentioned.map((entry) => entry.name).join(', ')}); ` +
-        'the fast path handles one per turn',
-      gates,
-      { category: 'command' },
-    );
-  }
+  if (mentioned.length >= 2) return planMulti(ctx, gates, mentioned);
   let scope = scopeAnswer.choice;
   if (!scopeOk) {
     if (namedEntity) {

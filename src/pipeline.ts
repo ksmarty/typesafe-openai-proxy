@@ -20,15 +20,17 @@ import {
   forwardUpstream,
   NO,
   respondText,
-  respondToolCall,
+  respondToolCalls,
   speechForLastTool,
+  speechForToolRound,
   YES,
   type ChunkOptions,
 } from './respond.js';
 import { issuedCalls, pendingConfirmations, rememberTrace, stats } from './state.js';
+import { splitClauses } from './compound.js';
 import { decide, DecisionUnavailable } from './systemone.js';
 import { inventoryFor } from './toolcall.js';
-import type { OpenAIChatRequest, OpenAIMessage, Plan, RouteResult, TraceEntry } from './types.js';
+import type { Gate, OpenAIChatRequest, OpenAIMessage, Plan, RouteResult, ToolCall, TraceEntry } from './types.js';
 import { sha1, uid } from './util.js';
 
 function languageOf(request: OpenAIChatRequest): string | undefined {
@@ -140,47 +142,101 @@ export async function runPipeline(
     };
   }
   const catalog = await getCatalog(active, systemPrompt);
-  const extraction = extract(utterance, {
-    entityNames: catalog.entities.map((entity) => entity.name),
-  });
-  const built = buildQuestions(catalog, extraction, {
-    maxOptions: active.decision.maxOptions,
-    defaultArea: active.catalog.defaultArea,
-  });
+  const entityNames = catalog.entities.map((entity) => entity.name);
 
-  const decision =
-    active.decision.backend === 'systemone' && active.decision.baseUrl
-      ? await decide({
-          utterance,
-          catalog,
-          questions: built.questions,
-          spokenFromAreaName: active.catalog.defaultArea,
-          language: languageOf(request),
-          config: active,
-          conversation: historyOf(request.messages, active.decision.historyTurns),
-        })
-      : heuristicDecide({
-          utterance,
-          catalog,
-          questions: built.questions,
-          spokenFromAreaName: active.catalog.defaultArea,
-          language: languageOf(request),
-          config: active,
-          built,
-        });
+  /**
+   * Decide one sentence: extraction, question set, the model, then the routing gates.
+   *
+   * Kept as a closure so a compound sentence can be read clause by clause against the same
+   * catalog, thresholds and tool inventory as the sentence as a whole.
+   */
+  const decideFor = async (text: string) => {
+    const extraction = extract(text, { entityNames });
+    const built = buildQuestions(catalog, extraction, {
+      maxOptions: active.decision.maxOptions,
+      defaultArea: active.catalog.defaultArea,
+    });
+    const decision =
+      active.decision.backend === 'systemone' && active.decision.baseUrl
+        ? await decide({
+            utterance: text,
+            catalog,
+            questions: built.questions,
+            spokenFromAreaName: active.catalog.defaultArea,
+            language: languageOf(request),
+            config: active,
+            conversation: historyOf(request.messages, active.decision.historyTurns),
+          })
+        : heuristicDecide({
+            utterance: text,
+            catalog,
+            questions: built.questions,
+            spokenFromAreaName: active.catalog.defaultArea,
+            language: languageOf(request),
+            config: active,
+            built,
+          });
+    const routed = routeRequest({
+      utterance: text,
+      language: languageOf(request),
+      catalog,
+      answers: decision.answers,
+      built,
+      extraction,
+      config: active,
+      inventory,
+    });
+    return { extraction, built, decision, routed };
+  };
 
-  const result: RouteResult = active.routing.enabled
-    ? routeRequest({
-        utterance,
-        language: languageOf(request),
-        catalog,
-        answers: decision.answers,
-        built,
-        extraction,
-        config: active,
-        inventory,
-      })
+  const first = await decideFor(utterance);
+  const { extraction, built, decision } = first;
+  let result: RouteResult = active.routing.enabled
+    ? first.routed
     : { plan: { kind: 'forward', reason: 'routing disabled' } as Plan, gates: [], reason: 'routing disabled' };
+
+  // A compound sentence — "turn off the lights and lock the door" — is two actions, and one
+  // action cannot satisfy it. Read each clause on its own and take the whole set only when
+  // every clause resolved: acting on half a sentence is the outcome worth avoiding, so a
+  // clause the fast path cannot read sends the whole sentence to the model instead.
+  const clauses = active.routing.enabled ? splitClauses(utterance) : [];
+  const answeredElsewhere = result.plan.kind === 'clarify' || result.plan.kind === 'confirm';
+  if (clauses.length >= 2 && !answeredElsewhere) {
+    const calls: ToolCall[] = [];
+    const clauseGates: Gate[] = [];
+    for (const clause of clauses) {
+      const part = (await decideFor(clause)).routed;
+      const plan = part.plan;
+      if (plan.kind === 'calls') calls.push(...plan.calls);
+      else if (plan.kind === 'tool') {
+        calls.push({
+          tool: plan.tool,
+          args: plan.args,
+          targets: plan.targets,
+          action: plan.action,
+          ...(plan.domain ? { domain: plan.domain } : {}),
+        });
+      } else break;
+      clauseGates.push(...part.gates);
+    }
+    if (calls.length >= 2 && calls.length === clauses.length) {
+      const head = calls[0]!;
+      result = {
+        plan: { kind: 'calls', calls, action: head.action, ...(head.domain ? { domain: head.domain } : {}) },
+        gates: [...result.gates, ...clauseGates],
+        reason: `compound request split into ${calls.length} calls`,
+        category: 'command',
+        action: head.action,
+        target: head.targets[0],
+      };
+    } else if (result.plan.kind !== 'forward' || !/^compound/i.test(result.reason)) {
+      result = {
+        plan: { kind: 'forward', reason: 'compound request: at least one clause is not something the fast path can call' },
+        gates: [...result.gates, ...clauseGates],
+        reason: 'compound request: at least one clause is not something the fast path can call',
+      };
+    }
+  }
 
   const entry: TraceEntry = {
     id: uid('trace'),
@@ -190,6 +246,9 @@ export async function runPipeline(
     route: result.plan.kind,
     reason: result.reason,
     ...(result.plan.kind === 'tool' ? { tool: result.plan.tool, args: result.plan.args } : {}),
+    ...(result.plan.kind === 'calls'
+      ? { calls: result.plan.calls.map((call) => ({ tool: call.tool, args: call.args })) }
+      : {}),
     ...(result.category ? { category: result.category } : {}),
     ...(result.action ? { action: result.action } : {}),
     ...(result.target ? { target: result.target } : {}),
@@ -216,6 +275,10 @@ export async function runPipeline(
   switch (result.plan.kind) {
     case 'tool':
       stats.toolCalls += 1;
+      stats.routable += 1;
+      break;
+    case 'calls':
+      stats.toolCalls += result.plan.calls.length;
       stats.routable += 1;
       break;
     case 'forward':
@@ -289,6 +352,7 @@ export async function handleChatCompletions(
   const key = sessionKey(request, systemPrompt);
 
   // 1. A round carrying a tool result is a speech round.
+  const toolMessages = messages.filter((message) => message.role === 'tool');
   const toolMessage = [...messages].reverse().find((message) => message.role === 'tool');
   if (toolMessage) {
     if (active.speech.afterTool === 'upstream') {
@@ -299,11 +363,20 @@ export async function handleChatCompletions(
       respondText(options(), '', response);
       return;
     }
-    const text = speechForLastTool(
-      toolMessage.tool_call_id,
-      typeof toolMessage.content === 'string' ? toolMessage.content : undefined,
-      languageOf(request),
-    );
+    const text =
+      toolMessages.length > 1
+        ? speechForToolRound(
+            toolMessages.map((message) => ({
+              ...(message.tool_call_id ? { callId: message.tool_call_id } : {}),
+              ...(typeof message.content === 'string' ? { content: message.content } : {}),
+            })),
+            languageOf(request),
+          )
+        : speechForLastTool(
+            toolMessage.tool_call_id,
+            typeof toolMessage.content === 'string' ? toolMessage.content : undefined,
+            languageOf(request),
+          );
     respondText(options(), text || 'Done.', response);
     return;
   }
@@ -328,8 +401,9 @@ export async function handleChatCompletions(
         utterance,
         route: 'tool',
         reason: 'confirmed by the speaker',
-        tool: pending.plan.tool,
-        args: pending.plan.args,
+        ...(pending.plan.kind === 'tool'
+          ? { tool: pending.plan.tool, args: pending.plan.args }
+          : { calls: pending.plan.calls.map((call) => ({ tool: call.tool, args: call.args })) }),
         gates: [],
         backend: 'confirmation',
       });
@@ -369,6 +443,7 @@ export async function handleChatCompletions(
   const plan = result.route.plan;
   switch (plan.kind) {
     case 'tool':
+    case 'calls':
       emitToolCall(response, options(), plan);
       return;
     case 'clarify':
@@ -389,17 +464,27 @@ export async function handleChatCompletions(
   }
 }
 
+/**
+ * Send the call, or the calls.
+ *
+ * Each call gets its own id and is remembered against it, because the follow-up round
+ * arrives as one tool message per call and each is spoken locally.
+ */
 function emitToolCall(
   response: ServerResponse,
   options: ChunkOptions,
-  plan: Extract<Plan, { kind: 'tool' }>,
+  plan: Extract<Plan, { kind: 'tool' } | { kind: 'calls' }>,
 ): void {
-  const callId = uid('call');
-  issuedCalls.set(callId, {
-    action: plan.action,
-    targets: plan.targets,
-    ...(plan.domain ? { domain: plan.domain } : {}),
-    at: Date.now(),
+  const calls = plan.kind === 'calls' ? plan.calls : [plan];
+  const prepared = calls.map((call) => {
+    const id = uid('call');
+    issuedCalls.set(id, {
+      action: call.action,
+      targets: call.targets,
+      ...(call.domain ? { domain: call.domain } : {}),
+      at: Date.now(),
+    });
+    return { id, name: call.tool, args: JSON.stringify(call.args) };
   });
-  respondToolCall(options, { id: callId, name: plan.tool, args: JSON.stringify(plan.args) }, response);
+  respondToolCalls(options, prepared, response);
 }

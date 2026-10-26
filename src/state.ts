@@ -21,7 +21,7 @@ export const stats = {
 };
 
 export interface PendingConfirmation {
-  plan: Extract<Plan, { kind: 'tool' }>;
+  plan: Extract<Plan, { kind: 'tool' } | { kind: 'calls' }>;
   utterance: string;
   expiresAt: number;
 }

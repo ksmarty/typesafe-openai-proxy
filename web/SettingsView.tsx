@@ -9,6 +9,11 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
 import List from '@mui/material/List';
@@ -160,15 +165,21 @@ export function SettingsView({
     }
   };
 
+  // Resetting the page you are looking at, never the whole file: a Home Assistant token
+  // or a decision URL is not something to lose because one tab should look default again.
+  const [resetAsk, setResetAsk] = useState(false);
   const reset = async () => {
+    setResetAsk(false);
     setSaving(true);
     try {
-      const result = await resetConfig();
+      const result = await resetConfig(group?.id);
       setSaved(result.config);
       setDraft(result.config);
       setAdjusted([]);
       setRestartRequired(false);
-      setToast('Settings reset to defaults.');
+      setToast(
+        group ? `Reset “${group.title}” to defaults. Your other pages are untouched.` : 'Settings reset to defaults.',
+      );
       onSaved();
     } catch (problem) {
       setError(errorMessage(problem));
@@ -438,13 +449,34 @@ export function SettingsView({
                 </IconButton>
               </span>
             </Tooltip>
-            <Tooltip title="Reset to defaults">
+            <Tooltip title={group ? `Reset “${group.title}” to defaults` : 'Reset to defaults'}>
               <span>
-                <IconButton size="small" aria-label="Reset to defaults" onClick={() => void reset()} disabled={saving}>
+                <IconButton
+                  size="small"
+                  aria-label={group ? `Reset ${group.title} to defaults` : 'Reset to defaults'}
+                  onClick={() => setResetAsk(true)}
+                  disabled={saving || !group}
+                >
                   <RestartAltIcon fontSize="small" />
                 </IconButton>
               </span>
             </Tooltip>
+            <Dialog open={resetAsk} onClose={() => setResetAsk(false)} maxWidth="xs" fullWidth>
+              <DialogTitle>Reset this page?</DialogTitle>
+              <DialogContent>
+                <DialogContentText>
+                  {group
+                    ? `“${group.title}” goes back to its defaults. Every other page is left alone.`
+                    : 'Every setting goes back to its defaults.'}
+                </DialogContentText>
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setResetAsk(false)}>Cancel</Button>
+                <Button color="warning" variant="contained" onClick={() => void reset()}>
+                  Reset this page
+                </Button>
+              </DialogActions>
+            </Dialog>
             <Button
               size="small"
               variant="contained"

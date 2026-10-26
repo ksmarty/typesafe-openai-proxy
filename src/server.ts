@@ -9,7 +9,16 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { catalogFromHomeAssistant, cachedCatalog, clearCatalogCache, emptyCatalog, getCatalog } from './catalog.js';
-import { configPath, defaultConfig, loadConfig, publicConfig, resetConfig, ROUTER_MODEL, saveConfig } from './config.js';
+import {
+  configPath,
+  defaultConfig,
+  loadConfig,
+  publicConfig,
+  resetConfig,
+  resetConfigPaths,
+  ROUTER_MODEL,
+  saveConfig,
+} from './config.js';
 import { fastPathStatus, handleChatCompletions, runPipeline } from './pipeline.js';
 import { assistTools } from './toolcall.js';
 import { installLogCapture, note, recentLogs } from './log.js';
@@ -285,8 +294,21 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
   }
 
   if (path === '/config/reset' && method === 'POST') {
-    resetConfig();
-    jsonResponse(response, 200, { ok: true, config: publicConfig() });
+    // `{ group }` resets one page of the dashboard. No group still resets everything,
+    // because that is what an explicit "reset all" means.
+    const parsed = await jsonBody<{ group?: string }>(request).catch(() => ({}) as { group?: string });
+    const group = typeof parsed.group === 'string' && parsed.group ? parsed.group : undefined;
+    const chosen = group ? settingsGroups().find((entry) => entry.id === group) : undefined;
+    if (group && !chosen) {
+      jsonResponse(response, 400, { error: `unknown settings group "${group}"` });
+      return true;
+    }
+    const config = chosen ? resetConfigPaths(chosen.fields.map((field) => field.key)) : resetConfig();
+    jsonResponse(response, 200, {
+      ok: true,
+      config: publicConfig(),
+      ...(chosen ? { group: chosen.id, fields: chosen.fields.length } : {}),
+    });
     return true;
   }
 

@@ -560,6 +560,29 @@ export interface MentionedTarget {
  * acts on one target per turn, and acting on half of a request is worse than handing
  * the whole sentence to the model, so the router needs to be able to see this.
  */
+/** The plural, group-shaped words that make "<room> lights" mean the room, not a device. */
+const GROUP_WORDS = new Set([
+  'lights', 'lamps', 'fans', 'blinds', 'covers', 'curtains', 'switches', 'plugs',
+  'sockets', 'speakers', 'lighting', 'group', 'all',
+]);
+
+/**
+ * Is this device the room's own group — "Kitchen Lights" rather than "Kitchen Ceiling"?
+ *
+ * People say "the kitchen lights" meaning the room, and Home Assistant often also exposes
+ * a light group by that name. Counting both would turn one request into two.
+ */
+function isRoomGroup(entity: CatalogEntity, area: CatalogArea): boolean {
+  const areaName = normalise(area.name);
+  if (!areaName) return false;
+  return [entity.name, ...(entity.aliases ?? [])].some((name) => {
+    const value = normalise(name);
+    if (!value.startsWith(areaName)) return false;
+    const rest = value.slice(areaName.length).trim().split(/\s+/).filter(Boolean);
+    return rest.length > 0 && rest.every((word) => GROUP_WORDS.has(word));
+  });
+}
+
 export function mentionedTargets(catalog: Catalog, utterance: string): MentionedTarget[] {
   const text = ` ${normalise(utterance)} `;
   const areas = catalog.areas.filter((area) =>
@@ -568,21 +591,54 @@ export function mentionedTargets(catalog: Catalog, utterance: string): Mentioned
       return value.length > 1 && (text.includes(` ${value} `) || text.includes(` ${value}s `));
     }),
   );
-  const areaIds = new Set(areas.map((area) => area.id));
-  const entities = catalog.entities
+  // Every device whose name appears, before rooms absorb the ones standing inside them.
+  const named = catalog.entities
     .filter((entity) => ACTIONABLE_DOMAINS.has(entity.domain))
     .filter((entity) =>
       [entity.name, ...(entity.aliases ?? [])].some((name) => {
         const value = normalise(name);
         return value.length > 2 && text.includes(` ${value} `);
       }),
-    )
-    // A device inside a room that was named is the same target, not a second one.
-    .filter((entity) => !entity.areaId || !areaIds.has(entity.areaId));
+    );
+  // A room whose name survives only inside the name of a device that was matched is
+  // saying which device is meant, not naming a second target: "the kitchen ceiling".
+  const withoutDevices = named.reduce((carry, entity) => {
+    let out = carry;
+    for (const name of [entity.name, ...(entity.aliases ?? [])]) {
+      const value = normalise(name);
+      if (value.length > 2) out = out.split(` ${value} `).join(' ');
+    }
+    return out;
+  }, text);
+  const namedOnlyInsideADevice = (area: CatalogArea): boolean =>
+    [area.name, ...(area.aliases ?? [])].some((name) => normalise(name).length > 1) &&
+    [area.name, ...(area.aliases ?? [])].every((name) => {
+      const value = normalise(name);
+      return value.length <= 1 || !withoutDevices.includes(` ${value} `);
+    });
+
+  const roomGroups = new Set(
+    named
+      .filter((entity) => {
+        const area = entity.areaId ? areas.find((entry) => entry.id === entity.areaId) : undefined;
+        return area ? isRoomGroup(entity, area) : false;
+      })
+      .map((entity) => entity.id),
+  );
+  const keptAreas = areas.filter(
+    (area) =>
+      named.some((entity) => entity.areaId === area.id && roomGroups.has(entity.id)) ||
+      !namedOnlyInsideADevice(area),
+  );
+  const keptAreaIds = new Set(keptAreas.map((area) => area.id));
+  // A device inside a room that was named is the same target, not a second one.
+  const entities = named
+    .filter((entity) => !roomGroups.has(entity.id))
+    .filter((entity) => !entity.areaId || !keptAreaIds.has(entity.areaId));
 
   const seen = new Set<string>();
   const out: MentionedTarget[] = [];
-  for (const area of areas) {
+  for (const area of keptAreas) {
     if (seen.has(area.id)) continue;
     seen.add(area.id);
     out.push({ kind: 'area', id: area.id, name: area.name });

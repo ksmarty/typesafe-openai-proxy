@@ -124,15 +124,32 @@ export type Gate = {
   note?: string;
 };
 
-export interface ToolCallPlan {
-  kind: 'tool';
+/** One Home Assistant intent call, as it will be sent. */
+export interface ToolCall {
   tool: string;
   args: Record<string, unknown>;
   /** Entity ids or area names the call targets, for the trace and confirmations. */
   targets: string[];
   action: string;
   domain?: string;
+}
+
+export interface ToolCallPlan extends ToolCall {
+  kind: 'tool';
   /** Spoken confirmation the proxy composed itself, when it could. */
+  said?: string;
+}
+
+/**
+ * Several calls in one turn: either one action across several targets ("the kitchen and
+ * the living room lights") or a compound sentence split into one call per clause. Home
+ * Assistant runs them in order and sends one tool result each.
+ */
+export interface MultiCallPlan {
+  kind: 'calls';
+  calls: ToolCall[];
+  action: string;
+  domain?: string;
   said?: string;
 }
 
@@ -145,7 +162,7 @@ export interface ClarifyPlan {
 export interface ConfirmPlan {
   kind: 'confirm';
   text: string;
-  pending: ToolCallPlan;
+  pending: ToolCallPlan | MultiCallPlan;
 }
 
 export interface ForwardPlan {
@@ -158,7 +175,7 @@ export interface TextPlan {
   text: string;
 }
 
-export type Plan = ToolCallPlan | ClarifyPlan | ConfirmPlan | ForwardPlan | TextPlan;
+export type Plan = ToolCallPlan | MultiCallPlan | ClarifyPlan | ConfirmPlan | ForwardPlan | TextPlan;
 
 export interface RouteResult {
   plan: Plan;
@@ -219,6 +236,8 @@ export interface TraceEntry {
   reason: string;
   tool?: string;
   args?: Record<string, unknown>;
+  /** Set when the turn sent several calls at once. */
+  calls?: { tool: string; args: Record<string, unknown> }[];
   category?: string;
   action?: string;
   target?: string;
