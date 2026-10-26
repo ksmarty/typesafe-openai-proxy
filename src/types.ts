@@ -232,8 +232,13 @@ export interface TraceEntry {
   at: number;
   utterance: string;
   language?: string;
-  route: Plan['kind'];
+  /** `refused` marks a request that never became a turn (wrong key, bad body, a throw). */
+  route: Plan['kind'] | 'refused';
   reason: string;
+  /** Set when the request was answered with an error instead of a route. */
+  httpStatus?: number;
+  /** Where the time went, so "it felt slow" has a number beside it. */
+  timings?: { catalogMs?: number; questionsMs?: number; decideMs?: number };
   tool?: string;
   args?: Record<string, unknown>;
   /** Set when the turn sent several calls at once. */

@@ -47,12 +47,13 @@ const SAMPLES = [
   'write me a poem about the sea',
 ];
 
-const ROUTE_COLOR: Record<string, 'success' | 'info' | 'warning' | 'secondary' | 'default'> = {
+const ROUTE_COLOR: Record<string, 'success' | 'info' | 'warning' | 'secondary' | 'error' | 'default'> = {
   tool: 'success',
   clarify: 'info',
   confirm: 'warning',
   forward: 'secondary',
   text: 'default',
+  refused: 'error',
 };
 
 function RouteChip({ kind, label }: { kind: string; label?: string }) {
@@ -275,8 +276,9 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
       <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2 }}>
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center',  width: '100%', minWidth: 0 }}>
           <RouteChip kind={entry.route} />
+          {entry.httpStatus ? <Chip label={`HTTP ${entry.httpStatus}`} color="error" variant="outlined" size="small" /> : null}
           <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
-            {entry.utterance || '(empty)'}
+            {entry.route === 'refused' ? entry.reason : entry.utterance || '(empty)'}
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
             {ms(entry.decisionMs)}
@@ -295,6 +297,15 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
             {entry.target ? <Chip label={entry.target} variant="outlined" /> : null}
             {entry.backend ? <Chip label={entry.backend} variant="outlined" /> : null}
             {entry.model ? <Chip label={entry.model} variant="outlined" /> : null}
+            {entry.httpStatus ? (
+              <Chip label={`HTTP ${entry.httpStatus}`} color="error" variant="outlined" size="small" />
+            ) : null}
+            {entry.timings ? (
+              <Chip
+                label={`${ms(entry.timings.decideMs)} decide · ${(entry.timings.questionsMs ?? 0) + (entry.timings.catalogMs ?? 0)} ms proxy`}
+                variant="outlined"
+              />
+            ) : null}
             {entry.inputTokens ? <Chip label={`${compact(entry.inputTokens)} tokens`} variant="outlined" /> : null}
             {entry.entities ? <Chip label={`${entry.entities} entities`} variant="outlined" /> : null}
             {entry.toolsOffered ? (
@@ -572,9 +583,18 @@ export function MonitorView({ status, onRefresh }: { status: Status | null; onRe
             />
           </Stack>
           {entries.length === 0 ? (
-            <Typography variant="body2" color="text.secondary">
-              No turns yet. Send something to Home Assistant, or try a request above.
-            </Typography>
+            <Stack spacing={1}>
+              <Typography variant="body2" color="text.secondary">
+                No turns yet. Send something to Home Assistant, or try a request above.
+              </Typography>
+              {Number(status?.stats?.requests ?? 0) === 0 ? (
+                <Typography variant="caption" color="text.disabled" sx={{ lineHeight: 1.3 }}>
+                  Nothing has reached this instance yet. Check that the Server URL in hass_local_openai_llm
+                  points here and ends in /v1, and that its API key matches this proxy&apos;s bearer token.
+                  A rejected request appears below as a red row.
+                </Typography>
+              ) : null}
+            </Stack>
           ) : (
             entries.map((entry) => <TraceRow key={entry.id} entry={entry} />)
           )}

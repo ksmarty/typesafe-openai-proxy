@@ -25,10 +25,10 @@ import { assistTools } from './toolcall.js';
 import { installLogCapture, note, recentLogs } from './log.js';
 import { jsonResponse } from './respond.js';
 import { secretOrStored, settingsGroups } from './schema.js';
-import { averageDecisionMs, pendingConfirmations, routableShare, startedAt, stats, trace } from './state.js';
+import { averageDecisionMs, pendingConfirmations, rememberTrace, routableShare, startedAt, stats, trace } from './state.js';
 import { breakerState, listModels, resetBreaker } from './systemone.js';
 import { ensureUiBundle } from './ui.js';
-import { fetchWithTimeout } from './util.js';
+import { fetchWithTimeout, uid } from './util.js';
 import type { Config } from './config.js';
 import type { Catalog, OpenAIChatRequest, TraceEntry } from './types.js';
 
@@ -178,6 +178,27 @@ function statusPayload(): Record<string, unknown> {
     pending: pendingConfirmations.size,
     traceDepth: trace.length,
   };
+}
+
+/**
+ * Record a request that never became a turn.
+ *
+ * A wrong API key used to leave the dashboard empty, which reads as "the proxy saw
+ * nothing" when in fact it answered 401 on every attempt. Errors belong in the log the
+ * dashboard shows, not only in the client's.
+ */
+function recordRefusal(httpStatus: number, reason: string): void {
+  rememberTrace({
+    id: uid('trace'),
+    at: Date.now(),
+    utterance: '',
+    route: 'refused',
+    reason,
+    gates: [],
+    httpStatus,
+    totalMs: 0,
+  });
+  note(`refused ${httpStatus}: ${reason}`);
 }
 
 async function refreshCatalog(force: boolean): Promise<Catalog> {
@@ -498,6 +519,7 @@ export function createApp() {
 
         if (url.pathname.startsWith('/v1/')) {
           if (!authorised(request, loadConfig().server.apiKey)) {
+            recordRefusal(401, 'the request carried the wrong bearer token — the API key in hass_local_openai_llm must match the one saved here');
             jsonResponse(response, 401, { error: { message: 'invalid api key', type: 'invalid_request_error' } });
             return;
           }
@@ -520,10 +542,19 @@ export function createApp() {
             try {
               parsed = JSON.parse(raw) as OpenAIChatRequest;
             } catch {
+              recordRefusal(400, 'the request body was not valid JSON');
               jsonResponse(response, 400, { error: { message: 'invalid JSON body', type: 'invalid_request_error' } });
               return;
             }
-            await handleChatCompletions(parsed, raw, response);
+            try {
+              await handleChatCompletions(parsed, raw, response);
+            } catch (err) {
+              const message = err instanceof Error ? err.message : String(err);
+              recordRefusal(500, `the proxy threw while answering the turn: ${message}`);
+              if (!response.headersSent) {
+                jsonResponse(response, 500, { error: { message, type: 'invalid_request_error' } });
+              }
+            }
             return;
           }
 

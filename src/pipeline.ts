@@ -113,6 +113,8 @@ export async function runPipeline(
   active: Config = loadConfig(),
 ): Promise<PipelineResult> {
   const startedAt = Date.now();
+  let catalogMs = 0;
+  let questionsMs = 0;
   const readiness = fastPathStatus(active);
   const inventory = inventoryFor(request.tools);
   const toolsOffered = [...inventory.keys()].sort().slice(0, 40);
@@ -120,6 +122,9 @@ export async function runPipeline(
   // produce "X is not offered" for everything, which reads as a proxy fault when it is
   // actually the caller sending no intents.
   if (inventory.size === 0) {
+    const catalogStarted = Date.now();
+    const catalog = await getCatalog(active, systemPrompt);
+    catalogMs = Date.now() - catalogStarted;
     const entry: TraceEntry = {
       id: uid('trace'),
       at: startedAt,
@@ -128,7 +133,7 @@ export async function runPipeline(
       reason: 'pass-through: the request carried no tools, so no Home Assistant intent can be called',
       gates: [],
       backend: 'off',
-      catalogSource: (await getCatalog(active, systemPrompt)).source,
+      catalogSource: catalog.source,
       toolsOffered: [],
       totalMs: Date.now() - startedAt,
     };
@@ -141,7 +146,9 @@ export async function runPipeline(
       bypass: entry.reason,
     };
   }
+  const catalogStarted = Date.now();
   const catalog = await getCatalog(active, systemPrompt);
+  catalogMs = Date.now() - catalogStarted;
   const entityNames = catalog.entities.map((entity) => entity.name);
 
   /**
@@ -151,11 +158,13 @@ export async function runPipeline(
    * catalog, thresholds and tool inventory as the sentence as a whole.
    */
   const decideFor = async (text: string) => {
+    const questionsStarted = Date.now();
     const extraction = extract(text, { entityNames });
     const built = buildQuestions(catalog, extraction, {
       maxOptions: active.decision.maxOptions,
       defaultArea: active.catalog.defaultArea,
     });
+    questionsMs += Date.now() - questionsStarted;
     const decision =
       active.decision.backend === 'systemone' && active.decision.baseUrl
         ? await decide({
@@ -254,6 +263,7 @@ export async function runPipeline(
     ...(result.target ? { target: result.target } : {}),
     gates: result.gates,
     decisionMs: decision.latencyMs,
+    timings: { catalogMs, questionsMs, decideMs: decision.latencyMs },
     totalMs: Date.now() - startedAt,
     inputTokens: decision.inputTokens,
     backend: decision.backend,
