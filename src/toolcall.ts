@@ -6,11 +6,56 @@
  * declare, means this proxy cannot act and the request is forwarded upstream instead.
  */
 
-import type { ActionSpec } from './actions.js';
+import { INTENTS, type ActionSpec } from './actions.js';
 import type { CatalogEntity, OpenAITool, OpenAIToolFunction } from './types.js';
 import { clamp } from './util.js';
 
 export type ToolInventory = Map<string, OpenAIToolFunction>;
+
+/**
+ * Every intent this proxy knows how to call, as OpenAI tool definitions.
+ *
+ * Used by the dry-run probe: a real request carries Home Assistant's own list of
+ * schemas, but a probe has no request behind it, and answering "not offered by
+ * Home Assistant" for every dry run would make the probe useless.
+ */
+export function assistTools(): OpenAITool[] {
+  // A permissive superset of the slots Home Assistant's intents accept, so a dry
+  // run can build the call instead of reporting a missing slot.
+  const slots = [
+    'name',
+    'area',
+    'floor',
+    'domain',
+    'device_class',
+    'brightness_pct',
+    'brightness',
+    'position',
+    'percentage',
+    'current_position',
+    'temperature',
+    'target_temperature',
+    'volume_level',
+    'volume_step',
+    'humidity',
+    'color_name',
+    'color',
+    'item',
+    'mode',
+    'search_query',
+    'media_id',
+    'query',
+  ];
+  const properties = Object.fromEntries(slots.map((slot) => [slot, { type: 'string' }]));
+  return Object.values(INTENTS).map((name) => ({
+    type: 'function' as const,
+    function: {
+      name,
+      description: 'Home Assistant intent (dry run: every slot accepted)',
+      parameters: { type: 'object', properties, required: [] },
+    },
+  }));
+}
 
 export function inventoryFor(tools: OpenAITool[] | undefined): ToolInventory {
   const map: ToolInventory = new Map();

@@ -256,6 +256,7 @@ Two sources, used automatically:
 | `POST /api/catalog/refresh` · `GET /api/catalog` | rebuild and inspect the entity catalog |
 | `POST /api/breaker/reset` | clear the decision circuit breaker |
 | `GET /api/models` | models the decision server advertises, with the `jev` capability flagged |
+| `GET /api/debug/bundle` | one JSON file for a bug report: config (secrets masked), state, traces, recent log lines |
 
 ## Dashboard
 
@@ -264,6 +265,20 @@ Two sources, used automatically:
 **Monitor** — status pills, counters, the circuit breaker, a *try a request* box that runs the
 decision path without executing anything, and the live trace: each turn shows its route, the tool
 call and arguments, and every gate as a bar with its threshold marked.
+
+A decision test answers the question you actually have — *what would Home Assistant be asked to
+do?* The result panel names the intent and its slots (`HassTurnOn {"name": "light.kitchen_ceiling"}`),
+or says plainly why there is no call: `no call yet — it asks which one`, `no call — forwarded to your
+model server`, `Home Assistant call — after you confirm`. Long values — option ids like
+`e_kitchen_ceiling_light_secondary`, argument JSON — live in their own bordered box that scrolls
+sideways, so a long entity id never spills across the card.
+
+*Export debug logs* on the Monitor view downloads everything worth attaching to an issue as a single
+JSON file: version and runtime, the effective config with every secret masked to its first 12
+characters, the catalog summary, the recent decisions with their gates, the request log (method,
+path, status, duration) and anything written to stdout/stderr since the process started. The same
+file is available without a browser at `GET /api/debug/bundle`. It contains the utterances Assist
+sent, so skim it before sharing it publicly.
 
 **Settings** — the whole configuration, grouped into decision model / catalog / fallback server /
 speech / routing gates / server. Fields are rendered from `GET /api/schema`, so nothing exists in

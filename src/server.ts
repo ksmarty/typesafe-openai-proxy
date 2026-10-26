@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 import { catalogFromHomeAssistant, cachedCatalog, clearCatalogCache, emptyCatalog, getCatalog } from './catalog.js';
 import { configPath, defaultConfig, loadConfig, publicConfig, resetConfig, ROUTER_MODEL, saveConfig } from './config.js';
 import { fastPathStatus, handleChatCompletions, runPipeline } from './pipeline.js';
+import { assistTools } from './toolcall.js';
+import { installLogCapture, note, recentLogs } from './log.js';
 import { jsonResponse } from './respond.js';
 import { secretOrStored, settingsGroups } from './schema.js';
 import { averageDecisionMs, pendingConfirmations, routableShare, startedAt, stats, trace } from './state.js';
@@ -111,6 +113,31 @@ function activeEnvOverrides(): string[] {
   return keys.filter((key) => Boolean(process.env[key]));
 }
 
+/** The package version, from the manifest that sits next to dist/ or src/. */
+async function packageVersion(): Promise<string> {
+  try {
+    const raw = await readFile(new URL('../package.json', import.meta.url), 'utf8');
+    return (JSON.parse(raw) as { version?: string }).version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+/** Environment variables the proxy honours: names always, values only where they are not secrets. */
+function environment(): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of ['PORT', 'HOST', 'DATA_DIR', 'DECISION_BACKEND', 'AUTO_START', 'SYSTEMONE_MODEL', 'UPSTREAM_MODEL', 'PROXY_HOST']) {
+    if (process.env[key]) out[key] = process.env[key] as string;
+  }
+  for (const key of ['PROXY_API_KEY', 'UPSTREAM_API_KEY', 'SYSTEMONE_API_KEY', 'HA_TOKEN', 'TYPESAFE_PROXY_KEY']) {
+    if (process.env[key]) out[key] = 'set (value withheld)';
+  }
+  for (const key of ['UPSTREAM_BASE_URL', 'SYSTEMONE_BASE_URL', 'HA_URL']) {
+    if (process.env[key]) out[key] = process.env[key] as string;
+  }
+  return out;
+}
+
 function statusPayload(): Record<string, unknown> {
   const active = loadConfig();
   const catalog = cachedCatalog();
@@ -156,6 +183,56 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
 
   if (path === '/status' && method === 'GET') {
     jsonResponse(response, 200, statusPayload());
+    return true;
+  }
+
+  // Everything worth attaching to a bug report, in one file: the effective config
+  // (secrets masked), what the server thinks its state is, the decisions it made,
+  // and the recent output you would otherwise only see in `docker logs`.
+  if (path === '/debug/bundle' && method === 'GET') {
+    const active = loadConfig();
+    const catalog = cachedCatalog();
+    const limit = Math.max(1, Math.min(200, Number(url.searchParams.get('limit') ?? 100) || 100));
+    const bundle = {
+      generatedAt: new Date().toISOString(),
+      meta: {
+        product: 'typesafe-routing-proxy',
+        version: await packageVersion(),
+        node: process.version,
+        platform: `${process.platform}/${process.arch}`,
+        pid: process.pid,
+        uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
+        memoryMb: Math.round((process.memoryUsage().rss / 1024 / 1024) * 10) / 10,
+      },
+      environment: environment(),
+      config: publicConfig(),
+      configPath: configPath(),
+      status: statusPayload(),
+      catalog: catalog
+        ? {
+            source: catalog.source,
+            note: catalog.note,
+            builtAt: catalog.builtAt,
+            areas: catalog.areas.map((area) => area.name),
+            domains: catalog.domains,
+            entities: catalog.entities.slice(0, 300).map((entity) => `${entity.id} (${entity.name})`),
+            entityCount: catalog.entities.length,
+          }
+        : null,
+      traces: trace.slice(0, limit),
+      logs: recentLogs(),
+      notes: [
+        'Secrets are masked to their first 12 characters; they are not exported in full.',
+        'Traces contain the utterances Assist sent, so review before sharing publicly.',
+      ],
+    };
+    const name = `typesafe-proxy-debug-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    response.writeHead(200, {
+      'content-type': 'application/json; charset=utf-8',
+      'content-disposition': `attachment; filename="${name}"`,
+      'cache-control': 'no-store',
+    });
+    response.end(JSON.stringify(bundle, null, 2));
     return true;
   }
 
@@ -334,7 +411,9 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
       ...active,
       decision: { ...active.decision, backend: active.decision.backend === 'none' ? 'heuristic' : active.decision.backend },
     };
-    const request0: OpenAIChatRequest = { model: ROUTER_MODEL, messages: [{ role: 'user', content: text }] };
+    // A dry run has no caller, so offer every intent we know: the point is to see
+    // which Home Assistant call the decision would produce.
+    const request0: OpenAIChatRequest = { model: ROUTER_MODEL, messages: [{ role: 'user', content: text }], tools: assistTools() };
     const result = await runPipeline(request0, text, '', probeConfig);
     jsonResponse(response, 200, {
       route: result.route,
@@ -363,6 +442,14 @@ export function createApp() {
       const method = request.method ?? 'GET';
       // Some supervisors mount the app under a path prefix; treat that as transparent.
       url.pathname = url.pathname.replace(/^\/preview\/[^/]+/, '') || '/';
+
+      // One line per request, kept in memory for /api/debug/bundle: in a container
+      // the only other view of this is `docker logs`, which is lost on restart.
+      const started = Date.now();
+      response.on('finish', () => {
+        if (url.pathname === '/debug/bundle') return;
+        note(`${method} ${url.pathname}${url.search} -> ${response.statusCode} ${Date.now() - started}ms`);
+      });
 
       try {
         if (url.pathname === '/health') {
@@ -462,6 +549,8 @@ export function startServer(options?: Partial<ServeOptions>) {
   const host = options?.host ?? active.server.host;
   const server = createApp();
   server.listen(port, host, async () => {
+    installLogCapture();
+    note(`listening on http://${host}:${port} (version from package.json, captured for /api/debug/bundle)`);
     process.stdout.write(`typesafe routing proxy listening on http://${host}:${port}\n`);
     process.stdout.write(`  hass_local_openai_llm -> http://<this-host>:${port}/v1\n`);
     process.stdout.write(`  dashboard            -> http://<this-host>:${port}/\n`);

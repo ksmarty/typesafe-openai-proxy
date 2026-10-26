@@ -18,10 +18,12 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import BoltIcon from '@mui/icons-material/Bolt';
+import DownloadIcon from '@mui/icons-material/Download';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 
 import {
   clearTrace,
+  downloadDebugBundle,
   errorMessage,
   getTrace,
   probe,
@@ -80,6 +82,32 @@ function CodeBlock({ children }: { children: string }) {
   );
 }
 
+/** A value that may be longer than the row: it scrolls sideways instead of overflowing. */
+function ScrollLine({ children }: { children: string }) {
+  return (
+    <Box
+      sx={{
+        mt: 0.5,
+        px: 1,
+        py: 0.5,
+        borderRadius: 1,
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'rgba(0, 0, 0, 0.28)',
+        fontFamily: monoFont,
+        fontSize: 12,
+        lineHeight: 1.45,
+        whiteSpace: 'nowrap',
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        scrollbarWidth: 'thin',
+      }}
+    >
+      {children}
+    </Box>
+  );
+}
+
 function Gates({ gates }: { gates: TraceEntry['gates'] }) {
   if (!gates.length) return <Typography variant="body2" color="text.secondary">No gates reached.</Typography>;
   return (
@@ -88,16 +116,23 @@ function Gates({ gates }: { gates: TraceEntry['gates'] }) {
         const value = gate.confidence ?? gate.probability ?? 0;
         return (
           <Box key={`${gate.question}-${index}`}>
-            <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', justifyContent: 'space-between' }}>
-              <Typography variant="caption" sx={{ fontFamily: monoFont }}>
+            <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', justifyContent: 'space-between', minWidth: 0 }}>
+              <Typography
+                variant="caption"
+                sx={{ fontFamily: monoFont, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
                 {gate.question}
-                {gate.choice ? ` = ${gate.choice}` : ''}
               </Typography>
-              <Typography variant="caption" color={gate.passed ? 'success.main' : 'text.disabled'}>
+              <Typography
+                variant="caption"
+                sx={{ flex: '0 0 auto' }}
+                color={gate.passed ? 'success.main' : 'text.disabled'}
+              >
                 {fixed(value)}
                 {gate.threshold !== undefined ? ` / ${fixed(gate.threshold)}` : ''} {gate.passed ? '✓' : '✗'}
               </Typography>
             </Stack>
+            {gate.choice ? <ScrollLine>{gate.choice}</ScrollLine> : null}
             <LinearProgress
               variant="determinate"
               value={Math.min(100, Math.max(0, value * 100))}
@@ -108,6 +143,50 @@ function Gates({ gates }: { gates: TraceEntry['gates'] }) {
         );
       })}
     </Stack>
+  );
+}
+
+type Plan = ProbeResponse['route']['plan'];
+
+/**
+ * What Home Assistant would actually be asked to do.
+ *
+ * A decision test is only useful if it shows the call — intent name and slots —
+ * or says plainly that no call is made (and why).
+ */
+function CallPanel({ plan }: { plan: Plan }) {
+  const kind = String(plan.kind ?? '');
+  const pending = (plan.pending ?? null) as { tool?: unknown; args?: unknown } | null;
+  const text = typeof plan.text === 'string' ? plan.text : '';
+  let heading = 'No Home Assistant call';
+  let body = '';
+
+  if (kind === 'tool') {
+    heading = 'Home Assistant call';
+    body = `${String(plan.tool)} ${pretty(plan.args ?? {})}`;
+  } else if (kind === 'confirm') {
+    heading = 'Home Assistant call — after you confirm';
+    body = pending ? `${String(pending.tool)} ${pretty(pending.args ?? {})}` : text;
+  } else if (kind === 'clarify') {
+    heading = 'No call yet — it asks which one';
+    body = text;
+  } else if (kind === 'forward') {
+    heading = 'No call — forwarded to your model server';
+    body = String(plan.reason ?? '');
+  } else if (kind === 'text') {
+    heading = 'No call — answered by the proxy';
+    body = text;
+  } else if (kind) {
+    heading = `No call — ${kind}`;
+  }
+
+  return (
+    <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, p: 1.5, minWidth: 0 }}>
+      <Typography variant="overline" color="text.secondary" component="div" sx={{ display: 'block', mb: 0.5 }}>
+        {heading}
+      </Typography>
+      {body ? <CodeBlock>{body}</CodeBlock> : null}
+    </Box>
   );
 }
 
@@ -124,15 +203,7 @@ function ProbeResult({ result }: { result: ProbeResponse }) {
         <Chip variant="outlined" label={result.probeBackend} />
       </Stack>
 
-      {route.plan.kind === 'tool' ? (
-        <CodeBlock>{`${String(route.plan.tool)} ${pretty(route.plan.args ?? {})}`}</CodeBlock>
-      ) : null}
-      {typeof route.plan.text === 'string' ? (
-        <Alert severity="info" variant="outlined">{route.plan.text}</Alert>
-      ) : null}
-      {route.plan.kind === 'confirm' && route.plan.pending ? (
-        <CodeBlock>{`would run after confirmation:\n${pretty(route.plan.pending)}`}</CodeBlock>
-      ) : null}
+      <CallPanel plan={route.plan} />
 
       <Box>
         <Typography variant="overline" color="text.secondary">Gates</Typography>
@@ -406,6 +477,21 @@ export function MonitorView({ status, onRefresh }: { status: Status | null; onRe
                 }}
               >
                 Clear decisions
+              </Button>
+              <Button
+                size="small"
+                variant="text"
+                startIcon={<DownloadIcon />}
+                onClick={async () => {
+                  try {
+                    const name = await downloadDebugBundle();
+                    setNote(`Debug bundle saved as ${name}`);
+                  } catch (error) {
+                    setNote(`Export failed: ${errorMessage(error)}`);
+                  }
+                }}
+              >
+                Export debug logs
               </Button>
             </Stack>
             {note ? (

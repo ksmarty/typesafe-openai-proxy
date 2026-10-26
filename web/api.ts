@@ -134,6 +134,29 @@ export const testDecision = (url?: string, key?: string, model?: string) =>
 export const testUpstream = (url?: string, key?: string) =>
   call<TestResult>('/api/test/upstream', { method: 'POST', body: JSON.stringify({ url, key }) });
 
+/**
+ * Download the server's debug bundle (config with secrets masked, traces, logs).
+ *
+ * The file is produced by GET /api/debug/bundle, so the request path has to work
+ * under a preview prefix just like every other call.
+ */
+export async function downloadDebugBundle(): Promise<string> {
+  const response = await fetch(endpointAt(mountPath(), '/api/debug/bundle'));
+  if (!response.ok) throw new Error(`the server answered ${response.status} for the debug bundle`);
+  const blob = await response.blob();
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const name = `typesafe-proxy-debug-${stamp}.json`;
+  const href = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = name;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(href), 2000);
+  return name;
+}
+
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
