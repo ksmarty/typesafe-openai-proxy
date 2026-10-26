@@ -363,6 +363,9 @@ the config that the dashboard cannot edit, and the server validates with the sam
 - a masked API key is left untouched — clearing the field is what removes it;
 - *Test* buttons for the decision server, Home Assistant and the fallback server, reporting what
   they found rather than just pass/fail;
+- **Generate** next to the proxy's own bearer token mints a 41-character token (`sk-proxy-` plus 32
+  random characters), shows it once and selects it, so it can be copied before saving — afterwards
+  only the first 12 characters come back;
 - per-language speech templates, an advanced toggle for the rarely-touched knobs, *Show JSON* for
   the exact document on disk, and a two-click *Reset everything*.
 

@@ -31,6 +31,13 @@ export interface SettingsField {
   placeholder?: string;
   /** Shown only when the reader asks for the advanced view. */
   advanced?: boolean;
+  /**
+   * Offer a "Generate" button that fills the field with a fresh random token.
+   *
+   * Only for fields whose value the proxy itself accepts (its own bearer token), never for
+   * a key a provider issues.
+   */
+  generate?: boolean;
 }
 
 export interface SettingsGroup {
@@ -333,7 +340,10 @@ export function settingsGroups(): SettingsGroup[] {
           label: 'Bearer token',
           type: 'password',
           placeholder: 'empty accepts any caller',
-          help: 'Set this and the same value must be the API key in hass_local_openai_llm.',
+          help:
+            'Set this and the same value must be the API key in hass_local_openai_llm. ' +
+            'Generate makes one here — copy it before saving, because afterwards only the first 12 characters stay visible.',
+          generate: true,
         },
       ],
     },

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -12,10 +12,12 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import KeyIcon from '@mui/icons-material/Key';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
 import type { SettingsField } from '../src/schema.js';
+import { generateToken } from '../src/token.js';
 import { asNumber, asString, asTemplates, readPath, writePath, type Config } from './config';
 import { fixed } from './format';
 
@@ -27,16 +29,45 @@ interface ControlProps {
 
 function PasswordField({ field, config, onChange }: ControlProps) {
   const [visible, setVisible] = useState(false);
-  return (
+  const [note, setNote] = useState('');
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  const generate = () => {
+    const token = generateToken();
+    onChange(field.key, token);
+    // Show what was just made: the field is masked by default and only 12 characters of a
+    // saved secret ever come back, so this is the one moment the whole token is on screen.
+    setVisible(true);
+    // Select it as soon as React has written the value, so Ctrl/Cmd+C works even where the
+    // clipboard API is refused (an embedded frame, an insecure origin).
+    setTimeout(() => inputRef.current?.select(), 0);
+    const copied = 'Copied to your clipboard. Save to apply — after that only the first 12 characters stay visible.';
+    const notCopied = 'Generated and selected. Copy it now — after saving only the first 12 characters stay visible.';
+    const clipboard = navigator.clipboard;
+    if (clipboard?.writeText) {
+      clipboard.writeText(token).then(
+        () => setNote(copied),
+        () => setNote(notCopied),
+      );
+    } else {
+      setNote(notCopied);
+    }
+  };
+
+  const input = (
     <TextField
       label={field.label}
       type={visible ? 'text' : 'password'}
       value={asString(readPath(config, field.key))}
       placeholder={field.placeholder}
-      helperText={field.help}
-      onChange={(event) => onChange(field.key, event.target.value)}
+      helperText={note || field.help}
+      onChange={(event) => {
+        setNote('');
+        onChange(field.key, event.target.value);
+      }}
       autoComplete="off"
       slotProps={{
+        htmlInput: { ref: inputRef },
         input: {
           endAdornment: (
             <IconButton
@@ -51,6 +82,30 @@ function PasswordField({ field, config, onChange }: ControlProps) {
         },
       }}
     />
+  );
+
+  if (!field.generate) return input;
+
+  return (
+    <Box
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: 'minmax(0, 1fr) auto' },
+        alignItems: 'start',
+        gap: 1,
+      }}
+    >
+      {input}
+      <Button
+        variant="outlined"
+        size="small"
+        startIcon={<KeyIcon fontSize="small" />}
+        onClick={generate}
+        sx={{ minHeight: 40, whiteSpace: 'nowrap' }}
+      >
+        Generate
+      </Button>
+    </Box>
   );
 }
 
