@@ -371,6 +371,12 @@ export function catalogFromRegistries(input: {
       ...(typeof state?.attributes?.device_class === 'string'
         ? { deviceClass: state.attributes.device_class }
         : {}),
+      // The unit is what makes an answer read as a sentence ("21.5 °C") and what a value
+      // slot needs to interpret a spoken number.
+      ...(typeof state?.attributes?.unit_of_measurement === 'string' &&
+      state.attributes.unit_of_measurement.trim()
+        ? { unit: state.attributes.unit_of_measurement.trim() }
+        : {}),
       ...levelFrom(state?.attributes ?? {}),
     });
   }
@@ -536,9 +542,14 @@ function matchArea(line: string): string | undefined {
 }
 
 /** Cached catalog, rebuilt when stale. Never throws: falls back to the prompt. */
-export async function getCatalog(config: Config, prompt?: string): Promise<Catalog> {
+export async function getCatalog(
+  config: Config,
+  prompt?: string,
+  options: { maxAgeMs?: number } = {},
+): Promise<Catalog> {
   const wantHa = Boolean(config.catalog.haUrl && config.catalog.haToken);
-  const fresh = cache && Date.now() - cache.at < config.catalog.cacheMs;
+  const ttl = Math.min(config.catalog.cacheMs, options.maxAgeMs ?? config.catalog.cacheMs);
+  const fresh = cache && Date.now() - cache.at < ttl;
 
   if (wantHa && fresh) return cache!.catalog;
   if (wantHa && inFlight) return inFlight;

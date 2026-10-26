@@ -308,6 +308,20 @@ that drops the cache and re-reads entities, areas and aliases immediately — if
 unsaved edits it saves them first, so a token typed a second ago is the token that gets used.
 The same action is on the Monitor page, and `POST /api/catalog/refresh` does it from a script.
 
+### State questions without `HassGetState`
+
+Home Assistant only offers `HassGetState` when its Assist API registers a state intent, and some
+installations do not — every "is the office light on?" then went to the language model, seconds of
+latency for one boolean. The proxy answers those itself: the catalog already holds the state of
+every exposed entity, so a device question comes back as text ("The Desk Lamp is off.") and a count
+question as a summary ("1 of the 2 lights is on: Office Lights."). The reply is ordinary assistant
+text, so the conversation agent speaks it like any other answer.
+
+The catalog is refreshed before a question is answered when it is older than two seconds, so
+"is the front door locked?" is not answered from a 30-second-old snapshot. When Home Assistant *does*
+offer `HassGetState`, the intent call is still used — its answer includes attributes the catalog
+does not carry. An unconfident target still forwards rather than guessing.
+
 ### Only what Assist can see
 
 The catalog asks Home Assistant which entities are exposed to the conversation agent

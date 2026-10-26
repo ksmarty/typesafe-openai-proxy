@@ -15,6 +15,7 @@ import {
   RISKY_DOMAINS,
   specFor,
 } from './actions.js';
+import { answerCount, answerDeviceState } from './answer.js';
 import type { Config, DecisionThresholds } from './config.js';
 import type { Extraction } from './extract.js';
 import { Q, NO_AREA, NO_DOMAIN, NO_SINGLE_ENTITY, NOT_TARGETED, actionQuestion } from './questions.js';
@@ -268,7 +269,21 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
       return forward('count question without a confident kind of device', gates, { category: 'query' });
     }
     const domain = domainAnswer!.choice;
-    if (!hasTool(inventory, INTENTS.getState)) return forward(`${INTENTS.getState} is not offered by Home Assistant (${describeInventory(inventory)})`, gates, { category: 'query' });
+    if (!hasTool(inventory, INTENTS.getState)) {
+      // No state intent offered: the catalog already knows the answer, so say it.
+      const answer = answerCount(catalog, domain, extraction.stateWord);
+      if (answer) {
+        return {
+          plan: { kind: 'text', text: answer },
+          gates,
+          reason: `query:count:${domain} (answered from the catalog: ${INTENTS.getState} is not offered)`,
+          category: 'query',
+          action: 'query',
+          target: domain,
+        };
+      }
+      return forward(`${INTENTS.getState} is not offered by Home Assistant (${describeInventory(inventory)})`, gates, { category: 'query' });
+    }
     const args: Record<string, unknown> = { domain };
     const state = extraction.stateWord;
     const call = buildToolCall({
@@ -304,7 +319,17 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
   if (!gateChoice(gates, Q.targetEntity, choiceOf(answers, Q.targetEntity), t.entity, t.minMargin)) {
     return forward('entity answer failed its gate', gates, { category: 'query' });
   }
-  if (!hasTool(inventory, INTENTS.getState)) return forward(`${INTENTS.getState} is not offered by Home Assistant (${describeInventory(inventory)})`, gates, { category: 'query' });
+  if (!hasTool(inventory, INTENTS.getState)) {
+    // No state intent offered: answer from the catalog instead of paying for a model turn.
+    return {
+      plan: { kind: 'text', text: answerDeviceState(entity) },
+      gates,
+      reason: `query:device_state:${entity.id} (answered from the catalog: ${INTENTS.getState} is not offered)`,
+      category: 'query',
+      action: 'query',
+      target: entity.id,
+    };
+  }
   const call = buildToolCall({
     intent: INTENTS.getState,
     spec: { intentType: INTENTS.getState },

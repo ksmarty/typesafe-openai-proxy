@@ -149,7 +149,15 @@ export async function runPipeline(
     };
   }
   const catalogStarted = Date.now();
-  const catalog = await getCatalog(active, systemPrompt);
+  // A question about the home is answered from the catalog, so its state has to be fresh:
+  // a 30 s old "locked" is worse than a 200 ms round trip.
+  const catalog = await getCatalog(active, systemPrompt, {
+    maxAgeMs: /\?\s*$|^(is|are|was|were|do|does|did|what|which|who|where|when|how|any)\b/i.test(
+      utterance,
+    )
+      ? 2000
+      : undefined,
+  });
   catalogMs = Date.now() - catalogStarted;
   const entityNames = catalog.entities.map((entity) => entity.name);
 
