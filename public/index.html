@@ -62,11 +62,26 @@
           var root = document.getElementById('root');
           return Boolean(root && root.childElementCount > 0);
         }
+        // Everything the dashboard ships is one file: app.js. If some *other*
+        // resource fails - an analytics beacon injected by the host or a tunnel,
+        // a font on a CDN, a widget - the dashboard is still working, and naming
+        // that URL here would blame the proxy for someone else's request.
+        function isDashboardScript(url) {
+          try {
+            var resolved = new URL(String(url), document.baseURI);
+            return resolved.origin === location.origin && /(^|\/)app\.js$/.test(resolved.pathname);
+          } catch (error) {
+            return false;
+          }
+        }
         window.addEventListener('error', function (event) {
           if (mounted()) return;
           var target = event.target;
           if (target && target !== window && (target.src || target.href)) {
-            show('A file failed to load', String(target.src || target.href));
+            var url = target.src || target.href;
+            if (isDashboardScript(url)) {
+              show('The dashboard failed to load', String(url) + '\nRun "npm run build:ui", then reload.');
+            }
             return;
           }
           var message = String((event.error && event.error.stack) || event.message || '');
@@ -78,7 +93,11 @@
         window.addEventListener('unhandledrejection', function (event) {
           if (mounted()) return;
           var reason = event.reason;
-          show('The dashboard hit an unhandled error', (reason && (reason.stack || reason.message)) || String(reason));
+          var stack = String((reason && (reason.stack || reason.message)) || reason || '');
+          // Our whole app is app.js, so a stack that names something else is not
+          // ours to report. An empty stack cannot be attributed, so it is shown.
+          if (stack && stack.indexOf('app.js') === -1 && stack.indexOf(location.origin) === -1) return;
+          show('The dashboard hit an unhandled error', stack);
         });
         // app.js is a classic module script: if it never executed, say so rather than showing nothing.
         setTimeout(function () {
