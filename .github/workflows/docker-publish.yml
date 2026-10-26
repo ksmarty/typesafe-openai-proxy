@@ -107,6 +107,9 @@ jobs:
             org.opencontainers.image.description=OpenAI-compatible proxy that gives hass_local_openai_llm a typed, calibrated fast path: one decision call per command instead of an LLM turn.
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.licenses=MIT
+            # metadata-action adds its own version label (the branch name on a
+            # main build); a custom label wins, so this is the release.
+            org.opencontainers.image.version=${{ steps.ver.outputs.value }}
 
       - name: Build and push
         uses: docker/build-push-action@v7
