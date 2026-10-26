@@ -10,21 +10,23 @@ import CardContent from '@mui/material/CardContent';
 import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Divider from '@mui/material/Divider';
-import FormControlLabel from '@mui/material/FormControlLabel';
+import IconButton from '@mui/material/IconButton';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
+import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
 import Snackbar from '@mui/material/Snackbar';
 import Stack from '@mui/material/Stack';
-import Switch from '@mui/material/Switch';
-import Tab from '@mui/material/Tab';
-import Tabs from '@mui/material/Tabs';
+import TextField from '@mui/material/TextField';
+import ToggleButton from '@mui/material/ToggleButton';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SaveIcon from '@mui/icons-material/Save';
 import SyncIcon from '@mui/icons-material/Sync';
+import TuneIcon from '@mui/icons-material/Tune';
 import WaterDropIcon from '@mui/icons-material/WaterDrop';
 import RouteIcon from '@mui/icons-material/Route';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -71,7 +73,15 @@ function describeTest(result: TestResult): string {
   return parts.length ? parts.join(' · ') : 'Reachable.';
 }
 
-export function SettingsView({ onSaved }: { onSaved: () => void }) {
+export function SettingsView({
+  onSaved,
+  advanced,
+  onAdvancedChange,
+}: {
+  onSaved: () => void;
+  advanced: boolean;
+  onAdvancedChange: (value: boolean) => void;
+}) {
   const [groups, setGroups] = useState<SettingsGroup[]>([]);
   const [envOverrides, setEnvOverrides] = useState<string[]>([]);
   const [configPath, setConfigPath] = useState('');
@@ -79,7 +89,6 @@ export function SettingsView({ onSaved }: { onSaved: () => void }) {
   const [draft, setDraft] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [advanced, setAdvanced] = useState(false);
   const [active, setActive] = useState('decision');
   const [adjusted, setAdjusted] = useState<AdjustedValue[]>([]);
   const [restartRequired, setRestartRequired] = useState(false);
@@ -235,39 +244,51 @@ export function SettingsView({ onSaved }: { onSaved: () => void }) {
       >
         {groupList}
         <Divider sx={{ my: 1.5 }} />
-        <FormControlLabel
-          control={<Switch size="small" checked={advanced} onChange={(event) => setAdvanced(event.target.checked)} />}
-          label="Advanced"
-          slotProps={{ typography: { variant: 'body2' } }}
-        />
+        <ToggleButton
+          value="advanced"
+          selected={advanced}
+          size="small"
+          fullWidth
+          aria-label="Advanced settings"
+          onChange={() => onAdvancedChange(!advanced)}
+          sx={{
+            justifyContent: 'flex-start',
+            gap: 1,
+            px: 1.25,
+            py: 0.5,
+            textTransform: 'none',
+            borderColor: 'divider',
+          }}
+        >
+          <TuneIcon fontSize="small" />
+          <Typography variant="body2" component="span">
+            Advanced
+          </Typography>
+        </ToggleButton>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, overflowWrap: 'anywhere' }}>
           Saved to <Box component="code" sx={{ fontFamily: monoFont, fontSize: 11 }}>{configPath || 'data/config.json'}</Box>. A host or port change needs a restart; everything else applies on the next request.
         </Typography>
       </Paper>
 
       <Stack spacing={2} sx={{ minWidth: 0 }}>
-        <Paper variant="outlined" sx={{ p: 1, minWidth: 0, overflow: 'hidden', display: { xs: 'block', md: 'none' } }}>
-          <Tabs
+        <Paper variant="outlined" sx={{ p: 1, minWidth: 0, display: { xs: 'block', md: 'none' } }}>
+          <TextField
+            select
+            size="small"
+            fullWidth
+            label="Section"
             value={active}
-            onChange={(_event, value: string) => {
-              setActive(value);
+            onChange={(event) => {
+              setActive(event.target.value);
               setTestResult(null);
             }}
-            variant="scrollable"
-            scrollButtons="auto"
-            allowScrollButtonsMobile
           >
             {groups.map((entry) => (
-              <Tab key={entry.id} value={entry.id} label={entry.title} sx={{ minHeight: 44 }} />
+              <MenuItem key={entry.id} value={entry.id}>
+                {entry.title}
+              </MenuItem>
             ))}
-          </Tabs>
-          <Divider sx={{ my: 1 }} />
-          <FormControlLabel
-            sx={{ px: 1 }}
-            control={<Switch size="small" checked={advanced} onChange={(event) => setAdvanced(event.target.checked)} />}
-            label="Advanced"
-            slotProps={{ typography: { variant: 'body2' } }}
-          />
+          </TextField>
         </Paper>
 
         {envOverrides.length ? (
@@ -326,42 +347,56 @@ export function SettingsView({ onSaved }: { onSaved: () => void }) {
             position: 'sticky',
             bottom: 0,
             zIndex: 2,
-            p: 1.5,
+            px: 1,
+            py: 0.75,
             bgcolor: 'background.paper',
-            boxShadow: '0 -8px 24px rgba(0, 0, 0, 0.35)',
+            boxShadow: '0 -6px 16px rgba(0, 0, 0, 0.35)',
           }}
         >
           {adjusted.length ? (
-            <Alert severity="info" variant="outlined" sx={{ mb: 1.5 }}>
+            <Alert severity="info" variant="outlined" sx={{ mb: 1, py: 0 }}>
               Adjusted to stay within range:{' '}
               {adjusted.map((entry) => `${entry.key} → ${String(entry.to)}`).join(', ')}
             </Alert>
           ) : null}
           {restartRequired ? (
-            <Alert severity="warning" variant="outlined" sx={{ mb: 1.5 }}>
-              A restart is required before the new host or port takes effect.
+            <Alert severity="warning" variant="outlined" sx={{ mb: 1, py: 0 }}>
+              Restart needed before the new host or port applies.
             </Alert>
           ) : null}
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+            <Typography
+              variant="caption"
+              color={dirty ? 'warning.main' : 'text.secondary'}
+              noWrap
+              sx={{ flex: 1, minWidth: 0, pl: 0.5 }}
+            >
+              {saving ? 'Saving…' : dirty ? 'Unsaved changes' : 'Everything saved'}
+            </Typography>
+            <Tooltip title="Reload from disk">
+              <span>
+                <IconButton size="small" aria-label="Reload settings" onClick={() => void load()} disabled={saving}>
+                  <SyncIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Reset to defaults">
+              <span>
+                <IconButton size="small" aria-label="Reset to defaults" onClick={() => void reset()} disabled={saving}>
+                  <RestartAltIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
             <Button
+              size="small"
               variant="contained"
               onClick={() => void save()}
               disabled={saving || !dirty}
-              startIcon={saving ? <CircularProgress size={16} color="inherit" /> : <SaveIcon />}
-              sx={{ flex: { sm: '0 0 auto' } }}
+              startIcon={saving ? <CircularProgress size={14} color="inherit" /> : <SaveIcon fontSize="small" />}
+              sx={{ minWidth: 0, px: 1.75, flexShrink: 0 }}
             >
-              Save settings
+              Save
             </Button>
-            <Button variant="outlined" onClick={() => void load()} disabled={saving} startIcon={<SyncIcon />}>
-              Reload
-            </Button>
-            <Button variant="text" color="inherit" onClick={() => void reset()} disabled={saving} startIcon={<RestartAltIcon />}>
-              Reset to defaults
-            </Button>
-            <Box sx={{ flex: 1 }} />
-            <Typography variant="caption" color="text.secondary" sx={{ alignSelf: 'center' }}>
-              {dirty ? 'Unsaved changes' : 'Everything saved'}
-            </Typography>
           </Stack>
         </Paper>
 

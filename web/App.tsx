@@ -6,9 +6,13 @@ import Container from '@mui/material/Container';
 import Stack from '@mui/material/Stack';
 import Tab from '@mui/material/Tab';
 import Tabs from '@mui/material/Tabs';
+import ToggleButton from '@mui/material/ToggleButton';
 import Toolbar from '@mui/material/Toolbar';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
+import TuneIcon from '@mui/icons-material/Tune';
 
 import { errorMessage, getStatus, type Status } from './api';
 import { MonitorView } from './MonitorView';
@@ -44,6 +48,11 @@ export function App() {
   const [view, setView] = useState<View>(initialView);
   const [status, setStatus] = useState<Status | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  // Owned here because the toggle lives in the app bar on small screens and in the
+  // settings sidebar on wide ones; the form reads it either way.
+  const [advanced, setAdvanced] = useState(false);
+  const theme = useTheme();
+  const compactHeader = useMediaQuery(theme.breakpoints.down('sm'));
 
   const refresh = useCallback(async () => {
     try {
@@ -103,6 +112,21 @@ export function App() {
             </Box>
           </Stack>
 
+          {view === 'settings' && compactHeader ? (
+            <Tooltip title={advanced ? 'Showing advanced settings' : 'Show advanced settings'}>
+              <ToggleButton
+                value="advanced"
+                selected={advanced}
+                size="small"
+                aria-label="Advanced settings"
+                onChange={() => setAdvanced(!advanced)}
+                sx={{ borderColor: 'divider', px: 1 }}
+              >
+                <TuneIcon fontSize="small" />
+              </ToggleButton>
+            </Tooltip>
+          ) : null}
+
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center',  display: { xs: 'none', sm: 'flex' } }}>
             <Tooltip title={status?.decision.fastPath.reason ?? 'Waiting for the server'}>
               <Chip
@@ -140,7 +164,11 @@ export function App() {
         {view === 'monitor' ? (
           <MonitorView status={status} onRefresh={() => void refresh()} />
         ) : (
-          <SettingsView onSaved={() => void refresh()} />
+          <SettingsView
+            advanced={advanced}
+            onAdvancedChange={setAdvanced}
+            onSaved={() => void refresh()}
+          />
         )}
       </Container>
     </Box>

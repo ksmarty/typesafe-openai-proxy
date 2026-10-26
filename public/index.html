@@ -54,15 +54,29 @@
           box.appendChild(document.createTextNode(detail));
           box.style.display = 'block';
         }
+        // Once React is mounted it owns its own failures (the ErrorBoundary renders them
+        // in place), so a page-level banner here would only ever be noise — and in an
+        // embedded preview it *was* noise: an unrelated cross-origin script error arrived
+        // as the opaque "Script error." and got reported as the dashboard failing.
+        function mounted() {
+          var root = document.getElementById('root');
+          return Boolean(root && root.childElementCount > 0);
+        }
         window.addEventListener('error', function (event) {
+          if (mounted()) return;
           var target = event.target;
           if (target && target !== window && (target.src || target.href)) {
             show('A file failed to load', String(target.src || target.href));
             return;
           }
-          show('The dashboard failed to start', (event.error && event.error.stack) || event.message || 'unknown error');
+          var message = String((event.error && event.error.stack) || event.message || '');
+          // "Script error." means the browser withheld the details of a cross-origin
+          // script; there is nothing useful to show and nothing of ours to blame.
+          if (!message || /^script error\.?$/i.test(message.trim())) return;
+          show('The dashboard failed to start', message);
         }, true);
         window.addEventListener('unhandledrejection', function (event) {
+          if (mounted()) return;
           var reason = event.reason;
           show('The dashboard hit an unhandled error', (reason && (reason.stack || reason.message)) || String(reason));
         });
