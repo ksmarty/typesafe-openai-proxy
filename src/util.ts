@@ -51,3 +51,29 @@ export async function fetchWithTimeout(
     clearTimeout(timer);
   }
 }
+
+/**
+ * The text of a message `content`, whatever shape the client used.
+ *
+ * OpenAI allows a plain string or an array of parts (`[{type:'text',text}]`, images,
+ * tool attachments). Home Assistant sends the array form once an attachment or a
+ * structured result is in the conversation, and silently reading only strings made the
+ * proxy see an empty utterance and an empty system prompt — every request looked like
+ * "nothing to do here" and was forwarded without a trace.
+ */
+export function textOf(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  const parts: string[] = [];
+  for (const part of content) {
+    if (typeof part === 'string') {
+      parts.push(part);
+      continue;
+    }
+    if (part && typeof part === 'object') {
+      const text = (part as Record<string, unknown>).text;
+      if (typeof text === 'string') parts.push(text);
+    }
+  }
+  return parts.join('\n');
+}

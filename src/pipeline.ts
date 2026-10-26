@@ -31,7 +31,7 @@ import { splitClauses } from './compound.js';
 import { decide, DecisionUnavailable } from './systemone.js';
 import { inventoryFor } from './toolcall.js';
 import type { Gate, OpenAIChatRequest, OpenAIMessage, Plan, RouteResult, ToolCall, TraceEntry } from './types.js';
-import { sha1, uid } from './util.js';
+import { sha1, textOf, uid } from './util.js';
 
 function languageOf(request: OpenAIChatRequest): string | undefined {
   const candidate = (request as Record<string, unknown>).language;
@@ -40,17 +40,18 @@ function languageOf(request: OpenAIChatRequest): string | undefined {
 
 function systemPromptOf(messages: OpenAIMessage[]): string {
   return messages
-    .filter((message) => message.role === 'system' && typeof message.content === 'string')
-    .map((message) => message.content)
+    .filter((message) => message.role === 'system')
+    .map((message) => textOf(message.content))
+    .filter(Boolean)
     .join('\n');
 }
 
 function lastUserMessage(messages: OpenAIMessage[]): string | undefined {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     const message = messages[index];
-    if (message?.role === 'user' && typeof message.content === 'string' && message.content.trim()) {
-      return message.content.trim();
-    }
+    if (message?.role !== 'user') continue;
+    const text = textOf(message.content).trim();
+    if (text) return text;
   }
   return undefined;
 }
@@ -68,9 +69,10 @@ function historyOf(messages: OpenAIMessage[], turns: number): { text: string; sa
   const said: { text: string; said_by: 'user' | 'assistant' }[] = [];
   for (const message of messages) {
     if (message.role !== 'user' && message.role !== 'assistant') continue;
-    if (typeof message.content !== 'string' || !message.content.trim()) continue;
+    const text = textOf(message.content).trim();
+    if (!text) continue;
     if (message.role === 'assistant' && (message.tool_calls?.length ?? 0) > 0) continue;
-    said.push({ text: message.content.trim(), said_by: message.role });
+    said.push({ text, said_by: message.role });
   }
   return said.slice(-turns * 2);
 }
@@ -373,18 +375,30 @@ export async function handleChatCompletions(
       respondText(options(), '', response);
       return;
     }
+    if (toolMessage) {
+      rememberTrace({
+        id: uid('trace'),
+        at: Date.now(),
+        utterance: '',
+        route: 'text',
+        reason: `answered from Home Assistant's tool result (speech.afterTool = "${active.speech.afterTool}")`,
+        gates: [],
+        backend: 'speech',
+        ...(toolMessage.tool_call_id ? { tool: toolMessage.tool_call_id } : {}),
+      });
+    }
     const text =
       toolMessages.length > 1
         ? speechForToolRound(
             toolMessages.map((message) => ({
               ...(message.tool_call_id ? { callId: message.tool_call_id } : {}),
-              ...(typeof message.content === 'string' ? { content: message.content } : {}),
+              content: textOf(message.content),
             })),
             languageOf(request),
           )
         : speechForLastTool(
             toolMessage.tool_call_id,
-            typeof toolMessage.content === 'string' ? toolMessage.content : undefined,
+            textOf(toolMessage.content) || undefined,
             languageOf(request),
           );
     respondText(options(), text || 'Done.', response);
@@ -393,6 +407,18 @@ export async function handleChatCompletions(
 
   const utterance = lastUserMessage(messages);
   if (!utterance) {
+    const shapes = [...new Set(messages.map((message) => `${message.role}:${Array.isArray(message.content) ? 'parts' : typeof message.content}`))];
+    rememberTrace({
+      id: uid('trace'),
+      at: Date.now(),
+      utterance: '',
+      route: 'forward',
+      reason: `pass-through: no user text to read in the request (${shapes.join(', ') || 'no messages'})`,
+      gates: [],
+      backend: 'off',
+    });
+    stats.requests += 1;
+    stats.bypassed += 1;
     await forwardUpstream(request, rawBody, response, override);
     return;
   }
