@@ -138,16 +138,37 @@ export const getTrace = (limit = 50) => call<TraceResponse>(`/api/trace?limit=${
 export const getRequests = (limit = 20) => call<RequestsResponse>(`/api/requests?limit=${limit}`);
 export const clearTrace = () => call<{ ok: boolean }>('/api/trace', { method: 'DELETE' });
 export const resetBreaker = () => call<{ ok: boolean }>('/api/breaker/reset', { method: 'POST' });
+export interface Exposure {
+  ok: boolean;
+  reason?: string;
+  exposed: number;
+  registry: number;
+  used: 'expose_entity_list' | 'prompt' | 'none';
+}
+
 export interface CatalogSummary {
   source: string;
   entities: number;
   areas: number;
   builtAt: number;
   note?: string;
+  exposure?: Exposure;
+}
+
+export interface ExposureProbe {
+  ok: boolean;
+  command: string;
+  error?: string;
+  count?: number;
+  usable?: boolean;
+  assistants?: Record<string, number>;
+  sample?: string[];
 }
 
 export const refreshCatalog = () =>
   call<{ ok: boolean; catalog?: CatalogSummary }>('/api/catalog/refresh', { method: 'POST' });
+export const checkExposure = () =>
+  call<ExposureProbe>('/api/catalog/exposure', { method: 'POST' });
 export const probe = (text: string) =>
   call<ProbeResponse>('/api/probe', { method: 'POST', body: JSON.stringify({ text }) });
 export const saveConfig = (config: Record<string, unknown>) =>

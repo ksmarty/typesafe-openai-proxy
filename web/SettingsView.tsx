@@ -28,6 +28,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import CheckIcon from '@mui/icons-material/Check';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SaveIcon from '@mui/icons-material/Save';
@@ -43,6 +44,7 @@ import DnsIcon from '@mui/icons-material/Dns';
 import {
   errorMessage,
   getConfig,
+  checkExposure,
   refreshCatalog,
   getSchema,
   resetConfig,
@@ -213,6 +215,34 @@ export function SettingsView({
     }
   };
 
+  const checkExposureNow = async () => {
+    setRefreshing(true);
+    setCatalogNote(null);
+    try {
+      if (dirty && !(await save())) return;
+      const probe = await checkExposure();
+      if (!probe.ok) {
+        setCatalogNote(
+          `Home Assistant refused ${probe.command}: ${probe.error ?? 'no reason given'}. ` +
+            'Reading exposure needs a long-lived token from an administrator.',
+        );
+        return;
+      }
+      const assistants = Object.entries(probe.assistants ?? {})
+        .map(([name, count]) => `${name} ${count}`)
+        .join(', ');
+      setCatalogNote(
+        probe.usable
+          ? `Home Assistant exposes ${probe.count ?? 0} entities to Assist (others: ${assistants || 'none'}).`
+          : `Home Assistant answered ${probe.command} but named nothing exposed to Assist (others: ${assistants || 'none'}) — ${probe.error ?? ''}`,
+      );
+    } catch (problem) {
+      setCatalogNote(`Exposure check failed: ${errorMessage(problem)}`);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const refreshCatalogNow = async () => {
     setRefreshing(true);
     setCatalogNote(null);
@@ -225,7 +255,12 @@ export function SettingsView({
         !info
           ? 'Catalog re-read.'
           : info.entities > 0
-            ? `Re-read Home Assistant: ${info.entities} entities, ${info.areas} areas (${info.source}) at ${new Date(info.builtAt).toLocaleTimeString()}.`
+            ? `Re-read Home Assistant: ${info.entities} entities, ${info.areas} areas (${info.source}) at ${new Date(info.builtAt).toLocaleTimeString()}.` +
+              (info.exposure && !info.exposure.ok
+                ? ` Exposure was NOT applied (${info.exposure.reason ?? 'no reason given'}).`
+                : info.exposure
+                  ? ` Exposure applied: ${info.exposure.exposed} of ${info.exposure.registry} exposed to Assist.`
+                  : '')
             : `Nothing to read yet — ${info.note ?? 'no entities came back'}.`,
       );
       onSaved();
@@ -390,6 +425,15 @@ export function SettingsView({
                     onClick={() => void refreshCatalogNow()}
                   >
                     {dirty ? 'Save & refresh catalog' : 'Refresh catalog'}
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={refreshing || saving}
+                    startIcon={<CheckIcon fontSize="small" />}
+                    onClick={() => void checkExposureNow()}
+                  >
+                    Check exposure
                   </Button>
                   <Typography variant="caption" color="text.secondary" sx={{ minWidth: 0 }}>
                     Re-reads entities, areas and aliases from Home Assistant now instead of waiting for the{' '}

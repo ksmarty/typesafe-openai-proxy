@@ -233,12 +233,29 @@ function levelFrom(attributes: Record<string, unknown>): Pick<CatalogEntity, 'le
  * Never guesses downward — if the prompt names nothing (a different prompt format), or names
  * almost everything, the registry stands.
  */
+let lastPromptIds: Set<string> | null = null;
+
+/** The entity ids the most recent request named; a refresh has no request of its own. */
+export function rememberPromptExposure(ids: string[]): void {
+  lastPromptIds = ids.length ? new Set(ids) : null;
+}
+
+export function promptExposure(): Set<string> | null {
+  return lastPromptIds;
+}
+
 export function narrowFromPrompt(catalog: Catalog, prompt: string | undefined, config: Config): Catalog {
   if (!config.catalog.exposedOnly) return catalog;
   if (catalog.exposure?.ok !== false) return catalog;
-  if (!prompt) return catalog;
+  if (!prompt) {
+    // No request in hand (the dashboard or a scheduled refresh): use the last one seen.
+    if (!lastPromptIds) return catalog;
+    if (lastPromptIds.size < 3 || lastPromptIds.size >= catalog.entities.length) return catalog;
+    return narrowCatalog(catalog, lastPromptIds, 'Home Assistant did not report exposure, so these are the entities Assist last named');
+  }
   const spoken = catalogFromPrompt(prompt);
   const ids = new Set(spoken.entities.map((entity) => entity.id));
+  rememberPromptExposure([...ids]);
   if (ids.size < 3 || ids.size >= catalog.entities.length) return catalog;
   return narrowCatalog(catalog, ids, 'Home Assistant did not report exposure, so these are the entities this request named');
 }
@@ -300,6 +317,9 @@ export function exposedToConversation(payload: unknown): Record<string, boolean>
     return Object.keys(out).length ? out : null;
   }
 
+  // Entities are exposed to at least one assistant or they would not be listed at all, so an
+  // answer that parses to nothing is an unusable answer, not a house with nothing exposed.
+
   const out: Record<string, boolean> = {};
   for (const [id, value] of Object.entries(inner)) {
     if (!isEntityId(id)) continue;
@@ -310,6 +330,61 @@ export function exposedToConversation(payload: unknown): Record<string, boolean>
     }
   }
   return Object.keys(out).length ? out : null;
+}
+
+/**
+ * Ask Home Assistant one question: which entities are exposed to Assist?
+ *
+ * Same command the catalog uses, but with nothing optional, so every refusal surfaces with the
+ * wording Home Assistant used. This is what the dashboard's "Check exposure" button calls — a
+ * wrong entity count should be explainable in one click.
+ */
+export interface ExposureProbe {
+  ok: boolean;
+  command: string;
+  error?: string;
+  count?: number;
+  assistants?: Record<string, number>;
+  sample?: string[];
+  usable?: boolean;
+}
+
+export async function probeExposure(config: Config): Promise<ExposureProbe> {
+  const command = 'homeassistant/expose_entity/list';
+  const base = config.catalog.haUrl.replace(/\/+$/, '');
+  if (!base || !config.catalog.haToken) {
+    return { ok: false, command, error: 'Home Assistant URL and token are not configured' };
+  }
+  const wsUrl = `${base.replace(/^http/, 'ws')}/api/websocket`;
+  let payload: unknown;
+  try {
+    const [result] = await wsQuery<unknown>(wsUrl, config.catalog.haToken, [{ type: command }], 10000);
+    payload = result;
+  } catch (error) {
+    return { ok: false, command, error: error instanceof Error ? error.message : String(error) };
+  }
+
+  const parsed = exposedToConversation(payload);
+  const assistants: Record<string, number> = {};
+  const root = (payload && typeof payload === 'object' ? payload : {}) as Record<string, unknown>;
+  const inner = (root.exposed_entities ?? root) as Record<string, unknown>;
+  for (const value of Object.values(inner)) {
+    if (!value || typeof value !== 'object') continue;
+    for (const assistant of Object.keys(value as Record<string, unknown>)) {
+      assistants[assistant] = (assistants[assistant] ?? 0) + 1;
+    }
+  }
+  return {
+    ok: true,
+    command,
+    count: parsed ? Object.values(parsed).filter(Boolean).length : 0,
+    usable: Boolean(parsed),
+    assistants,
+    sample: parsed ? Object.entries(parsed).filter(([, on]) => on).slice(0, 5).map(([id]) => id) : [],
+    ...(parsed
+      ? {}
+      : { error: 'Home Assistant answered, but the response named no entities exposed to Assist' }),
+  };
 }
 
 /** Structured catalog straight from Home Assistant. */
@@ -642,6 +717,7 @@ export async function getCatalog(
       })
       .catch((error: unknown) => {
         const fallback = prompt ? catalogFromPrompt(prompt) : emptyCatalog();
+        if (prompt) rememberPromptExposure(fallback.entities.map((entity) => entity.id));
         return {
           ...fallback,
           note: `${fallback.note ?? ''} (Home Assistant unreachable: ${

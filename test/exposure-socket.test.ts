@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { test } from 'node:test';
 
-import { catalogFromHomeAssistant } from '../src/catalog.js';
+import { catalogFromHomeAssistant, probeExposure } from '../src/catalog.js';
 import { defaultConfig } from '../src/config.js';
 
 /**
@@ -153,6 +153,48 @@ test('a core without the exposure command still produces a catalog', async () =>
     const catalog = await catalogFrom(url);
     assert.equal(catalog.entities.length, 2, 'the optional command must not break the catalog');
     assert.match(catalog.note ?? '', /2 entities, 1 areas/);
+  } finally {
+    server.close();
+  }
+});
+
+test('the exposure probe reports the count Assist actually sees', async () => {
+  // The shape Home Assistant really returns: entity -> { assistant: true }.
+  const { url, server } = await fakeHomeAssistant({
+    exposed_entities: {
+      'light.office_lights': { conversation: true },
+      'sensor.iphone_battery': { conversation: true, 'cloud.alexa': true },
+      'sensor.iphone_steps': { 'cloud.alexa': true },
+    },
+  });
+  try {
+    const base = defaultConfig();
+    const probe = await probeExposure({
+      ...base,
+      catalog: { ...base.catalog, haUrl: url, haToken: TOKEN },
+    });
+    assert.equal(probe.ok, true);
+    assert.equal(probe.usable, true);
+    // Exposed to Assist is not the same as exposed to something.
+    assert.equal(probe.count, 2);
+    assert.deepEqual(probe.assistants, { conversation: 2, 'cloud.alexa': 2 });
+    assert.deepEqual(probe.sample, ['light.office_lights', 'sensor.iphone_battery']);
+  } finally {
+    server.close();
+  }
+});
+
+test('the exposure probe surfaces the exact refusal', async () => {
+  const { url, server } = await fakeHomeAssistant('refuse');
+  try {
+    const base = defaultConfig();
+    const probe = await probeExposure({
+      ...base,
+      catalog: { ...base.catalog, haUrl: url, haToken: TOKEN },
+    });
+    assert.equal(probe.ok, false);
+    assert.equal(probe.command, 'homeassistant/expose_entity/list');
+    assert.match(probe.error ?? '', /unknown command/);
   } finally {
     server.close();
   }

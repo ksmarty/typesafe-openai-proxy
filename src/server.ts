@@ -8,7 +8,15 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { catalogFromHomeAssistant, cachedCatalog, clearCatalogCache, emptyCatalog, getCatalog } from './catalog.js';
+import {
+  catalogFromHomeAssistant,
+  cachedCatalog,
+  clearCatalogCache,
+  emptyCatalog,
+  getCatalog,
+  promptExposure,
+  probeExposure,
+} from './catalog.js';
 import {
   configPath,
   defaultConfig,
@@ -183,6 +191,7 @@ function statusPayload(): Record<string, unknown> {
       builtAt: catalog?.builtAt ?? 0,
       note: catalog?.note,
       exposure: catalog?.exposure,
+      promptExposure: promptExposure()?.size ?? 0,
     },
     routerModel: ROUTER_MODEL,
     stats: { ...stats, routableShare: Math.round(routableShare() * 1000) / 1000 },
@@ -302,6 +311,11 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
   if (path === '/catalog' && method === 'GET') {
     const catalog = cachedCatalog();
     jsonResponse(response, 200, { catalog });
+    return true;
+  }
+
+  if (path === '/catalog/exposure' && method === 'POST') {
+    jsonResponse(response, 200, await probeExposure(loadConfig()));
     return true;
   }
 
