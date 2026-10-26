@@ -1,0 +1,46 @@
+services:
+  typesafe-proxy:
+    image: ghcr.io/ksmarty/typesafe-openai-proxy:latest
+    container_name: typesafe-proxy
+    restart: unless-stopped
+    networks:
+      - traefik
+    volumes:
+      # Same layout as your other containers. Must be writable by uid 1000:
+      #   mkdir -p ${USERDIR}/data/typesafe-proxy && sudo chown 1000:1000 ${USERDIR}/data/typesafe-proxy
+      # The image runs as the `node` user (uid/gid 1000); it does not read PUID/PGID.
+      - ${USERDIR}/data/typesafe-proxy:/app/data
+    environment:
+      - TZ=Etc/UTC
+      # Guards the machine API. Home Assistant sends this as "Authorization: Bearer …",
+      # which is the API key field in the hass_local_openai_llm options.
+      # Put TYPESAFE_PROXY_KEY=… in the same .env as USERDIR. Leave both unset to disable.
+      - PROXY_API_KEY=${TYPESAFE_PROXY_KEY:-}
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+
+      # ---- dashboard: behind Authentik -------------------------------------------
+      # `!PathPrefix(/v1)` keeps the machine API off this router, because Authentik
+      # answers an unauthenticated request with a 302 to the login flow, and the
+      # Home Assistant integration would follow that instead of getting JSON.
+      - traefik.http.routers.typesafe-ui.rule=Host(`${PROXY_HOST}`) && !PathPrefix(`/v1`)
+      - traefik.http.routers.typesafe-ui.entrypoints=websecure
+      - traefik.http.routers.typesafe-ui.tls.certresolver=letsencrypt
+      - traefik.http.routers.typesafe-ui.middlewares=authentik@file
+      - traefik.http.routers.typesafe-ui.service=typesafe-proxy
+
+      # ---- /v1 for hass_local_openai_llm: no Authentik ---------------------------
+      # Protected by PROXY_API_KEY above. Add a middleware of your own (a LAN-only
+      # IP allowlist, for example) if the hostname is reachable from the internet.
+      - traefik.http.routers.typesafe-api.rule=Host(`${PROXY_HOST}`) && PathPrefix(`/v1`)
+      - traefik.http.routers.typesafe-api.entrypoints=websecure
+      - traefik.http.routers.typesafe-api.tls.certresolver=letsencrypt
+      - traefik.http.routers.typesafe-api.priority=100
+      - traefik.http.routers.typesafe-api.service=typesafe-proxy
+
+      - traefik.http.services.typesafe-proxy.loadbalancer.server.port=8080
+
+networks:
+  traefik:
+    external: true

@@ -69,6 +69,49 @@ docker run -d --name typesafe-proxy -p 8080:8080 \
   ghcr.io/ksmarty/typesafe-openai-proxy:latest
 ```
 
+### Behind Traefik, with Authentik in front
+
+`docker-compose.traefik.yml` is a ready version of the above for a Traefik host that runs an
+Authentik forward-auth middleware as `authentik@file`:
+
+```bash
+cp docker-compose.traefik.yml docker-compose.yml
+mkdir -p "$USERDIR/data/typesafe-proxy" && sudo chown 1000:1000 "$USERDIR/data/typesafe-proxy"
+# .env
+#   USERDIR=/mnt/user
+#   PROXY_HOST=proxy.example.com      # the hostname Traefik serves
+#   TYPESAFE_PROXY_KEY=<random>        # what Home Assistant sends as the API key
+docker compose up -d
+```
+
+It defines **two routers on one service**, and the split is the important part:
+
+| router | rule | middleware |
+| --- | --- | --- |
+| `typesafe-ui` | `Host(...) && !PathPrefix(/v1)` | `authentik@file` |
+| `typesafe-api` | `Host(...) && PathPrefix(/v1)` | none — `PROXY_API_KEY` instead |
+
+The machine API must not sit behind Authentik: an unauthenticated `POST /v1/chat/completions` would
+be answered with a 302 to the Authentik flow, and `hass_local_openai_llm` would get an HTML login
+page where it expects JSON (or a stream of `data:` frames). It is guarded by the proxy's own bearer
+token instead, which is the *API key* field in the integration options. The dashboard and its
+`/api/*` endpoints stay behind Authentik, which is where the browser session already is.
+
+Two things worth knowing about this image in a Traefik setup:
+
+- It ignores `PUID`/`PGID` — it is not a LinuxServer image. It runs as `node`, uid/gid **1000**, so
+  the bind-mounted data directory has to be owned by 1000 (`chown 1000:1000`).
+- No published port is needed: Traefik reaches the container over the shared network
+  (`traefik.docker.network=traefik`, container port 8080). Publish `127.0.0.1:8080:8080` only if you
+  want to reach it without going through Traefik.
+
+`PROXY_API_KEY` guards `/v1` only. `/api/*` (which can rewrite the configuration) is protected by
+whatever sits in front of the container — never expose the dashboard without an auth middleware.
+
+If your Traefik uses different names, adjust the two `entrypoints` (`websecure`) and
+`tls.certresolver` (`letsencrypt`) labels; if your Traefik already sets a default entrypoint and
+resolver, drop those labels entirely.
+
 Then:
 
 1. Open `http://<host>:8080/` and fill in **Settings**. The only field the proxy needs to be useful
