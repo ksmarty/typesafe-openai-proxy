@@ -69,6 +69,22 @@ export function pruneState(): void {
   }
 }
 
+/** One row per request that reached /v1, whether or not it became a turn. */
+export interface SeenRequest {
+  at: number;
+  method: string;
+  path: string;
+  status: number;
+  ms: number;
+}
+
+export const requestLog: SeenRequest[] = [];
+
+export function rememberRequest(entry: SeenRequest): void {
+  requestLog.unshift(entry);
+  if (requestLog.length > 50) requestLog.length = 50;
+}
+
 export function rememberTrace(entry: TraceEntry): void {
   pruneState();
   trace.unshift(entry);

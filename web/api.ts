@@ -59,6 +59,19 @@ export interface ProbeResponse {
   fastPath: { ready: boolean; reason: string };
 }
 
+export interface SeenRequest {
+  at: number;
+  method: string;
+  path: string;
+  status: number;
+  ms: number;
+}
+
+export interface RequestsResponse {
+  items: SeenRequest[];
+  total: number;
+}
+
 export interface TraceResponse {
   items: TraceEntry[];
   total: number;
@@ -120,6 +133,9 @@ export const getStatus = () => call<Status>('/api/status');
 export const getSchema = () => call<SchemaResponse>('/api/schema');
 export const getConfig = () => call<ConfigResponse>('/api/config');
 export const getTrace = (limit = 50) => call<TraceResponse>(`/api/trace?limit=${limit}`);
+
+/** Every request that reached /v1, whether or not it became a turn. */
+export const getRequests = (limit = 20) => call<RequestsResponse>(`/api/requests?limit=${limit}`);
 export const clearTrace = () => call<{ ok: boolean }>('/api/trace', { method: 'DELETE' });
 export const resetBreaker = () => call<{ ok: boolean }>('/api/breaker/reset', { method: 'POST' });
 export interface CatalogSummary {

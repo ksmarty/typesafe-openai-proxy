@@ -110,6 +110,14 @@ export function App() {
                 A calibrated fast path in front of hass_local_openai_llm
               </Typography>
             </Box>
+            <Tooltip title="The build answering. Compare it with the release you meant to run.">
+              <Chip
+                size="small"
+                variant="outlined"
+                label={`v${status?.version ?? '—'}`}
+                sx={{ flexShrink: 0 }}
+              />
+            </Tooltip>
           </Stack>
 
           {view === 'settings' && compactHeader ? (
@@ -141,9 +149,7 @@ export function App() {
               title={status?.catalog.note ?? undefined}
             />
             <Chip variant="outlined" label={`uptime: ${uptime(status?.uptimeSeconds ?? 0)}`} />
-            <Tooltip title="The build answering. Compare it with the release you meant to run.">
-              <Chip variant="outlined" label={`v${status?.version ?? '—'}`} />
-            </Tooltip>
+
           </Stack>
         </Toolbar>
         <Tabs

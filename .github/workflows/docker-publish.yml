@@ -98,6 +98,10 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Same version, baked as a LABEL inside the image, so `docker inspect`
+          # can name the build without the dashboard.
+          build-args: |
+            VERSION=${{ steps.meta.outputs.version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           provenance: true

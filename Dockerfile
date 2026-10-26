@@ -14,6 +14,16 @@ RUN npx tsc && node scripts/build-ui.mjs
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+# The version is baked into the image so `docker inspect` answers "which build is this?"
+# without opening the dashboard. CI passes it from the release tag; a local build says
+# "dev" unless you pass --build-arg VERSION=…
+ARG VERSION=dev
+LABEL org.opencontainers.image.title="typesafe-openai-proxy" \
+      org.opencontainers.image.description="OpenAI-compatible routing proxy in front of hass_local_openai_llm" \
+      org.opencontainers.image.source="https://github.com/ksmarty/typesafe-openai-proxy" \
+      org.opencontainers.image.url="https://github.com/ksmarty/typesafe-openai-proxy" \
+      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.version="${VERSION}"
 # No node_modules at runtime: the server uses only Node built-ins and serves static assets.
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/public ./public

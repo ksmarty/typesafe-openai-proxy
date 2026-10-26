@@ -20,16 +20,19 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import BoltIcon from '@mui/icons-material/Bolt';
 import DownloadIcon from '@mui/icons-material/Download';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import InputIcon from '@mui/icons-material/Input';
 
 import {
   clearTrace,
   downloadDebugBundle,
   errorMessage,
+  getRequests,
   getTrace,
   probe,
   refreshCatalog,
   resetBreaker,
   type ProbeResponse,
+  type SeenRequest,
   type Status,
 } from './api';
 import { compact, fixed, ms, pretty, timeAgo } from './format';
@@ -370,6 +373,8 @@ export function MonitorView({ status, onRefresh }: { status: Status | null; onRe
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [entries, setEntries] = useState<TraceEntry[]>([]);
+  const [requests, setRequests] = useState<SeenRequest[]>([]);
+  const [requestTotal, setRequestTotal] = useState(0);
   const [live, setLive] = useState(true);
   const [note, setNote] = useState<string | null>(null);
 
@@ -394,6 +399,13 @@ export function MonitorView({ status, onRefresh }: { status: Status | null; onRe
       setEntries(payload.items);
     } catch {
       /* the status poll reports connectivity problems already */
+    }
+    try {
+      const seen = await getRequests(20);
+      setRequests(seen.items);
+      setRequestTotal(seen.total);
+    } catch {
+      /* same */
     }
   }, []);
 
@@ -571,6 +583,55 @@ export function MonitorView({ status, onRefresh }: { status: Status | null; onRe
           </CardContent>
         </Card>
       </Stack>
+
+      <Card>
+        <CardContent>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1.5 }}>
+            <InputIcon fontSize="small" color="primary" />
+            <Typography variant="h6" sx={{ flex: 1 }}>
+              Requests received
+            </Typography>
+            <Chip size="small" variant="outlined" label={String(requestTotal)} />
+          </Stack>
+          {requests.length === 0 ? (
+            <Typography variant="body2" color="text.secondary">
+              Nothing has reached /v1 on this container yet.
+            </Typography>
+          ) : (
+            <Stack spacing={0.75}>
+              {requests.map((item) => (
+                <Stack
+                  key={item.at + item.path}
+                  direction="row"
+                  spacing={1}
+                  sx={{ alignItems: 'baseline', minWidth: 0, flexWrap: 'wrap' }}
+                >
+                  <Typography variant="caption" color="text.disabled" sx={{ fontFamily: monoFont, flexShrink: 0 }}>
+                    {new Date(item.at).toLocaleTimeString()}
+                  </Typography>
+                  <Typography variant="caption" sx={{ fontFamily: monoFont, flexShrink: 0 }}>
+                    {item.method} {item.path}
+                  </Typography>
+                  <Chip
+                    size="small"
+                    label={String(item.status)}
+                    color={item.status < 300 ? 'success' : item.status < 400 ? 'warning' : 'error'}
+                    variant="outlined"
+                    sx={{ height: 18, fontSize: 11 }}
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ fontFamily: monoFont }}>
+                    {item.ms} ms
+                  </Typography>
+                </Stack>
+              ))}
+            </Stack>
+          )}
+          <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 1.5, lineHeight: 1.3 }}>
+            Every call the machine API saw, whether or not it became a turn. If Home Assistant answers without the
+            proxy being asked, nothing appears here.
+          </Typography>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent>

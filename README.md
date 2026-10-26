@@ -283,6 +283,23 @@ kitchen lights" resolves to `HassTurnOn {"area": "Kitchen", "domain": "light"}` 
 cannot pick a scope, and "turn off the living room lamp" resolves to that exact entity. Nothing is
 guessed when two devices or rooms fit equally well — the proxy asks instead.
 
+### Is anything reaching the proxy?
+
+Monitor → **Requests received** lists every call that landed on `/v1`, with its status and how long
+the proxy took. It is kept whether or not the request became a turn, so a rejected bearer token
+(`401`), a pass-through and a forwarded request all appear. Nothing in that list means Home
+Assistant is talking to something else: check that the **Server URL** in `hass_local_openai_llm`
+is this proxy's root plus `/v1`, and that its API key matches `server.apiKey` here.
+
+The same rows are in the debug bundle (`requests`), next to the per-stage timings each turn
+records under `stages`.
+
+Two version markers exist so "am I even running the new build?" is never a guess:
+
+- the **`v…` chip** in the dashboard header, from `GET /api/status`;
+- the **`org.opencontainers.image.version`** label inside the image, set from the release tag at
+  build time — `docker inspect ghcr.io/ksmarty/typesafe-openai-proxy:0.1.30 --format '{{json .Config.Labels}}'`.
+
 ### Refreshing the catalog
 
 The catalog is cached for `catalog.cacheMs` (30 s by default) so a command does not wait on

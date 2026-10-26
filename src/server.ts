@@ -25,7 +25,7 @@ import { assistTools } from './toolcall.js';
 import { installLogCapture, note, recentLogs } from './log.js';
 import { jsonResponse } from './respond.js';
 import { secretOrStored, settingsGroups } from './schema.js';
-import { averageDecisionMs, pendingConfirmations, rememberTrace, routableShare, startedAt, stats, trace } from './state.js';
+import { averageDecisionMs, pendingConfirmations, rememberRequest, rememberTrace, requestLog, routableShare, startedAt, stats, trace } from './state.js';
 import { breakerState, listModels, resetBreaker } from './systemone.js';
 import { ensureUiBundle } from './ui.js';
 import { fetchWithTimeout, uid } from './util.js';
@@ -227,6 +227,12 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
     return true;
   }
 
+  if (path === '/requests' && method === 'GET') {
+    const limit = Math.max(1, Math.min(50, Number(url.searchParams.get('limit') ?? 20) || 20));
+    jsonResponse(response, 200, { items: requestLog.slice(0, limit), total: requestLog.length });
+    return true;
+  }
+
   // Everything worth attaching to a bug report, in one file: the effective config
   // (secrets masked), what the server thinks its state is, the decisions it made,
   // and the recent output you would otherwise only see in `docker logs`.
@@ -261,6 +267,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
           }
         : null,
       traces: trace.slice(0, limit),
+      requests: requestLog.slice(0, 50),
       logs: recentLogs(),
       notes: [
         'Secrets are masked to their first 12 characters; they are not exported in full.',
@@ -510,8 +517,14 @@ export function createApp() {
       // the only other view of this is `docker logs`, which is lost on restart.
       const started = Date.now();
       response.on('finish', () => {
+        const spent = Date.now() - started;
+        // Every request the machine API sees, kept for the dashboard: this is the
+        // answer to "is anything reaching the container at all".
+        if (url.pathname.startsWith('/v1/')) {
+          rememberRequest({ at: started, method, path: url.pathname, status: response.statusCode, ms: spent });
+        }
         if (url.pathname === '/debug/bundle') return;
-        note(`${method} ${url.pathname}${url.search} -> ${response.statusCode} ${Date.now() - started}ms`);
+        note(`${method} ${url.pathname}${url.search} -> ${response.statusCode} ${spent}ms`);
       });
 
       try {
