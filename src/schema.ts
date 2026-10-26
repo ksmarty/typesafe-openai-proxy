@@ -470,6 +470,20 @@ export function isMaskedValue(value: unknown, mask = '••••••'): bool
   return typeof value === 'string' && value.includes(mask);
 }
 
+/**
+ * What a password field means when a form submits it: an empty box means "use the
+ * stored value" (a test button has nothing new to say), the masked preview means
+ * the same, and anything else is a new secret.
+ *
+ * This exists because a masked preview is now `prefix + mask`, so comparing a
+ * submitted value to the mask string alone silently sent `sk-or-v1-abc••••••` as a
+ * real key.
+ */
+export function secretOrStored(submitted: unknown, stored: string): string {
+  if (typeof submitted !== 'string' || !submitted) return stored;
+  return isMaskedValue(submitted) ? stored : submitted;
+}
+
 /** Mask the secrets in a config object, in place. */
 export function maskSecrets(config: Record<string, unknown>, mask = '••••••'): void {
   for (const field of allFields()) {

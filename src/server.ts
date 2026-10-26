@@ -12,7 +12,7 @@ import { catalogFromHomeAssistant, cachedCatalog, clearCatalogCache, emptyCatalo
 import { configPath, defaultConfig, loadConfig, publicConfig, resetConfig, ROUTER_MODEL, saveConfig } from './config.js';
 import { fastPathStatus, handleChatCompletions, runPipeline } from './pipeline.js';
 import { jsonResponse } from './respond.js';
-import { isMaskedValue, settingsGroups } from './schema.js';
+import { secretOrStored, settingsGroups } from './schema.js';
 import { averageDecisionMs, pendingConfirmations, routableShare, startedAt, stats, trace } from './state.js';
 import { breakerState, listModels, resetBreaker } from './systemone.js';
 import { ensureUiBundle } from './ui.js';
@@ -218,7 +218,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
     const parsed = await jsonBody(request) as { url?: string; token?: string };
     const active = loadConfig();
     const url = (parsed.url || active.catalog.haUrl).trim().replace(/\/+$/, '');
-    const token = parsed.token && parsed.token !== '••••••' ? parsed.token : active.catalog.haToken;
+    const token = secretOrStored(parsed.token, active.catalog.haToken);
     if (!url || !token) {
       jsonResponse(response, 400, { ok: false, error: 'A URL and a long-lived token are both required.' });
       return true;
@@ -259,7 +259,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
         decision: {
           ...active.decision,
           baseUrl,
-          apiKey: parsed.key && !isMaskedValue(parsed.key) ? parsed.key : active.decision.apiKey,
+          apiKey: secretOrStored(parsed.key, active.decision.apiKey),
         },
       });
       const typed = models.filter((model) => model.jev);
@@ -281,7 +281,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
     const parsed = await jsonBody(request) as { url?: string; key?: string };
     const active = loadConfig();
     const base = (parsed.url || active.upstream.baseUrl).trim().replace(/\/+$/, '');
-    const key = parsed.key && !isMaskedValue(parsed.key) ? parsed.key : active.upstream.apiKey;
+    const key = secretOrStored(parsed.key, active.upstream.apiKey);
     if (!base) {
       jsonResponse(response, 400, { ok: false, error: 'Set the fallback server URL first.' });
       return true;
