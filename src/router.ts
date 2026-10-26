@@ -31,7 +31,7 @@ import type {
   ToolCall,
   ToolCallPlan,
 } from './types.js';
-import { buildToolCall, describeInventory, magnitudeStep, relativeTarget } from './toolcall.js';
+import { buildToolCall, describeInventory, findTool, hasTool, magnitudeStep, relativeTarget } from './toolcall.js';
 import type { ToolInventory } from './toolcall.js';
 import { INTENTS } from './actions.js';
 import { mentionedTargets, uniqueAreaMention, uniqueEntityMention } from './catalog.js';
@@ -188,9 +188,9 @@ export function route(ctx: RouteContext): RouteResult {
     return forward('unclear request', gates, { category: category.choice });
   }
   if (category.choice === 'cancel') {
-    if (inventory.has(INTENTS.nevermind)) {
+    if (hasTool(inventory, INTENTS.nevermind)) {
       return {
-        plan: { kind: 'tool', tool: INTENTS.nevermind, args: {}, targets: [], action: 'cancel' },
+        plan: { kind: 'tool', tool: offeredName(inventory, INTENTS.nevermind), args: {}, targets: [], action: 'cancel' },
         gates,
         reason: 'cancel',
         category: 'cancel',
@@ -202,6 +202,11 @@ export function route(ctx: RouteContext): RouteResult {
 
   if (category.choice === 'query') return planQuery(ctx, gates);
   return planCommand(ctx, gates);
+}
+
+/** The name Home Assistant offered for an intent, so the call lands. */
+function offeredName(inventory: ToolInventory, intent: string): string {
+  return findTool(inventory, intent)?.name ?? intent;
 }
 
 // --- queries ----------------------------------------------------------------
@@ -219,9 +224,9 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
     const intent = kind === 'time_or_date' && /date|day|today|month|year/i.test(ctx.utterance)
       ? INTENTS.getCurrentDate
       : INTENTS.getCurrentTime;
-    if (inventory.has(intent)) {
+    if (hasTool(inventory, intent)) {
       return {
-        plan: { kind: 'tool', tool: intent, args: {}, targets: [], action: 'query' },
+        plan: { kind: 'tool', tool: offeredName(inventory, intent), args: {}, targets: [], action: 'query' },
         gates,
         reason: `query:${kind}`,
         category: 'query',
@@ -237,11 +242,11 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
 
   if (kind === 'temperature') {
     const entity = entityFrom(answers, built, t);
-    if (inventory.has(INTENTS.climateGetTemperature) && entity) {
+    if (hasTool(inventory, INTENTS.climateGetTemperature) && entity) {
       return {
         plan: {
           kind: 'tool',
-          tool: INTENTS.climateGetTemperature,
+          tool: offeredName(inventory, INTENTS.climateGetTemperature),
           args: { name: entity.id },
           targets: [entity.id],
           action: 'query',
@@ -263,7 +268,7 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
       return forward('count question without a confident kind of device', gates, { category: 'query' });
     }
     const domain = domainAnswer!.choice;
-    if (!inventory.has(INTENTS.getState)) return forward(`${INTENTS.getState} is not offered by Home Assistant (${describeInventory(inventory)})`, gates, { category: 'query' });
+    if (!hasTool(inventory, INTENTS.getState)) return forward(`${INTENTS.getState} is not offered by Home Assistant (${describeInventory(inventory)})`, gates, { category: 'query' });
     const args: Record<string, unknown> = { domain };
     const state = extraction.stateWord;
     const call = buildToolCall({
@@ -276,7 +281,7 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
     });
     if ('error' in call) return forward(call.error, gates, { category: 'query' });
     if (state) {
-      const slot = Object.keys(inventory.get(INTENTS.getState)?.parameters?.properties ?? {}).includes('state')
+      const slot = Object.keys(findTool(inventory, INTENTS.getState)?.function.parameters?.properties ?? {}).includes('state')
         ? 'state'
         : undefined;
       if (slot) call.args.state = state;
@@ -299,7 +304,7 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
   if (!gateChoice(gates, Q.targetEntity, choiceOf(answers, Q.targetEntity), t.entity, t.minMargin)) {
     return forward('entity answer failed its gate', gates, { category: 'query' });
   }
-  if (!inventory.has(INTENTS.getState)) return forward(`${INTENTS.getState} is not offered by Home Assistant (${describeInventory(inventory)})`, gates, { category: 'query' });
+  if (!hasTool(inventory, INTENTS.getState)) return forward(`${INTENTS.getState} is not offered by Home Assistant (${describeInventory(inventory)})`, gates, { category: 'query' });
   const call = buildToolCall({
     intent: INTENTS.getState,
     spec: { intentType: INTENTS.getState },

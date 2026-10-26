@@ -65,6 +65,37 @@ export function inventoryFor(tools: OpenAITool[] | undefined): ToolInventory {
   return map;
 }
 
+/**
+ * Home Assistant offers its intents under a namespace: `assist__intent__HassTurnOn`,
+ * `assist__light__HassLightSet`, `assist__media_player__HassMediaNext`. The name that has
+ * to come back in the tool call is the namespaced one, so matching is done on the short
+ * name while the namespaced name is what gets emitted.
+ */
+export function shortToolName(name: string): string {
+  const seam = name.lastIndexOf('__');
+  return seam === -1 ? name : name.slice(seam + 2);
+}
+
+/** The tool offering `intent`, under whatever name Home Assistant used. */
+export function findTool(
+  inventory: ToolInventory,
+  intent: string,
+): { name: string; function: OpenAIToolFunction } | undefined {
+  const exact = inventory.get(intent);
+  if (exact) return { name: intent, function: exact };
+  for (const [name, fn] of inventory) {
+    if (shortToolName(name) === intent) return { name, function: fn };
+  }
+  for (const [name, fn] of inventory) {
+    if (shortToolName(name).endsWith(intent)) return { name, function: fn };
+  }
+  return undefined;
+}
+
+export function hasTool(inventory: ToolInventory, intent: string): boolean {
+  return findTool(inventory, intent) !== undefined;
+}
+
 function propertiesOf(tool: OpenAIToolFunction): Record<string, { type?: string; enum?: unknown[] }> {
   return (tool.parameters?.properties ?? {}) as Record<string, { type?: string; enum?: unknown[] }>;
 }
@@ -146,7 +177,7 @@ export interface ToolCallResult {
 
 /** `a, b, c (+4 more)` — short enough for a trace reason, specific enough to debug. */
 export function describeInventory(inventory: ToolInventory): string {
-  const names = [...inventory.keys()].sort();
+  const names = [...inventory.keys()].map(shortToolName).sort();
   if (!names.length) return 'the request carried no tools at all';
   const shown = names.slice(0, 8).join(', ');
   return `it offered ${shown}${names.length > 8 ? ` (+${names.length - 8} more)` : ''}`;
@@ -154,8 +185,9 @@ export function describeInventory(inventory: ToolInventory): string {
 
 export function buildToolCall(input: ToolCallInput): ToolCallResult | { error: string } {
   const { inventory, intent, spec } = input;
-  const tool = inventory.get(intent);
-  if (!tool) return { error: `${intent} is not offered by Home Assistant (${describeInventory(inventory)})` };
+  const found = findTool(inventory, intent);
+  if (!found) return { error: `${intent} is not offered by Home Assistant (${describeInventory(inventory)})` };
+  const tool = found.function;
   const properties = propertiesOf(tool);
 
   const args = targetArgs(properties, input.target);
@@ -180,7 +212,7 @@ export function buildToolCall(input: ToolCallInput): ToolCallResult | { error: s
     args[slot] = input.text;
   }
 
-  return { tool: intent, args };
+  return { tool: found.name, args };
 }
 
 /** A value relative to what the entity is doing now, for "brighter" / "louder". */
