@@ -92,10 +92,15 @@ export function fastPathStatus(active: Config): { ready: boolean; reason: string
   if (active.decision.backend === 'systemone' && !active.decision.model) {
     return { ready: false, reason: 'no decision model name configured' };
   }
+  // Ready but idle is the confusing state: the backend is configured, yet nothing is
+  // decided until a request asks for it. Say so where the status is read.
+  const idle = active.decision.autoStart
+    ? ''
+    : ` — idle until a request names the model "${ROUTER_MODEL}" ("Start deciding on its own" is off)`;
   if (active.decision.backend === 'heuristic') {
-    return { ready: true, reason: 'built-in heuristic (no model needed)' };
+    return { ready: true, reason: `built-in heuristic (no model needed)${idle}` };
   }
-  return { ready: true, reason: `System One at ${active.decision.baseUrl}` };
+  return { ready: true, reason: `System One at ${active.decision.baseUrl}${idle}` };
 }
 
 /** Decide, then route. Never executes anything. */

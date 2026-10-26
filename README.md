@@ -35,6 +35,24 @@ Home Assistant  ──►  hass_local_openai_llm  ──►  typesafe routing pr
 Nothing to install in Home Assistant, no custom component, no HACS entry, no second agent
 competing for the `conversation` platform. One container, one URL change.
 
+## Who actually does what
+
+Worth being explicit, because it is the usual question: the proxy does **not** replace the
+integration, and it never talks to Home Assistant.
+
+| job | owner | unchanged? |
+| --- | --- | --- |
+| expose Assist to Home Assistant, stream, RAG, AI Task, parallel tool calls | `hass_local_openai_llm` | yes |
+| build the Assist tool schemas and send them as the request's `tools[]` | Home Assistant, via that integration | yes |
+| execute the intent (actually turn the light on) and return the result | Home Assistant's intent engine | yes |
+| write prose when the request is not a command | your model server, reached through the proxy | yes |
+| decide whether a request is a command worth answering in ~200 ms | the proxy, using the decision model | new |
+
+The proxy's only new power is choosing *which of the two* answers a given request: a `tool_call`
+it builds from the tools the request offered, or a verbatim forward to the model server. It never
+executes anything itself — Home Assistant still does, from the tool call in the response.
+
+
 ## Quick start
 
 ```bash
