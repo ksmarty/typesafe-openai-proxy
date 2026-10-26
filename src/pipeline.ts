@@ -26,7 +26,7 @@ import {
   YES,
   type ChunkOptions,
 } from './respond.js';
-import { issuedCalls, pendingConfirmations, rememberTrace, stats } from './state.js';
+import { issuedCalls, pendingConfirmations, rememberTrace, stats, updateTrace } from './state.js';
 import { splitClauses } from './compound.js';
 import { decide, DecisionUnavailable } from './systemone.js';
 import { inventoryFor } from './toolcall.js';
@@ -469,8 +469,20 @@ export async function handleChatCompletions(
       respondText(options(), plan.text, response);
       return;
     case 'forward':
-    default:
-      await forwardUpstream(request, rawBody, response, override);
+    default: {
+      // A forwarded turn is as slow as the model server is; measure it, because that
+      // number is the answer to "why did that take half a minute".
+      const forwardStarted = Date.now();
+      try {
+        await forwardUpstream(request, rawBody, response, override);
+      } finally {
+        updateTrace(result.entry.id, {
+          upstreamMs: Date.now() - forwardStarted,
+          totalMs: Date.now() - result.entry.at,
+        });
+      }
+      break;
+    }
   }
 }
 

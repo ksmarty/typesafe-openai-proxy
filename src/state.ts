@@ -76,6 +76,12 @@ export function rememberTrace(entry: TraceEntry): void {
   if (trace.length > limit) trace.length = limit;
 }
 
+/** Fold a late measurement (how long the model server took) into an existing entry. */
+export function updateTrace(id: string, patch: Partial<TraceEntry>): void {
+  const entry = trace.find((candidate) => candidate.id === id);
+  if (entry) Object.assign(entry, patch);
+}
+
 export function averageDecisionMs(): number {
   const decisions = stats.routable + stats.forwarded;
   return decisions === 0 ? 0 : Math.round(stats.decisionMs / decisions);

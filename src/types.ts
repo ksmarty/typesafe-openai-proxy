@@ -239,6 +239,8 @@ export interface TraceEntry {
   httpStatus?: number;
   /** Where the time went, so "it felt slow" has a number beside it. */
   timings?: { catalogMs?: number; questionsMs?: number; decideMs?: number };
+  /** Time spent waiting on the model server, when the turn was forwarded to it. */
+  upstreamMs?: number;
   tool?: string;
   args?: Record<string, unknown>;
   /** Set when the turn sent several calls at once. */

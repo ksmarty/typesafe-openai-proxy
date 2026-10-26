@@ -300,6 +300,9 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
             {entry.httpStatus ? (
               <Chip label={`HTTP ${entry.httpStatus}`} color="error" variant="outlined" size="small" />
             ) : null}
+            {entry.upstreamMs ? (
+              <Chip label={`${ms(entry.upstreamMs)} model server`} color="warning" variant="outlined" />
+            ) : null}
             {entry.timings ? (
               <Chip
                 label={`${ms(entry.timings.decideMs)} decide · ${(entry.timings.questionsMs ?? 0) + (entry.timings.catalogMs ?? 0)} ms proxy`}

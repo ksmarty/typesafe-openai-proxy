@@ -230,6 +230,23 @@ export async function forwardUpstream(
  * Home Assistant's own intent response carries the speech it would have spoken, so
  * prefer that: it is localised and already phrased. The template is the fallback.
  */
+type Slot = { name?: string; type?: string };
+
+/** Split an Assist success/failure list into the entities and the areas it names. */
+function namesOf(slots: Slot[] | undefined): { entities: string[]; areas: string[] } {
+  const pick = (type: string) =>
+    (slots ?? [])
+      .filter((slot) => slot.type === type && typeof slot.name === 'string' && slot.name.trim())
+      .map((slot) => (slot.name as string).trim());
+  return { entities: pick('entity'), areas: pick('area') };
+}
+
+/** "a", "a and b", "a, b and c". */
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names[0] ?? '';
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+}
+
 export function speechFor(
   callId: string | undefined,
   toolContent: string | undefined,
@@ -261,6 +278,22 @@ export function speechFor(
       if (slots?.action) {
         const phrase = `${slots.action} ${slots.name ?? ''}`.replace(/\s+/g, ' ').trim();
         return `${phrase.charAt(0).toUpperCase()}${phrase.slice(1)}.`;
+      }
+      // The shape Assist actually hands over: the intent's response data itself, with
+      // whatever it acted on listed under `data.success`. Its `speech` is often `{}`,
+      // which is why a turn used to be answered with a bare "Done." After v0.1.27 the
+      // entities it affected are named instead.
+      const assist = parsed as {
+        response_type?: string;
+        data?: { success?: Slot[]; failed?: Slot[] };
+      };
+      if (assist.response_type) {
+        const verb = ACTION_VERBS[info.action] ?? 'Done with';
+        const succeeded = namesOf(assist.data?.success);
+        if (succeeded.entities.length) return `${verb} ${joinNames(succeeded.entities)}.`;
+        if (succeeded.areas.length) return `${verb} ${joinNames(succeeded.areas)}.`;
+        const failed = namesOf(assist.data?.failed);
+        if (failed.entities.length) return `I could not reach ${joinNames(failed.entities)}.`;
       }
     } catch {
       /* not JSON: fall back to the template */
