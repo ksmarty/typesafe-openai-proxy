@@ -434,20 +434,36 @@ export async function handleChatCompletions(
   } catch (error) {
     if (error instanceof DecisionUnavailable) {
       stats.errors += 1;
-      rememberTrace({
-        id: uid('trace'),
-        at: Date.now(),
-        utterance,
-        route: 'forward',
-        reason: `decision unavailable: ${error.message}`,
-        gates: [],
-        error: error.message,
-      });
-      await forwardUpstream(request, rawBody, response, override);
-      return;
+      // The model is unreachable, but the sentence may be one the local heuristic reads
+      // without any doubt. Try it before handing a 30-second turn to the model server:
+      // if it is not confident, nothing changes and the request is forwarded as before.
+      const local = await runPipeline(request, utterance, systemPrompt, {
+        ...active,
+        decision: { ...active.decision, backend: 'heuristic' },
+      }).catch(() => null);
+      const localPlan = local?.route.plan;
+      const usable = localPlan && (localPlan.kind === 'tool' || localPlan.kind === 'calls' || localPlan.kind === 'clarify' || localPlan.kind === 'confirm');
+      if (local && usable) {
+        const note = `decision unavailable (${error.message}) — read locally instead`;
+        updateTrace(local.entry.id, { reason: note, error: error.message });
+        result = { ...local, entry: { ...local.entry, reason: note } };
+      } else {
+        rememberTrace({
+          id: uid('trace'),
+          at: Date.now(),
+          utterance,
+          route: 'forward',
+          reason: `decision unavailable: ${error.message}`,
+          gates: [],
+          error: error.message,
+        });
+        await forwardUpstream(request, rawBody, response, override);
+        return;
+      }
+    } else {
+      stats.errors += 1;
+      throw error;
     }
-    stats.errors += 1;
-    throw error;
   }
 
   const plan = result.route.plan;
