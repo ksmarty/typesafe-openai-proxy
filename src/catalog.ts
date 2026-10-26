@@ -75,6 +75,7 @@ function wsQuery<T>(
   token: string,
   messages: { type: string; optional?: boolean }[],
   timeoutMs = 8000,
+  onSkip?: (type: string, reason: string) => void,
 ): Promise<T[]> {
   return new Promise<T[]>((resolve, reject) => {
     const ws = new WebSocket(url);
@@ -111,7 +112,13 @@ function wsQuery<T>(
     });
 
     ws.addEventListener('message', (event: MessageEvent) => {
-      let payload: { id?: number; type?: string; success?: boolean; result?: unknown; error?: { message?: string } };
+      let payload: {
+        id?: number;
+        type?: string;
+        success?: boolean;
+        result?: unknown;
+        error?: { message?: string; code?: string };
+      };
       try {
         payload = JSON.parse(String(event.data)) as typeof payload;
       } catch {
@@ -131,6 +138,7 @@ function wsQuery<T>(
         // An optional command is skipped: older cores do not implement every endpoint.
         const requested = messages[index];
         if (requested?.optional) {
+          onSkip?.(requested.type, payload.error?.message ?? payload.error?.code ?? 'refused');
           index += 1;
           sendNext();
           return;
@@ -218,6 +226,50 @@ function levelFrom(attributes: Record<string, unknown>): Pick<CatalogEntity, 'le
   return {};
 }
 
+/**
+ * When Home Assistant refuses to report exposure, fall back to the entities it named in the
+ * request's system prompt: that prompt lists what the conversation agent can see.
+ *
+ * Never guesses downward — if the prompt names nothing (a different prompt format), or names
+ * almost everything, the registry stands.
+ */
+export function narrowFromPrompt(catalog: Catalog, prompt: string | undefined, config: Config): Catalog {
+  if (!config.catalog.exposedOnly) return catalog;
+  if (catalog.exposure?.ok !== false) return catalog;
+  if (!prompt) return catalog;
+  const spoken = catalogFromPrompt(prompt);
+  const ids = new Set(spoken.entities.map((entity) => entity.id));
+  if (ids.size < 3 || ids.size >= catalog.entities.length) return catalog;
+  return narrowCatalog(catalog, ids, 'Home Assistant did not report exposure, so these are the entities this request named');
+}
+
+/**
+ * Keep only the given entity ids, and say so in the note.
+ *
+ * Used when Home Assistant will not say what is exposed: the system prompt it sends already
+ * names only the entities its conversation agent can see, so it is a usable stand-in.
+ */
+export function narrowCatalog(catalog: Catalog, ids: Set<string>, why: string): Catalog {
+  const entities = catalog.entities.filter((entity) => ids.has(entity.id));
+  if (!entities.length) return catalog;
+  const usedAreas = new Set(entities.map((entity) => entity.areaId).filter(Boolean));
+  const areas = catalog.areas.filter((area) => usedAreas.has(area.id));
+  return {
+    ...catalog,
+    entities,
+    domains: domainsOf(entities),
+    ...(areas.length ? { areas } : {}),
+    note: `${entities.length} of ${catalog.entities.length} entities (${why})`,
+    exposure: {
+      ok: false,
+      ...(catalog.exposure?.reason ? { reason: catalog.exposure.reason } : {}),
+      exposed: entities.length,
+      registry: catalog.entities.length,
+      used: 'prompt',
+    },
+  };
+}
+
 /** `light.kitchen_ceiling` and nothing else. */
 function isEntityId(value: string): boolean {
   return /^[a-z_]+\.[a-z0-9_]+$/.test(value);
@@ -266,6 +318,7 @@ export async function catalogFromHomeAssistant(config: Config): Promise<Catalog>
   if (!base || !config.catalog.haToken) throw new Error('Home Assistant URL and token are not configured');
   const wsUrl = `${base.replace(/^http/, 'ws')}/api/websocket`;
 
+  let exposureError: string | undefined;
   const [areas, devices, floors, entities, states, exposed] = await wsQuery<
     RegistryArea[] | RegistryDevice[] | RegistryFloor[] | RegistryEntity[] | StateRow[] | unknown
   >(wsUrl, config.catalog.haToken, [
@@ -276,17 +329,43 @@ export async function catalogFromHomeAssistant(config: Config): Promise<Catalog>
     { type: 'get_states' },
     // What the user actually exposed to Assist. Optional: not every core answers it.
     { type: 'homeassistant/expose_entity/list', optional: true },
-  ], 12000);
+  ], 12000, (type, reason) => {
+    if (type === 'homeassistant/expose_entity/list') exposureError = reason;
+  });
 
-  return catalogFromRegistries({
+  const conversation = exposedToConversation(exposed);
+  const catalog = catalogFromRegistries({
     areas: (areas ?? []) as RegistryArea[],
     devices: (devices ?? []) as RegistryDevice[],
     floors: (floors ?? []) as RegistryFloor[],
     entities: (entities ?? []) as RegistryEntity[],
     states: (states ?? []) as StateRow[],
-    exposed: exposedToConversation(exposed),
+    exposed: conversation,
     exposedOnly: config.catalog.exposedOnly,
   });
+  const registry = ((entities ?? []) as RegistryEntity[]).length;
+  return {
+    ...catalog,
+    exposure: conversation
+      ? {
+          ok: true,
+          exposed: Object.values(conversation).filter(Boolean).length,
+          registry,
+          used: 'expose_entity_list',
+        }
+      : {
+          ok: false,
+          // Says exactly what Home Assistant answered, so a wrong count is explainable.
+          // An `unauthorized` here almost always means a non-admin token: the endpoint requires one.
+          reason: exposureError
+            ? /unauthori[sz]ed|admin/i.test(exposureError)
+              ? `Home Assistant refused the exposure list (${exposureError}). Reading exposure needs a long-lived token from an administrator.`
+              : exposureError
+            : 'the exposure list could not be read',
+          registry,
+          used: 'none',
+        },
+  };
 }
 
 /** Registry rows in, catalog out. Separate from the socket so it can be tested. */
@@ -557,8 +636,9 @@ export async function getCatalog(
   if (wantHa) {
     inFlight = catalogFromHomeAssistant(config)
       .then((catalog) => {
-        cache = { catalog, at: Date.now() };
-        return catalog;
+        const narrowed = narrowFromPrompt(catalog, prompt, config);
+        cache = { catalog: narrowed, at: Date.now() };
+        return narrowed;
       })
       .catch((error: unknown) => {
         const fallback = prompt ? catalogFromPrompt(prompt) : emptyCatalog();

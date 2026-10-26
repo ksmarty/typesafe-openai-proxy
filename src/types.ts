@@ -41,6 +41,21 @@ export interface Catalog {
   builtAt: number;
   /** Human readable note about where it came from (shown in the dashboard). */
   note?: string;
+  /** What Home Assistant said about exposure, so a wrong count can be explained. */
+  exposure?: CatalogExposure;
+}
+
+export interface CatalogExposure {
+  /** Did the exposure query answer and parse? */
+  ok: boolean;
+  /** Why it did not, verbatim from Home Assistant when it said something. */
+  reason?: string;
+  /** How many entities it says are exposed to the conversation agent. */
+  exposed?: number;
+  /** How many rows the registry had. */
+  registry?: number;
+  /** Where the list came from: the websocket query, the request prompt, or nowhere. */
+  used?: 'expose_entity_list' | 'prompt' | 'none';
 }
 
 // --- The System One (decision model) wire format ----------------------------

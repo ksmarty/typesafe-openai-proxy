@@ -182,6 +182,7 @@ function statusPayload(): Record<string, unknown> {
       areas: catalog?.areas.length ?? 0,
       builtAt: catalog?.builtAt ?? 0,
       note: catalog?.note,
+      exposure: catalog?.exposure,
     },
     routerModel: ROUTER_MODEL,
     stats: { ...stats, routableShare: Math.round(routableShare() * 1000) / 1000 },
@@ -264,6 +265,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
             domains: catalog.domains,
             entities: catalog.entities.slice(0, 300).map((entity) => `${entity.id} (${entity.name})`),
             entityCount: catalog.entities.length,
+            exposure: catalog.exposure,
           }
         : null,
       traces: trace.slice(0, limit),
@@ -313,6 +315,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
         areas: catalog.areas.length,
         builtAt: catalog.builtAt,
         note: catalog.note,
+        exposure: catalog.exposure,
       },
     });
     return true;
@@ -382,6 +385,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
         domains: catalog.domains.length,
         sample: catalog.entities.slice(0, 5).map((entity) => `${entity.name} (${entity.id})`),
         note: catalog.note,
+        exposure: catalog.exposure,
       });
     } catch (error) {
       jsonResponse(response, 200, { ok: false, error: error instanceof Error ? error.message : String(error) });
