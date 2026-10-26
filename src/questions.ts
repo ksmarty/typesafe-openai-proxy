@@ -160,6 +160,9 @@ export interface BuildOptions {
 /** A short description of one entity, as a question option. */
 export function describeEntity(entity: CatalogEntity): string {
   const bits = [entity.name, entity.domain.replace(/_/g, ' ')];
+  // Aliases are what the speaker may actually say ("the big light"); the decision model
+  // only sees these criteria, so they have to be in here.
+  if (entity.aliases && entity.aliases.length) bits.push(`also called ${entity.aliases.join(', ')}`);
   if (entity.areaName) bits.push(entity.areaName);
   if (entity.deviceClass) bits.push(entity.deviceClass.replace(/_/g, ' '));
   if (entity.state) bits.push(`is ${entity.state}`);
@@ -181,7 +184,11 @@ export function buildQuestions(
     for (const area of catalog.areas.slice(0, options.maxOptions - 1)) {
       const id = `area_${slug(area.name) || area.id}`;
       if (criteria[id]) continue;
-      criteria[id] = area.floor ? `${area.name}, on ${area.floor}.` : area.name;
+      const also = area.aliases && area.aliases.length ? ` (also called ${area.aliases.join(', ')})` : '';
+      criteria[id] = `${area.name}, on ${area.floor}.`.replace(', on undefined.', '.');
+      if (area.floor) criteria[id] = `${area.name}, on ${area.floor}.`;
+      else criteria[id] = area.name;
+      criteria[id] += also;
       areaOptions.set(id, area);
     }
     criteria[NO_AREA] = 'No room or area is named or implied by the request.';

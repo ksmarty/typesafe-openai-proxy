@@ -138,6 +138,7 @@ function wsQuery<T>(url: string, token: string, messages: Record<string, unknown
 
 interface RegistryEntity {
   entity_id?: string;
+  aliases?: string[] | null;
   name?: string | null;
   original_name?: string | null;
   area_id?: string | null;
@@ -151,6 +152,7 @@ interface RegistryArea {
   area_id?: string;
   name?: string;
   floor_id?: string | null;
+  aliases?: string[] | null;
 }
 
 interface RegistryDevice {
@@ -169,6 +171,18 @@ interface StateRow {
   entity_id?: string;
   state?: string;
   attributes?: Record<string, unknown>;
+}
+
+/** Trimmed, de-duplicated, non-empty names. */
+function strings(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const out = new Set<string>();
+  for (const item of value) {
+    if (typeof item !== 'string') continue;
+    const name = item.trim();
+    if (name.length > 0 && name.length <= 80) out.add(name);
+  }
+  return [...out];
 }
 
 const LEVEL_ATTRIBUTES: {
@@ -208,11 +222,30 @@ export async function catalogFromHomeAssistant(config: Config): Promise<Catalog>
     { type: 'get_states' },
   ], 12000);
 
-  const areaList = (areas ?? []) as RegistryArea[];
-  const deviceList = (devices ?? []) as RegistryDevice[];
-  const floorList = (floors ?? []) as RegistryFloor[];
-  const entityList = (entities ?? []) as RegistryEntity[];
-  const stateList = (states ?? []) as StateRow[];
+  return catalogFromRegistries({
+    areas: (areas ?? []) as RegistryArea[],
+    devices: (devices ?? []) as RegistryDevice[],
+    floors: (floors ?? []) as RegistryFloor[],
+    entities: (entities ?? []) as RegistryEntity[],
+    states: (states ?? []) as StateRow[],
+  });
+}
+
+/** Registry rows in, catalog out. Separate from the socket so it can be tested. */
+export function catalogFromRegistries(input: {
+  areas: RegistryArea[];
+  devices: RegistryDevice[];
+  floors: RegistryFloor[];
+  entities: RegistryEntity[];
+  states: StateRow[];
+}): Catalog {
+  const {
+    areas: areaList,
+    devices: deviceList,
+    floors: floorList,
+    entities: entityList,
+    states: stateList,
+  } = input;
 
   const floorName = new Map<string, string>();
   for (const floor of floorList) {
@@ -221,10 +254,12 @@ export async function catalogFromHomeAssistant(config: Config): Promise<Catalog>
   const areaById = new Map<string, CatalogArea>();
   for (const area of areaList) {
     if (!area.area_id || !area.name) continue;
+    const areaAliases = strings(area.aliases);
     areaById.set(area.area_id, {
       id: area.area_id,
       name: area.name,
       ...(area.floor_id && floorName.has(area.floor_id) ? { floor: floorName.get(area.floor_id)! } : {}),
+      ...(areaAliases.length ? { aliases: areaAliases } : {}),
     });
   }
   const deviceArea = new Map<string, string | null | undefined>();
@@ -253,10 +288,12 @@ export async function catalogFromHomeAssistant(config: Config): Promise<Catalog>
       entity.original_name ??
       id.split('.')[1]?.replace(/_/g, ' ') ??
       id;
+    const aliases = strings(entity.aliases);
     out.push({
       id,
       name: friendly,
       domain,
+      ...(aliases.length ? { aliases } : {}),
       state: state?.state ?? 'unknown',
       ...(areaId ? { areaId } : {}),
       ...(area ? { areaName: area.name, ...(area.floor ? { floor: area.floor } : {}) } : {}),
@@ -295,11 +332,18 @@ export function catalogFromPrompt(prompt: string): Catalog {
   // is often the only statement of where it is ("## Kitchen" then "- Ceiling Light
   // (light.kitchen_ceiling)"). Without that, an area-scoped request cannot resolve.
   let sectionArea: string | undefined;
+  let last: CatalogEntity | undefined;
 
   for (const line of prompt.split(/\r?\n/)) {
     idPattern.lastIndex = 0;
     const match = idPattern.exec(line);
     if (!match?.[1] || !match[2]) {
+      // An alias may be rendered on its own line under the device it belongs to.
+      const aliasLine = ALIAS_LINE.exec(line.trim());
+      if (last && aliasLine?.[1]) {
+        last.aliases = [...(last.aliases ?? []), ...splitAliases(aliasLine[1])];
+        continue;
+      }
       const heading = headingArea(line);
       if (heading !== undefined) sectionArea = heading;
       continue;
@@ -317,18 +361,22 @@ export function catalogFromPrompt(prompt: string): Catalog {
 
     const name = before
       .replace(/^[\s\-•*]+/, '')
-      .replace(/\b(area|domain|state|entities|names?)\b:?/gi, ' ')
+      .replace(/\b(area|domain|state|entities|names?|aliases?)\b:?/gi, ' ')
       .replace(/\s+/g, ' ')
       .trim();
 
     const areaName = matchArea(line) ?? sectionArea;
-    entities.push({
+    const inlineAliases = splitAliases(ALIAS_INLINE.exec(line)?.[1] ?? '');
+    const record: CatalogEntity = {
       id,
       name: name ? titleCase(name) : (id.split('.')[1] ?? id).replace(/_/g, ' '),
       domain,
       state: (stateMatch?.[1] ?? 'unknown').trim().toLowerCase(),
       ...(areaName ? { areaName, areaId: `area_${areaName.toLowerCase().replace(/[^a-z0-9]+/g, '_')}` } : {}),
-    });
+      ...(inlineAliases.length ? { aliases: inlineAliases } : {}),
+    };
+    entities.push(record);
+    last = record;
   }
 
   const sorted = sortEntities(entities);
@@ -355,6 +403,19 @@ export function catalogFromPrompt(prompt: string): Catalog {
 // "in the Living Room", "area: Office". Without areas an area-scoped request
 // ("all the kitchen lights") can never resolve, so keep them.
 const AREA_PATTERN = /(?:\bin\s+(?:the\s+)?|\barea\s*:?\s*)([A-Za-z][\w' -]{1,38})/i;
+
+// Home Assistant may render aliases inline ("… , aliases: Big Light, Ceiling") or on the
+// line underneath ("- also called Big Light"). Both shapes are read.
+const ALIAS_INLINE = /\b(?:aliases?|also called)\s*:?\s*([^;)]+)/i;
+const ALIAS_LINE = /^(?:[-*•]\s*)?(?:aliases?|also called)\s*:?\s*(.+)$/i;
+
+/** `"Big Light, Ceiling"` -> `["Big Light", "Ceiling"]`, trimmed and bounded. */
+function splitAliases(raw: string): string[] {
+  return raw
+    .split(/[,;|]/)
+    .map((part) => part.replace(/[*_`()]+/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter((part) => part.length > 1 && part.length <= 60);
+}
 
 // Section words that are structure, not places.
 const NOT_AN_AREA =
@@ -464,12 +525,12 @@ export function clearCatalogCache(): void {
 // words the user actually said is better evidence than a low probability — and it is
 // the difference between "turn on the kitchen lights" working and being forwarded.
 
-/** The single catalog area whose name appears in the utterance, if exactly one does. */
+/** The single catalog area whose name or alias appears in the utterance, if exactly one does. */
 export function uniqueAreaMention(catalog: Catalog, utterance: string): CatalogArea | undefined {
   const text = ` ${normalise(utterance)} `;
   const hits = catalog.areas
-    .filter((area) => area.name.trim().length > 1)
-    .map((area) => ({ area, name: normalise(area.name) }))
+    .flatMap((area) => [area.name, ...(area.aliases ?? [])].map((name) => ({ area, name: normalise(name) })))
+    .filter(({ name }) => name.length > 1)
     .filter(({ name }) => text.includes(` ${name} `) || text.includes(` ${name}s `))
     // Longest name wins: "living room" beats "room", "kitchen" does not beat "kitchenette".
     .sort((a, b) => b.name.length - a.name.length);
@@ -479,18 +540,23 @@ export function uniqueAreaMention(catalog: Catalog, utterance: string): CatalogA
   return best.area;
 }
 
-/** The single catalog entity named outright in the utterance, if exactly one is. */
+/**
+ * The single catalog entity named outright in the utterance, if exactly one is.
+ *
+ * Aliases count: "the big light" is how a room is actually described, and Home
+ * Assistant itself matches aliases, so the proxy must read them too.
+ */
 export function uniqueEntityMention(catalog: Catalog, utterance: string): CatalogEntity | undefined {
   const text = ` ${normalise(utterance)} `;
   const hits = catalog.entities
-    .map((entity) => ({ entity, name: normalise(entity.name) }))
+    .flatMap((entity) => [entity.name, ...(entity.aliases ?? [])].map((name) => ({ entity, name: normalise(name) })))
     .filter(({ name }) => name.length > 2 && text.includes(` ${name} `))
     .sort((a, b) => b.name.length - a.name.length);
   if (!hits.length) return undefined;
   const best = hits[0]!;
   const rival = hits.find((hit) => hit.name !== best.name && hit.name.length === best.name.length);
   if (rival) return undefined;
-  // Two devices that share the winning name are genuinely ambiguous.
-  const same = hits.filter((hit) => hit.name === best.name);
-  return same.length === 1 ? best.entity : undefined;
+  // Two different devices that match the winning words are genuinely ambiguous.
+  const same = new Set(hits.filter((hit) => hit.name === best.name).map((hit) => hit.entity.id));
+  return same.size === 1 ? best.entity : undefined;
 }

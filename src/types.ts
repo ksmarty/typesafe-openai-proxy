@@ -6,6 +6,8 @@ export interface CatalogArea {
   id: string;
   name: string;
   floor?: string;
+  /** Other names Home Assistant answers to for this area. */
+  aliases?: string[];
 }
 
 export interface CatalogEntity {
@@ -19,6 +21,8 @@ export interface CatalogEntity {
   areaName?: string;
   floor?: string;
   deviceClass?: string;
+  /** Other names Home Assistant answers to for this entity (Assist aliases). */
+  aliases?: string[];
   /** Attribute name used to render state for this domain (`brightness`, ...). */
   unit?: string;
   /** The current numeric level, when the domain has one (brightness, volume, position). */

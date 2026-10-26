@@ -258,6 +258,25 @@ kitchen lights" resolves to `HassTurnOn {"area": "Kitchen", "domain": "light"}` 
 cannot pick a scope, and "turn off the living room lamp" resolves to that exact entity. Nothing is
 guessed when two devices or rooms fit equally well — the proxy asks instead.
 
+### Aliases
+
+Home Assistant's aliases are read and used, on both sides of a decision:
+
+- **The catalog** keeps the `aliases` of every exposed entity and area (websocket registry) and
+  parses `aliases: Big Light, Ceiling` or a following `- also called: …` line out of the prompt.
+- **The decision model** sees them, because each entity is described to it as
+  `Kitchen Ceiling, light, Kitchen, is on, also called Big Light, Ceiling` — so "turn on the big
+  light" resolves to the right option.
+- **The matching** treats them as names: a device or room named outright in the sentence (by name
+  *or* alias) rescues an unsure scope, and two devices that both match still produce a question
+  rather than a guess.
+- **The call** is unaffected, because the proxy sends the **entity id** in the `name` slot, which
+  Home Assistant matches exactly before it tries any alias. Aliases make the proxy understand the
+  request; the id is what makes the action land.
+
+Aliases come from the registry, so they need `HA_URL` + `HA_TOKEN` to be authoritative. The prompt
+parser picks up aliases when Home Assistant renders them, which not every version does.
+
 ## Endpoints
 
 | path | purpose |

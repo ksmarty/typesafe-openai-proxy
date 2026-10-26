@@ -621,7 +621,11 @@ function tiedNameCandidates(
   if (words.size === 0) return [];
 
   const scored = [...options.values()].map((entity) => {
-    const nameWords = normalise(entity.name).split(' ').filter((word) => word.length > 2);
+    // A device answers to its name and to every alias Home Assistant knows for it.
+    const names = [entity.name, ...(entity.aliases ?? [])];
+    const nameWords = names
+      .flatMap((name) => normalise(name).split(' '))
+      .filter((word) => word.length > 2);
     const shared = nameWords.filter((word) => words.has(word)).length;
     return { entity, shared };
   });
