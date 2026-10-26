@@ -258,6 +258,14 @@ kitchen lights" resolves to `HassTurnOn {"area": "Kitchen", "domain": "light"}` 
 cannot pick a scope, and "turn off the living room lamp" resolves to that exact entity. Nothing is
 guessed when two devices or rooms fit equally well — the proxy asks instead.
 
+### Refreshing the catalog
+
+The catalog is cached for `catalog.cacheMs` (30 s by default) so a command does not wait on
+Home Assistant every time. Settings → Home Assistant catalog has a **Refresh catalog** button
+that drops the cache and re-reads entities, areas and aliases immediately — if the form has
+unsaved edits it saves them first, so a token typed a second ago is the token that gets used.
+The same action is on the Monitor page, and `POST /api/catalog/refresh` does it from a script.
+
 ### Aliases
 
 Home Assistant's aliases are read and used, on both sides of a decision:

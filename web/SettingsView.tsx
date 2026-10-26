@@ -23,6 +23,7 @@ import ToggleButton from '@mui/material/ToggleButton';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import RefreshIcon from '@mui/icons-material/Refresh';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SaveIcon from '@mui/icons-material/Save';
 import SyncIcon from '@mui/icons-material/Sync';
@@ -37,6 +38,7 @@ import DnsIcon from '@mui/icons-material/Dns';
 import {
   errorMessage,
   getConfig,
+  refreshCatalog,
   getSchema,
   resetConfig,
   saveConfig,
@@ -95,6 +97,8 @@ export function SettingsView({
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [catalogNote, setCatalogNote] = useState<string | null>(null);
   const [testResult, setTestResult] = useState<{ group: string; result: TestResult } | null>(null);
 
   const load = useCallback(async () => {
@@ -135,8 +139,8 @@ export function SettingsView({
     setDraft((current) => (current ? writePath(current, path, value) : current));
   }, []);
 
-  const save = async () => {
-    if (!draft) return;
+  const save = async (): Promise<boolean> => {
+    if (!draft) return false;
     setSaving(true);
     setError(null);
     try {
@@ -147,8 +151,10 @@ export function SettingsView({
       setRestartRequired(Boolean(result.restartRequired));
       setToast('Settings saved.');
       onSaved();
+      return true;
     } catch (problem) {
       setError(errorMessage(problem));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -193,6 +199,29 @@ export function SettingsView({
       setTestResult({ group: groupId, result: { ok: false, error: errorMessage(problem) } });
     } finally {
       setTesting(null);
+    }
+  };
+
+  const refreshCatalogNow = async () => {
+    setRefreshing(true);
+    setCatalogNote(null);
+    try {
+      // A token typed a moment ago is not what the server would use, so land the form first.
+      if (dirty && !(await save())) return;
+      const payload = await refreshCatalog();
+      const info = payload.catalog;
+      setCatalogNote(
+        !info
+          ? 'Catalog re-read.'
+          : info.entities > 0
+            ? `Re-read Home Assistant: ${info.entities} entities, ${info.areas} areas (${info.source}) at ${new Date(info.builtAt).toLocaleTimeString()}.`
+            : `Nothing to read yet — ${info.note ?? 'no entities came back'}.`,
+      );
+      onSaved();
+    } catch (problem) {
+      setCatalogNote(`Refresh failed: ${errorMessage(problem)}`);
+    } finally {
+      setRefreshing(false);
     }
   };
 
@@ -334,6 +363,35 @@ export function SettingsView({
                 {testResult && testResult.group === group.id ? (
                   <Alert severity={testResult.result.ok ? 'success' : 'warning'} variant="outlined" sx={{ mt: 1.5 }}>
                     {describeTest(testResult.result)}
+                  </Alert>
+                ) : null}
+              </Box>
+            ) : null}
+
+            {group.id === 'catalog' ? (
+              <Box sx={{ mt: 2 }}>
+                <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap', alignItems: 'center' }}>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    disabled={refreshing || saving}
+                    startIcon={refreshing ? <CircularProgress size={14} color="inherit" /> : <RefreshIcon fontSize="small" />}
+                    onClick={() => void refreshCatalogNow()}
+                  >
+                    {dirty ? 'Save & refresh catalog' : 'Refresh catalog'}
+                  </Button>
+                  <Typography variant="caption" color="text.secondary" sx={{ minWidth: 0 }}>
+                    Re-reads entities, areas and aliases from Home Assistant now instead of waiting for the{' '}
+                    {Math.round(Number(readPath(draft, 'catalog.cacheMs') ?? 0) / 1000)}s cache.
+                  </Typography>
+                </Stack>
+                {catalogNote ? (
+                  <Alert
+                    severity={catalogNote.startsWith('Refresh failed') ? 'warning' : 'success'}
+                    variant="outlined"
+                    sx={{ mt: 1.5 }}
+                  >
+                    {catalogNote}
                   </Alert>
                 ) : null}
               </Box>

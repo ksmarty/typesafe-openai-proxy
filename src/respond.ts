@@ -150,8 +150,8 @@ export async function forwardUpstream(
     stats.errors += 1;
     respondText(
       options,
-      'The proxy is not configured yet: no decision backend and no fallback inference server. ' +
-        'Open the dashboard Settings page and set the fallback server URL.',
+      'This request needs your model server, and the proxy has none configured. ' +
+        'Open the dashboard → Settings → Fallback inference server and set its URL.',
       response,
     );
     return;

@@ -257,7 +257,16 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
 
   if (path === '/catalog/refresh' && method === 'POST') {
     const catalog = await refreshCatalog(true);
-    jsonResponse(response, 200, { ok: true, catalog });
+    jsonResponse(response, 200, {
+      ok: true,
+      catalog: {
+        source: catalog.source,
+        entities: catalog.entities.length,
+        areas: catalog.areas.length,
+        builtAt: catalog.builtAt,
+        note: catalog.note,
+      },
+    });
     return true;
   }
 
@@ -502,6 +511,14 @@ export function createApp() {
         if (url.pathname.startsWith('/api/')) {
           const handled = await api(request, response, url, method);
           if (!handled) jsonResponse(response, 404, { error: `unknown endpoint ${url.pathname}` });
+          return;
+        }
+
+        // Every browser asks for this whether or not the page declares an icon, and a 404
+        // in the log on every page load reads like a fault. There is nothing to serve.
+        if (url.pathname === '/favicon.ico') {
+          response.writeHead(204, { 'cache-control': 'public, max-age=86400' });
+          response.end();
           return;
         }
 

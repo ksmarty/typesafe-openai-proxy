@@ -540,6 +540,61 @@ export function uniqueAreaMention(catalog: Catalog, utterance: string): CatalogA
   return best.area;
 }
 
+/** Domains the fast path can actually act on, for spotting a second target. */
+const ACTIONABLE_DOMAINS = new Set([
+  'light', 'switch', 'fan', 'cover', 'climate', 'media_player', 'scene', 'script',
+  'button', 'input_boolean', 'humidifier', 'water_heater', 'vacuum', 'todo', 'lock',
+]);
+
+export interface MentionedTarget {
+  kind: 'area' | 'entity';
+  id: string;
+  name: string;
+}
+
+/**
+ * Every distinct thing the sentence names outright, with nesting collapsed.
+ *
+ * Two named rooms, or a room plus a device somewhere else, means the speaker asked
+ * for more than one thing ("the kitchen and the living room lights"). The fast path
+ * acts on one target per turn, and acting on half of a request is worse than handing
+ * the whole sentence to the model, so the router needs to be able to see this.
+ */
+export function mentionedTargets(catalog: Catalog, utterance: string): MentionedTarget[] {
+  const text = ` ${normalise(utterance)} `;
+  const areas = catalog.areas.filter((area) =>
+    [area.name, ...(area.aliases ?? [])].some((name) => {
+      const value = normalise(name);
+      return value.length > 1 && (text.includes(` ${value} `) || text.includes(` ${value}s `));
+    }),
+  );
+  const areaIds = new Set(areas.map((area) => area.id));
+  const entities = catalog.entities
+    .filter((entity) => ACTIONABLE_DOMAINS.has(entity.domain))
+    .filter((entity) =>
+      [entity.name, ...(entity.aliases ?? [])].some((name) => {
+        const value = normalise(name);
+        return value.length > 2 && text.includes(` ${value} `);
+      }),
+    )
+    // A device inside a room that was named is the same target, not a second one.
+    .filter((entity) => !entity.areaId || !areaIds.has(entity.areaId));
+
+  const seen = new Set<string>();
+  const out: MentionedTarget[] = [];
+  for (const area of areas) {
+    if (seen.has(area.id)) continue;
+    seen.add(area.id);
+    out.push({ kind: 'area', id: area.id, name: area.name });
+  }
+  for (const entity of entities) {
+    if (seen.has(entity.id)) continue;
+    seen.add(entity.id);
+    out.push({ kind: 'entity', id: entity.id, name: entity.name });
+  }
+  return out;
+}
+
 /**
  * The single catalog entity named outright in the utterance, if exactly one is.
  *

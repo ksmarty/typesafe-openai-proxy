@@ -32,7 +32,7 @@ import type {
 import { buildToolCall, describeInventory, magnitudeStep, relativeTarget } from './toolcall.js';
 import type { ToolInventory } from './toolcall.js';
 import { INTENTS } from './actions.js';
-import { uniqueAreaMention, uniqueEntityMention } from './catalog.js';
+import { mentionedTargets, uniqueAreaMention, uniqueEntityMention } from './catalog.js';
 import { marginOf } from './systemone.js';
 import { round, normalise } from './util.js';
 
@@ -330,6 +330,18 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
   // cannot decide how wide the request is should not veto a room the sentence names.
   const namedRoom = uniqueAreaMention(catalog, utterance);
   const namedEntity = uniqueEntityMention(catalog, utterance);
+  // One target per turn. "The kitchen and the living room lights" is two requests, and
+  // the model that answers the scope question does not always flag it as compound, so
+  // read the sentence rather than trusting that gate alone.
+  const mentioned = mentionedTargets(catalog, utterance);
+  if (mentioned.length >= 2) {
+    return forward(
+      `the request names more than one target (${mentioned.map((entry) => entry.name).join(', ')}); ` +
+        'the fast path handles one per turn',
+      gates,
+      { category: 'command' },
+    );
+  }
   let scope = scopeAnswer.choice;
   if (!scopeOk) {
     if (namedEntity) {
@@ -349,7 +361,11 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
 
   // Where does the request land?
   const hereRelative = noulOf(answers, Q.hereRelative) ?? 0;
-  const wantsHere = hereRelative >= t.noulHereRelative;
+  // "All the lights" means all of them, so a spoken "everything" outranks "here": without
+  // this, a whole-house reading gets pulled back to the room the speaker is standing in.
+  // "The lights" alone keeps the room reading, which is what people mean by it.
+  const saysEverything = /\b(all|every|everything|whole|entire)\b/.test(normalise(utterance));
+  const wantsHere = hereRelative >= t.noulHereRelative && !(scope === 'whole_house' && saysEverything);
 
   let targetEntity: CatalogEntity | undefined;
   let targetRoom: { id: string; name: string } | undefined;

@@ -120,7 +120,16 @@ export const getConfig = () => call<ConfigResponse>('/api/config');
 export const getTrace = (limit = 50) => call<TraceResponse>(`/api/trace?limit=${limit}`);
 export const clearTrace = () => call<{ ok: boolean }>('/api/trace', { method: 'DELETE' });
 export const resetBreaker = () => call<{ ok: boolean }>('/api/breaker/reset', { method: 'POST' });
-export const refreshCatalog = () => call<{ ok: boolean }>('/api/catalog/refresh', { method: 'POST' });
+export interface CatalogSummary {
+  source: string;
+  entities: number;
+  areas: number;
+  builtAt: number;
+  note?: string;
+}
+
+export const refreshCatalog = () =>
+  call<{ ok: boolean; catalog?: CatalogSummary }>('/api/catalog/refresh', { method: 'POST' });
 export const probe = (text: string) =>
   call<ProbeResponse>('/api/probe', { method: 'POST', body: JSON.stringify({ text }) });
 export const saveConfig = (config: Record<string, unknown>) =>
