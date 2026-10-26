@@ -144,10 +144,18 @@ export interface ToolCallResult {
   args: Record<string, unknown>;
 }
 
+/** `a, b, c (+4 more)` — short enough for a trace reason, specific enough to debug. */
+export function describeInventory(inventory: ToolInventory): string {
+  const names = [...inventory.keys()].sort();
+  if (!names.length) return 'the request carried no tools at all';
+  const shown = names.slice(0, 8).join(', ');
+  return `it offered ${shown}${names.length > 8 ? ` (+${names.length - 8} more)` : ''}`;
+}
+
 export function buildToolCall(input: ToolCallInput): ToolCallResult | { error: string } {
   const { inventory, intent, spec } = input;
   const tool = inventory.get(intent);
-  if (!tool) return { error: `${intent} is not offered by Home Assistant` };
+  if (!tool) return { error: `${intent} is not offered by Home Assistant (${describeInventory(inventory)})` };
   const properties = propertiesOf(tool);
 
   const args = targetArgs(properties, input.target);

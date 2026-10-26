@@ -116,6 +116,8 @@ export type Gate = {
   margin?: number;
   threshold?: number;
   passed: boolean;
+  /** Set when the value did not come from the model — e.g. a room named in the sentence. */
+  note?: string;
 };
 
 export interface ToolCallPlan {
@@ -223,6 +225,8 @@ export interface TraceEntry {
   backend?: string;
   catalogSource?: string;
   entities?: number;
+  /** Tool names the request offered, so "not offered" can be read against reality. */
+  toolsOffered?: string[];
   model?: string;
   error?: string;
   clarification?: string;

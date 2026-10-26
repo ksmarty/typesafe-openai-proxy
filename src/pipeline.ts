@@ -113,6 +113,32 @@ export async function runPipeline(
   const startedAt = Date.now();
   const readiness = fastPathStatus(active);
   const inventory = inventoryFor(request.tools);
+  const toolsOffered = [...inventory.keys()].sort().slice(0, 40);
+  // Nothing can be called when the request brought no tool schemas: deciding would only
+  // produce "X is not offered" for everything, which reads as a proxy fault when it is
+  // actually the caller sending no intents.
+  if (inventory.size === 0) {
+    const entry: TraceEntry = {
+      id: uid('trace'),
+      at: startedAt,
+      utterance,
+      route: 'forward',
+      reason: 'pass-through: the request carried no tools, so no Home Assistant intent can be called',
+      gates: [],
+      backend: 'off',
+      catalogSource: (await getCatalog(active, systemPrompt)).source,
+      toolsOffered: [],
+      totalMs: Date.now() - startedAt,
+    };
+    rememberTrace(entry);
+    stats.requests += 1;
+    stats.bypassed += 1;
+    return {
+      route: { plan: { kind: 'forward', reason: entry.reason } as Plan, gates: [], reason: entry.reason },
+      entry,
+      bypass: entry.reason,
+    };
+  }
   const catalog = await getCatalog(active, systemPrompt);
   const extraction = extract(utterance, {
     entityNames: catalog.entities.map((entity) => entity.name),
@@ -174,6 +200,7 @@ export async function runPipeline(
     backend: decision.backend,
     catalogSource: catalog.source,
     entities: catalog.entities.length,
+    ...(toolsOffered.length ? { toolsOffered } : {}),
     model: decision.model,
     ...(result.plan.kind === 'clarify' ? { clarification: result.plan.text } : {}),
   };

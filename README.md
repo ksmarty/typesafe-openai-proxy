@@ -235,9 +235,28 @@ Two sources, used automatically:
 - **Home Assistant websocket** (needs `HA_URL` + `HA_TOKEN`): area, device, floor and entity
   registries plus live states. Authoritative, includes floors and device classes.
 - **The system prompt** Home Assistant sends with each request: tolerant parsing of the entity
-  listing, including the room each line names ("…: off, in Kitchen", "area: Garage"), because an
-  area-scoped request cannot resolve without them. Version-dependent by nature, so it is the
-  fallback, not the preference.
+  listing, including the room each line names ("…: off, in Kitchen", "area: Garage") and the room
+  whose heading the line sits under (`## Kitchen`, then `- Ceiling Light (light.kitchen_ceiling)`),
+  because an area-scoped request cannot resolve without them. Version-dependent by nature, so it
+  is the fallback, not the preference.
+
+### When everything is forwarded
+
+Every forwarded turn records its reason in the dashboard's decision list. The reasons that say the
+most about a setup:
+
+| reason | what it means | fix |
+| --- | --- | --- |
+| `pass-through: the request carried no tools` | Home Assistant sent no intent schemas with this request, so no intent could be called at all | in the integration, choose the **Assist** LLM API for the agent (tool calling); AI Task and "prefer speech" paths send nothing callable |
+| `HassTurnOn is not offered by Home Assistant (it offered …)` | the request carried tools, but not that one — the message lists what it did offer | usually the same cause as above, on a request that offered only a few tools |
+| `no rooms in the catalog — …` | the catalog has entities but no areas | set a Home Assistant token in *Settings → Home Assistant catalog* (the wake-word side of a sentence needs real areas) |
+| `no confident reading of how wide the request is` | the model could not say whether one device, a room or the whole house is meant, and no room or device was named outright | say the room or device plainly ("the kitchen ceiling light") |
+| `no confident room` | the model was unsure which room, and the sentence named none | name the room, or lower *target area* in *Routing gates* |
+
+A room or device named outright now rescues an unsure scope instead of forwarding: "turn on the
+kitchen lights" resolves to `HassTurnOn {"area": "Kitchen", "domain": "light"}` even when the model
+cannot pick a scope, and "turn off the living room lamp" resolves to that exact entity. Nothing is
+guessed when two devices or rooms fit equally well — the proxy asks instead.
 
 ## Endpoints
 

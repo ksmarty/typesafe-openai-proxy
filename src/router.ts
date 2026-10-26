@@ -29,9 +29,10 @@ import type {
   RouteResult,
   ToolCallPlan,
 } from './types.js';
-import { buildToolCall, magnitudeStep, relativeTarget } from './toolcall.js';
+import { buildToolCall, describeInventory, magnitudeStep, relativeTarget } from './toolcall.js';
 import type { ToolInventory } from './toolcall.js';
 import { INTENTS } from './actions.js';
+import { uniqueAreaMention, uniqueEntityMention } from './catalog.js';
 import { marginOf } from './systemone.js';
 import { round, normalise } from './util.js';
 
@@ -259,7 +260,7 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
       return forward('count question without a confident kind of device', gates, { category: 'query' });
     }
     const domain = domainAnswer!.choice;
-    if (!inventory.has(INTENTS.getState)) return forward('no state intent offered', gates, { category: 'query' });
+    if (!inventory.has(INTENTS.getState)) return forward(`${INTENTS.getState} is not offered by Home Assistant (${describeInventory(inventory)})`, gates, { category: 'query' });
     const args: Record<string, unknown> = { domain };
     const state = extraction.stateWord;
     const call = buildToolCall({
@@ -295,7 +296,7 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
   if (!gateChoice(gates, Q.targetEntity, choiceOf(answers, Q.targetEntity), t.entity, t.minMargin)) {
     return forward('entity answer failed its gate', gates, { category: 'query' });
   }
-  if (!inventory.has(INTENTS.getState)) return forward('no state intent offered', gates, { category: 'query' });
+  if (!inventory.has(INTENTS.getState)) return forward(`${INTENTS.getState} is not offered by Home Assistant (${describeInventory(inventory)})`, gates, { category: 'query' });
   const call = buildToolCall({
     intent: INTENTS.getState,
     spec: { intentType: INTENTS.getState },
@@ -324,10 +325,25 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
   const scopeAnswer = choiceOf(answers, Q.scope);
   if (!scopeAnswer) return forward('the decision model did not answer the scope question', gates);
   const scopeThreshold = scopeAnswer.choice === 'whole_house' ? t.scopeWholeHouse : t.scope;
-  if (!gateChoice(gates, Q.scope, scopeAnswer, scopeThreshold, t.minMargin)) {
-    return forward('no confident reading of the target width', gates, { category: 'command' });
+  const scopeOk = gateChoice(gates, Q.scope, scopeAnswer, scopeThreshold, t.minMargin);
+  // "Turn on the kitchen lights" is the most common phrasing there is, and a model that
+  // cannot decide how wide the request is should not veto a room the sentence names.
+  const namedRoom = uniqueAreaMention(catalog, utterance);
+  const namedEntity = uniqueEntityMention(catalog, utterance);
+  let scope = scopeAnswer.choice;
+  if (!scopeOk) {
+    if (namedEntity) {
+      scope = 'single';
+      const gate = gates.find((entry) => entry.question === Q.scope);
+      if (gate) gate.note = `device \"${namedEntity.name}\" named in the sentence`;
+    } else if (namedRoom) {
+      scope = 'area';
+      const gate = gates.find((entry) => entry.question === Q.scope);
+      if (gate) gate.note = `room \"${namedRoom.name}\" named in the sentence`;
+    } else {
+      return forward('no confident reading of how wide the request is', gates, { category: 'command' });
+    }
   }
-  const scope = scopeAnswer.choice;
   if (scope === 'not_a_target') return forward('nothing in the home is targeted', gates, { category: 'command' });
   if (scope === 'floor') return forward('floor-wide requests are not handled by the fast path', gates, { category: 'command' });
 
@@ -343,9 +359,9 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
     const answer = choiceOf(answers, Q.targetEntity);
     const chosen = answer ? built.entityOptions.get(answer.choice) : undefined;
     const gateOk = gateChoice(gates, Q.targetEntity, answer, t.entity, t.minMargin);
-    if (chosen && gateOk) {
+    if (!namedEntity && chosen && gateOk) {
       targetEntity = chosen;
-    } else if (answer && answer.choice !== NO_SINGLE_ENTITY) {
+    } else if (!namedEntity && answer && answer.choice !== NO_SINGLE_ENTITY) {
       // Close, but not close enough: name the runners-up and let the speaker choose.
       const candidates = Object.entries(answer.probabilities)
         .filter(([id]) => id !== NO_SINGLE_ENTITY && built.entityOptions.has(id))
@@ -370,7 +386,7 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
       // The words fit more than one device equally well. Ask, rather than guessing or
       // handing the turn to the model: two lights called "kitchen …" are exactly the
       // case a speaker expects a question about.
-      const tied = tiedNameCandidates(utterance, built.entityOptions);
+      const tied = namedEntity ? [] : tiedNameCandidates(utterance, built.entityOptions);
       if (tied.length >= 2) {
         return {
           plan: {
@@ -383,6 +399,21 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
           category: 'command',
           target: tied[0]?.id,
         };
+      }
+    }
+    if (!targetEntity) {
+      const named = namedEntity;
+      if (named) {
+        targetEntity = named;
+        const gate = gates.find((entry) => entry.question === Q.targetEntity);
+        if (gate) gate.note = `device \"${named.name}\" named in the sentence`;
+        else
+          gates.push({
+            question: Q.targetEntity,
+            choice: named.id,
+            passed: true,
+            note: `device \"${named.name}\" named in the sentence`,
+          });
       }
     }
     if (!targetEntity) {
@@ -415,7 +446,20 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
         : undefined;
       if (area) targetRoom = { id: area.id, name: area.name };
     }
-    if (!targetRoom) return forward('no confident room', gates, { category: 'command' });
+    if (!targetRoom && namedRoom) {
+      targetRoom = { id: namedRoom.id, name: namedRoom.name };
+      const gate = gates.find((entry) => entry.question === Q.targetArea);
+      if (gate) gate.note = `room \"${namedRoom.name}\" named in the sentence`;
+    }
+    if (!targetRoom) {
+      return forward(
+        built.areaOptions.size === 0
+          ? 'no rooms in the catalog — add a Home Assistant token under Settings → Home Assistant catalog, or say the area plainly'
+          : 'no confident room',
+        gates,
+        { category: 'command' },
+      );
+    }
   }
 
   // Which kind of device?

@@ -291,10 +291,19 @@ export function catalogFromPrompt(prompt: string): Catalog {
   const idPattern = /\b([a-z_]+)\.([a-z0-9_]+)\b/g;
 
 
+  // Home Assistant renders the prompt in sections, and the section a device sits under
+  // is often the only statement of where it is ("## Kitchen" then "- Ceiling Light
+  // (light.kitchen_ceiling)"). Without that, an area-scoped request cannot resolve.
+  let sectionArea: string | undefined;
+
   for (const line of prompt.split(/\r?\n/)) {
     idPattern.lastIndex = 0;
     const match = idPattern.exec(line);
-    if (!match?.[1] || !match[2]) continue;
+    if (!match?.[1] || !match[2]) {
+      const heading = headingArea(line);
+      if (heading !== undefined) sectionArea = heading;
+      continue;
+    }
     const id = `${match[1]}.${match[2]}`;
     if (seen.has(id)) continue;
     seen.add(id);
@@ -312,7 +321,7 @@ export function catalogFromPrompt(prompt: string): Catalog {
       .replace(/\s+/g, ' ')
       .trim();
 
-    const areaName = matchArea(line);
+    const areaName = matchArea(line) ?? sectionArea;
     entities.push({
       id,
       name: name ? titleCase(name) : (id.split('.')[1] ?? id).replace(/_/g, ' '),
@@ -345,7 +354,37 @@ export function catalogFromPrompt(prompt: string): Catalog {
 // Home Assistant's listing usually says where the device is: ", in Kitchen",
 // "in the Living Room", "area: Office". Without areas an area-scoped request
 // ("all the kitchen lights") can never resolve, so keep them.
-const AREA_PATTERN = /(?:\bin\s+(?:the\s+)?|\barea:\s*)([A-Za-z][\w' -]{1,38})/i;
+const AREA_PATTERN = /(?:\bin\s+(?:the\s+)?|\barea\s*:?\s*)([A-Za-z][\w' -]{1,38})/i;
+
+// Section words that are structure, not places.
+const NOT_AN_AREA =
+  /^(devices?|entities|areas?|floors?|services?|intents?|tools?|functions?|instructions|examples?|style|response|persona|context|home|summary|notes?|available .*)$/i;
+
+/**
+ * The area a section heading introduces, or `undefined` when the line is not a heading.
+ *
+ * Only `#`/`##` markdown headings and explicit `Area: X` lines count, and known
+ * structural words are rejected, so a heading like `## Devices` never becomes a room.
+ */
+function headingArea(line: string): string | undefined {
+  const trimmed = line.trim();
+  if (!trimmed || trimmed.length > 60) return undefined;
+  if (/\b[a-z_]+\.[a-z0-9_]+\b/.test(trimmed)) return undefined;
+  const markdown = /^#{1,4}\s+(.+)$/.exec(trimmed);
+  const explicit = /^area\s*:\s*(.+)$/i.exec(trimmed);
+  const raw = (markdown?.[1] ?? explicit?.[1] ?? '').trim();
+  if (!raw) return undefined;
+  const name = raw
+    .replace(/[*_`]+/g, '')
+    .replace(/\(.*$/, '')
+    .replace(/[:.]+$/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (name.length < 2 || name.length > 40) return undefined;
+  if (NOT_AN_AREA.test(name)) return undefined;
+  if (/\b(devices?|entities|areas|tools?|functions?)\b/i.test(name)) return undefined;
+  return name;
+}
 
 /** The area named on one prompt line, if any. */
 function matchArea(line: string): string | undefined {
@@ -417,3 +456,41 @@ export function clearCatalogCache(): void {
   cache = null;
 }
 
+
+// --- lexical fallbacks ------------------------------------------------------
+//
+// The decision model is the primary reader, but a sentence can name a room or a
+// device outright. When the model is not confident, an exact, unique match in the
+// words the user actually said is better evidence than a low probability — and it is
+// the difference between "turn on the kitchen lights" working and being forwarded.
+
+/** The single catalog area whose name appears in the utterance, if exactly one does. */
+export function uniqueAreaMention(catalog: Catalog, utterance: string): CatalogArea | undefined {
+  const text = ` ${normalise(utterance)} `;
+  const hits = catalog.areas
+    .filter((area) => area.name.trim().length > 1)
+    .map((area) => ({ area, name: normalise(area.name) }))
+    .filter(({ name }) => text.includes(` ${name} `) || text.includes(` ${name}s `))
+    // Longest name wins: "living room" beats "room", "kitchen" does not beat "kitchenette".
+    .sort((a, b) => b.name.length - a.name.length);
+  if (!hits.length) return undefined;
+  const best = hits[0]!;
+  if (hits[1] && hits[1].name.length === best.name.length) return undefined;
+  return best.area;
+}
+
+/** The single catalog entity named outright in the utterance, if exactly one is. */
+export function uniqueEntityMention(catalog: Catalog, utterance: string): CatalogEntity | undefined {
+  const text = ` ${normalise(utterance)} `;
+  const hits = catalog.entities
+    .map((entity) => ({ entity, name: normalise(entity.name) }))
+    .filter(({ name }) => name.length > 2 && text.includes(` ${name} `))
+    .sort((a, b) => b.name.length - a.name.length);
+  if (!hits.length) return undefined;
+  const best = hits[0]!;
+  const rival = hits.find((hit) => hit.name !== best.name && hit.name.length === best.name.length);
+  if (rival) return undefined;
+  // Two devices that share the winning name are genuinely ambiguous.
+  const same = hits.filter((hit) => hit.name === best.name);
+  return same.length === 1 ? best.entity : undefined;
+}

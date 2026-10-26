@@ -277,9 +277,31 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
             {entry.model ? <Chip label={entry.model} variant="outlined" /> : null}
             {entry.inputTokens ? <Chip label={`${compact(entry.inputTokens)} tokens`} variant="outlined" /> : null}
             {entry.entities ? <Chip label={`${entry.entities} entities`} variant="outlined" /> : null}
+            {entry.toolsOffered ? (
+              entry.toolsOffered.length ? (
+                <Chip label={`${entry.toolsOffered.length} tools offered`} variant="outlined" />
+              ) : (
+                <Chip label="no tools offered" color="warning" variant="outlined" />
+              )
+            ) : null}
             {entry.totalMs ? <Chip label={`${ms(entry.totalMs)} total`} variant="outlined" /> : null}
           </Stack>
           {tool ? <CodeBlock>{tool}</CodeBlock> : null}
+          {entry.toolsOffered ? (
+            <Box>
+              <Typography variant="overline" color="text.secondary">
+                {entry.toolsOffered.length ? 'Tools the request offered' : 'Tools the request offered — none'}
+              </Typography>
+              {entry.toolsOffered.length ? (
+                <ScrollLine>{entry.toolsOffered.join(', ')}</ScrollLine>
+              ) : (
+                <Typography variant="body2" color="text.secondary">
+                  Home Assistant sent no intent schemas with this request, so nothing could be called
+                  and it went straight to your model server.
+                </Typography>
+              )}
+            </Box>
+          ) : null}
           {entry.clarification ? <Alert severity="info" variant="outlined">{entry.clarification}</Alert> : null}
           {entry.error ? <Alert severity="error" variant="outlined">{entry.error}</Alert> : null}
           {entry.gates.length ? (
