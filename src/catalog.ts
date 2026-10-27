@@ -69,7 +69,14 @@ function domainsOf(entities: CatalogEntity[]): string[] {
   );
 }
 
-/** One JSON message over Home Assistant's WebSocket API. */
+/**
+ * A batch of JSON messages over Home Assistant's WebSocket API.
+ *
+ * Every command is sent at once and answers are matched by `id`, because one slow command must
+ * not starve the rest: a sequential batch shares a single deadline, and a large `get_states`
+ * was enough to make the exposure list — the only authority on what Assist can see — time out
+ * and disappear, leaving the whole registry in the catalog.
+ */
 function wsQuery<T>(
   url: string,
   token: string,
@@ -79,9 +86,12 @@ function wsQuery<T>(
 ): Promise<T[]> {
   return new Promise<T[]>((resolve, reject) => {
     const ws = new WebSocket(url);
-    const results: T[] = [];
+    const results: T[] = new Array(messages.length) as T[];
+    const answered = new Set<number>();
     let settled = false;
-    let index = 0;
+    let sent = false;
+
+    const firstMissing = (): number => messages.findIndex((_, index) => !answered.has(index));
 
     const finish = (error?: Error): void => {
       if (settled) return;
@@ -96,15 +106,20 @@ function wsQuery<T>(
       else resolve(results);
     };
 
-    const timer = setTimeout(() => finish(new Error('Home Assistant WebSocket timed out')), timeoutMs);
-
-    const sendNext = (): void => {
-      const message = messages[index];
-      if (!message) {
+    const timer = setTimeout(() => {
+      const missing = firstMissing();
+      if (missing >= 0) {
+        onSkip?.(messages[missing]?.type ?? 'batch', `Home Assistant did not answer within ${timeoutMs} ms`);
         finish();
         return;
       }
-      ws.send(JSON.stringify({ id: index + 1, ...message }));
+      finish(new Error('Home Assistant WebSocket timed out'));
+    }, timeoutMs);
+
+    const sendAll = (): void => {
+      if (sent) return;
+      sent = true;
+      messages.forEach((message, index) => ws.send(JSON.stringify({ id: index + 1, ...message })));
     };
 
     ws.addEventListener('open', () => {
@@ -130,29 +145,38 @@ function wsQuery<T>(
         return;
       }
       if (payload.type === 'auth_ok') {
-        sendNext();
+        sendAll();
         return;
       }
       if (payload.type !== 'result') return;
+
+      const slot = typeof payload.id === 'number' ? payload.id - 1 : -1;
+      const requested = messages[slot];
+      if (!requested || answered.has(slot)) return;
+
       if (payload.success === false) {
         // An optional command is skipped: older cores do not implement every endpoint.
-        const requested = messages[index];
-        if (requested?.optional) {
-          onSkip?.(requested.type, payload.error?.message ?? payload.error?.code ?? 'refused');
-          index += 1;
-          sendNext();
+        if (!requested.optional) {
+          finish(new Error(payload.error?.message ?? 'Home Assistant refused the request'));
           return;
         }
-        finish(new Error(payload.error?.message ?? 'Home Assistant refused the request'));
-        return;
+        onSkip?.(requested.type, payload.error?.message ?? payload.error?.code ?? 'refused');
+        results[slot] = undefined as T;
+      } else {
+        results[slot] = payload.result as T;
       }
-      results.push(payload.result as T);
-      index += 1;
-      sendNext();
+      answered.add(slot);
+      if (answered.size === messages.length) finish();
     });
 
     ws.addEventListener('error', () => finish(new Error('Home Assistant WebSocket error')));
-    ws.addEventListener('close', () => finish());
+    ws.addEventListener('close', () => {
+      const missing = firstMissing();
+      if (missing >= 0) {
+        onSkip?.(messages[missing]?.type ?? 'batch', 'Home Assistant closed the connection before answering');
+      }
+      finish();
+    });
   });
 }
 
@@ -349,6 +373,16 @@ export interface ExposureProbe {
   usable?: boolean;
 }
 
+export async function fetchExposureMap(config: Config): Promise<Record<string, boolean> | null> {
+  const base = config.catalog.haUrl.replace(/\/+$/, '');
+  if (!base || !config.catalog.haToken) return null;
+  const wsUrl = `${base.replace(/^http/, 'ws')}/api/websocket`;
+  const [payload] = await wsQuery<unknown>(wsUrl, config.catalog.haToken, [
+    { type: 'homeassistant/expose_entity/list' },
+  ], 10000);
+  return exposedToConversation(payload);
+}
+
 export async function probeExposure(config: Config): Promise<ExposureProbe> {
   const command = 'homeassistant/expose_entity/list';
   const base = config.catalog.haUrl.replace(/\/+$/, '');
@@ -394,21 +428,28 @@ export async function catalogFromHomeAssistant(config: Config): Promise<Catalog>
   const wsUrl = `${base.replace(/^http/, 'ws')}/api/websocket`;
 
   let exposureError: string | undefined;
-  const [areas, devices, floors, entities, states, exposed] = await wsQuery<
+  // Exposure is asked FIRST on purpose: it is a few kilobytes, it is the only authority on
+  // what Assist can see, and a large get_states later in the batch must not starve it.
+  const [exposed, areas, devices, floors, entities, states] = await wsQuery<
     RegistryArea[] | RegistryDevice[] | RegistryFloor[] | RegistryEntity[] | StateRow[] | unknown
   >(wsUrl, config.catalog.haToken, [
+    { type: 'homeassistant/expose_entity/list', optional: true },
     { type: 'config/area_registry/list' },
     { type: 'config/device_registry/list' },
     { type: 'config/floor_registry/list' },
     { type: 'config/entity_registry/list' },
     { type: 'get_states' },
-    // What the user actually exposed to Assist. Optional: not every core answers it.
-    { type: 'homeassistant/expose_entity/list', optional: true },
-  ], 12000, (type, reason) => {
+  ], 25000, (type, reason) => {
     if (type === 'homeassistant/expose_entity/list') exposureError = reason;
   });
 
-  const conversation = exposedToConversation(exposed);
+  let conversation = exposedToConversation(exposed);
+  if (!conversation && !exposureError && config.catalog.exposedOnly) {
+    // The batch can lose an answer (a slow core, a dropped socket). Exposure decides which
+    // entities reach the model, so it is worth one dedicated question before giving up.
+    conversation = await fetchExposureMap(config).catch(() => null);
+    if (!conversation) exposureError = 'the exposure list did not arrive with the other answers';
+  }
   const catalog = catalogFromRegistries({
     areas: (areas ?? []) as RegistryArea[],
     devices: (devices ?? []) as RegistryDevice[],
