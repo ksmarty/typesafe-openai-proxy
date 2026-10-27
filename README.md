@@ -415,6 +415,29 @@ the config that the dashboard cannot edit, and the server validates with the sam
 Environment variables still win over saved settings; the dashboard lists which ones are set, since
 a value that is overridden would otherwise look like it did nothing.
 
+## Where the time goes
+
+A spoken command costs, in order: the catalog (cached), the question set (a few milliseconds), the
+decision call, and — only if the proxy declines — your model server. Three things keep the first
+three small:
+
+- **The catalog is built in the background.** A timer refreshes it every half cache-window, so a
+  request finds it warm instead of paying the Home Assistant round trip (40–100 ms) before it can
+  start deciding.
+- **The catalog is narrowed to what Assist can see.** Exposure is read from Home Assistant, so 19
+  exposed entities reach the model instead of 356 — roughly 33 000 input tokens become a couple of
+  thousand, which is the single largest latency lever on a hosted decision model.
+- **A repeated sentence is not decided twice.** With `decision.cacheSeconds` (default 600) the
+  answer for an identical command, against an unchanged house and the same question set, is reused
+  with no model call: a repeat costs single-digit milliseconds instead of the 300–900 ms round trip.
+  Questions are never cached, because their answer depends on live entity state. A trace shows
+  `cached decision` when this happens.
+
+What remains is the model you chose. If a turn still feels slow, look at the trace: `catalogMs`
+should be 0, `questionsMs` single digits, and `decideMs` is your provider. Lower `decision.historyTurns`
+to 0 to drop the conversation history from the state, and narrow what Home Assistant exposes to
+Assist — every entity removed is tokens off every request.
+
 ## Configuration
 
 `data/config.json`, written by the dashboard, with environment variables overriding it. See

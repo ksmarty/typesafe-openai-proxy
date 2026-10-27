@@ -313,6 +313,15 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
               />
             ) : null}
             {entry.inputTokens ? <Chip label={`${compact(entry.inputTokens)} tokens`} variant="outlined" /> : null}
+            {entry.decisionCached ? (
+              <Chip
+                label="cached decision"
+                size="small"
+                variant="outlined"
+                color="success"
+                title="An identical sentence was decided recently, so no model call was made."
+              />
+            ) : null}
             {entry.entities ? (
               <Chip
                 label={

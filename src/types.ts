@@ -90,6 +90,8 @@ export interface DecisionResponse {
   latencyMs: number;
   /** Which backend answered: a real System One server, or the built-in heuristic. */
   backend: 'systemone' | 'heuristic' | 'off' | 'confirmation';
+  /** True when an identical sentence was decided moments ago and the answer was reused. */
+  cached?: boolean;
   raw?: unknown;
 }
 
@@ -271,6 +273,8 @@ export interface TraceEntry {
   catalogSource?: string;
   /** What Home Assistant said about exposure for this decision, so a wrong count is explainable. */
   catalogExposure?: CatalogExposure;
+  /** The decision came from the answer cache, so no model call was made. */
+  decisionCached?: boolean;
   entities?: number;
   /** Tool names the request offered, so "not offered" can be read against reality. */
   toolsOffered?: string[];

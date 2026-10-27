@@ -10,6 +10,8 @@ import { fileURLToPath } from 'node:url';
 
 import {
   rememberCatalog,
+  startCatalogWarmer,
+  stopCatalogWarmer,
   catalogFromHomeAssistant,
   cachedCatalog,
   clearCatalogCache,
@@ -684,7 +686,10 @@ export function startServer(options?: Partial<ServeOptions>) {
   // Exit promptly on `docker stop` / `compose down` instead of waiting for the
   // default 10 s SIGKILL timeout: stop accepting work, drop idle keep-alive
   // sockets, and take a hard exit if something (an open stream) lingers.
+  startCatalogWarmer(loadConfig);
+
   const shutdown = (signal: string) => {
+    stopCatalogWarmer();
     process.stdout.write(`${signal} received — closing\n`);
     server.close(() => process.exit(0));
     server.closeIdleConnections();

@@ -60,6 +60,8 @@ export interface Config {
     inlineEntityDescriptions: boolean;
     /** Keep the last N turns of the conversation in the decision state. */
     historyTurns: number;
+    /** Reuse a decision for an identical sentence for this long; 0 disables it. */
+    cacheSeconds: number;
     /** Send the whole catalog in the state even when the entity question is narrowed. */
     maxEntities: number;
   };
@@ -166,6 +168,7 @@ export function defaultConfig(): Config {
       alwaysConfirmRisky: true,
       inlineEntityDescriptions: false,
       historyTurns: 2,
+      cacheSeconds: 600,
       maxEntities: 400,
     },
     routing: { enabled: true, thresholds: { ...DEFAULT_THRESHOLDS }, traceLimit: 50 },

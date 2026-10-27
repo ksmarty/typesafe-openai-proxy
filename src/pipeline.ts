@@ -9,7 +9,8 @@
 
 import type { ServerResponse } from 'node:http';
 
-import { getCatalog } from './catalog.js';
+import { getCatalog, homeSignature } from './catalog.js';
+import { cachedDecision, decisionKey, isQuestion, rememberDecision } from './decidecache.js';
 import { loadConfig, ROUTER_MODEL, type Config } from './config.js';
 import { extract } from './extract.js';
 import { heuristicDecide } from './heuristic.js';
@@ -176,8 +177,26 @@ export async function runPipeline(
       defaultArea: active.catalog.defaultArea,
     });
     questionsMs += Date.now() - questionsStarted;
+
+    // A repeated sentence against an unchanged house does not need another model round trip.
+    const cacheMs = active.decision.cacheSeconds * 1000;
+    const key =
+      cacheMs > 0 && !isQuestion(text)
+        ? decisionKey({
+            utterance: text,
+            language: languageOf(request),
+            model: active.decision.model,
+            baseUrl: active.decision.baseUrl,
+            spokenFromArea: active.catalog.defaultArea,
+            questions: built.questions,
+            homeSignature: homeSignature(catalog),
+          })
+        : '';
+    const remembered = key ? cachedDecision(key, cacheMs) : null;
+
     const decision =
-      active.decision.backend === 'systemone' && active.decision.baseUrl
+      remembered ??
+      (active.decision.backend === 'systemone' && active.decision.baseUrl
         ? await decide({
             utterance: text,
             catalog,
@@ -195,7 +214,8 @@ export async function runPipeline(
             language: languageOf(request),
             config: active,
             built,
-          });
+          }));
+    if (!remembered && key) rememberDecision(key, decision);
     const routed = routeRequest({
       utterance: text,
       language: languageOf(request),
@@ -280,6 +300,7 @@ export async function runPipeline(
     backend: decision.backend,
     catalogSource: catalog.source,
     catalogExposure: catalog.exposure,
+    ...(decision.cached ? { decisionCached: true } : {}),
     entities: catalog.entities.length,
     ...(toolsOffered.length ? { toolsOffered } : {}),
     model: decision.model,

@@ -156,6 +156,17 @@ export function settingsGroups(): SettingsGroup[] {
           help: 'How long to wait for a decision before forwarding instead.',
         },
         {
+          key: 'decision.cacheSeconds',
+          label: 'Reuse a decision for the same sentence',
+          type: 'number',
+          unit: 's',
+          min: 0,
+          max: 86400,
+          step: 30,
+          help: 'Identical commands within this window are answered from the last decision, with no model call. Questions are never cached. 0 turns it off.',
+          advanced: true,
+        },
+        {
           key: 'decision.historyTurns',
           label: 'Conversation turns in context',
           type: 'number',

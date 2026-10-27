@@ -12,7 +12,7 @@
 
 import type { Catalog, CatalogArea, CatalogEntity } from './types.js';
 import type { Config } from './config.js';
-import { normalise, titleCase } from './util.js';
+import { normalise, sha1, titleCase } from './util.js';
 import { note } from './log.js';
 
 interface CacheEntry {
@@ -806,6 +806,21 @@ export function emptyCatalog(): Catalog {
   };
 }
 
+/**
+ * A fingerprint of the house that survives a rebuild.
+ *
+ * Entity ids and room names only: a rebuild every 30 s must not invalidate a cached decision,
+ * but adding a light must.
+ */
+export function homeSignature(catalog: Catalog): string {
+  return sha1(
+    [
+      catalog.areas.map((area) => area.id).sort().join(','),
+      catalog.entities.map((entity) => entity.id).sort().join(','),
+    ].join('|'),
+  );
+}
+
 export function cachedCatalog(): Catalog | null {
   return cache?.catalog ?? null;
 }
@@ -972,4 +987,33 @@ export function uniqueEntityMention(catalog: Catalog, utterance: string): Catalo
   // Two different devices that match the winning words are genuinely ambiguous.
   const same = new Set(hits.filter((hit) => hit.name === best.name).map((hit) => hit.entity.id));
   return same.size === 1 ? best.entity : undefined;
+}
+
+/**
+ * Keep the catalog warm in the background.
+ *
+ * A request that finds a stale catalog pays the Home Assistant round trip (40-100 ms) before it
+ * can even start deciding. Refreshing on a timer means a spoken command never pays it.
+ */
+let warmer: NodeJS.Timeout | null = null;
+
+export function startCatalogWarmer(readConfig: () => Config): void {
+  stopCatalogWarmer();
+  const tick = async (): Promise<void> => {
+    const config = readConfig();
+    if (!config.catalog.haUrl || !config.catalog.haToken) return;
+    try {
+      await getCatalog(config);
+    } catch {
+      // A broken catalog must never crash the timer; the next tick tries again.
+    }
+  };
+  void tick();
+  warmer = setInterval(() => void tick(), Math.max(15000, readConfig().catalog.cacheMs / 2));
+  warmer.unref();
+}
+
+export function stopCatalogWarmer(): void {
+  if (warmer) clearInterval(warmer);
+  warmer = null;
 }
