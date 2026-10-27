@@ -313,7 +313,22 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
               />
             ) : null}
             {entry.inputTokens ? <Chip label={`${compact(entry.inputTokens)} tokens`} variant="outlined" /> : null}
-            {entry.entities ? <Chip label={`${entry.entities} entities`} variant="outlined" /> : null}
+            {entry.entities ? (
+              <Chip
+                label={
+                  entry.catalogExposure?.ok
+                    ? `${entry.catalogExposure.exposed} of ${entry.entities} exposed`
+                    : `${entry.entities} entities`
+                }
+                variant="outlined"
+                color={entry.catalogExposure && !entry.catalogExposure.ok ? 'warning' : 'default'}
+                title={
+                  entry.catalogExposure?.ok
+                    ? `Home Assistant says ${entry.catalogExposure.exposed} of ${entry.catalogExposure.registry} entities are exposed to Assist (source: ${entry.catalogExposure.used}).`
+                    : entry.catalogExposure?.reason ?? 'The exposure list was not applied for this decision.'
+                }
+              />
+            ) : null}
             {entry.toolsOffered ? (
               entry.toolsOffered.length ? (
                 <Chip label={`${entry.toolsOffered.length} tools offered`} variant="outlined" />

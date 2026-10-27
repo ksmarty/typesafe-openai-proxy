@@ -9,6 +9,7 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
+  rememberCatalog,
   catalogFromHomeAssistant,
   cachedCatalog,
   clearCatalogCache,
@@ -225,7 +226,11 @@ async function refreshCatalog(force: boolean): Promise<Catalog> {
   const active = loadConfig();
   if (force) clearCatalogCache();
   if (!active.catalog.haUrl || !active.catalog.haToken) return cachedCatalog() ?? emptyCatalog();
-  if (force) return catalogFromHomeAssistant(active);
+  if (force) {
+    const built = await catalogFromHomeAssistant(active);
+    rememberCatalog(built);
+    return built;
+  }
   return getCatalog(active);
 }
 

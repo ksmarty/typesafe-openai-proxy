@@ -13,6 +13,7 @@
 import type { Catalog, CatalogArea, CatalogEntity } from './types.js';
 import type { Config } from './config.js';
 import { normalise, titleCase } from './util.js';
+import { note } from './log.js';
 
 interface CacheEntry {
   catalog: Catalog;
@@ -443,12 +444,21 @@ export async function catalogFromHomeAssistant(config: Config): Promise<Catalog>
     if (type === 'homeassistant/expose_entity/list') exposureError = reason;
   });
 
-  let conversation = exposedToConversation(exposed);
-  if (!conversation && !exposureError && config.catalog.exposedOnly) {
-    // The batch can lose an answer (a slow core, a dropped socket). Exposure decides which
-    // entities reach the model, so it is worth one dedicated question before giving up.
-    conversation = await fetchExposureMap(config).catch(() => null);
-    if (!conversation) exposureError = 'the exposure list did not arrive with the other answers';
+  // Exposure comes from its own question, the same one the dashboard's Check exposure button
+  // asks, so the button and the catalog can never disagree. The batched answer is only a
+  // fallback: it shares a socket and a deadline with five other queries and can be lost.
+  let conversation: Record<string, boolean> | null = null;
+  if (config.catalog.exposedOnly) {
+    try {
+      conversation = await fetchExposureMap(config);
+    } catch (error: unknown) {
+      exposureError = error instanceof Error ? error.message : String(error);
+    }
+    if (!conversation) {
+      conversation = exposedToConversation(exposed);
+      if (conversation && !exposureError) exposureError = undefined;
+      if (!conversation && !exposureError) exposureError = 'the exposure list could not be read';
+    }
   }
   const catalog = catalogFromRegistries({
     areas: (areas ?? []) as RegistryArea[],
@@ -460,6 +470,11 @@ export async function catalogFromHomeAssistant(config: Config): Promise<Catalog>
     exposedOnly: config.catalog.exposedOnly,
   });
   const registry = ((entities ?? []) as RegistryEntity[]).length;
+  note(
+    conversation
+      ? `catalog: ${Object.values(conversation).filter(Boolean).length} of ${registry} entities exposed to Assist`
+      : `catalog: exposure not applied${exposureError ? ` (${exposureError})` : ''}, ${registry} entities in the registry`,
+  );
   return {
     ...catalog,
     exposure: conversation
@@ -797,6 +812,11 @@ export function cachedCatalog(): Catalog | null {
 
 export function clearCatalogCache(): void {
   cache = null;
+}
+
+/** Remember a catalog that was built outside getCatalog (the Refresh button). */
+export function rememberCatalog(catalog: Catalog): void {
+  cache = { catalog, at: Date.now() };
 }
 
 

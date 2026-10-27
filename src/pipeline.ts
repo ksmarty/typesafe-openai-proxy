@@ -136,6 +136,7 @@ export async function runPipeline(
       gates: [],
       backend: 'off',
       catalogSource: catalog.source,
+      catalogExposure: catalog.exposure,
       toolsOffered: [],
       totalMs: Date.now() - startedAt,
     };
@@ -278,6 +279,7 @@ export async function runPipeline(
     inputTokens: decision.inputTokens,
     backend: decision.backend,
     catalogSource: catalog.source,
+    catalogExposure: catalog.exposure,
     entities: catalog.entities.length,
     ...(toolsOffered.length ? { toolsOffered } : {}),
     model: decision.model,

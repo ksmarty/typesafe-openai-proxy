@@ -269,6 +269,8 @@ export interface TraceEntry {
   inputTokens?: number;
   backend?: string;
   catalogSource?: string;
+  /** What Home Assistant said about exposure for this decision, so a wrong count is explainable. */
+  catalogExposure?: CatalogExposure;
   entities?: number;
   /** Tool names the request offered, so "not offered" can be read against reality. */
   toolsOffered?: string[];
