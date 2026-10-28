@@ -1,6 +1,6 @@
 {
   "name": "typesafe-openai-proxy",
-  "version": "0.1.44",
+  "version": "0.1.45",
   "private": true,
   "description": "An OpenAI-compatible proxy that gives hass_local_openai_llm a typed, calibrated fast path: one System One decision call per command instead of an LLM turn.",
   "type": "module",
