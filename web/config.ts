@@ -57,7 +57,8 @@ export function asTemplates(value: unknown): Record<string, { done?: string; cla
 
 export interface SpeechRule {
   match: string;
-  mode: 'speak' | 'silent';
+  mode: 'speak' | 'silent' | 'custom';
+  say?: string;
 }
 
 /** A rule list is free-form, so anything unreadable is dropped rather than crashing a field. */
@@ -69,7 +70,12 @@ export function asRules(value: unknown): SpeechRule[] {
     const row = item as Record<string, unknown>;
     const match = asString(row.match);
     if (!match.trim()) continue;
-    out.push({ match, mode: row.mode === 'silent' ? 'silent' : 'speak' });
+    const mode = row.mode === 'silent' || row.mode === 'custom' ? row.mode : 'speak';
+    out.push(
+      mode === 'custom'
+        ? { match, mode, say: asString(row.say) }
+        : { match, mode },
+    );
   }
   return out;
 }

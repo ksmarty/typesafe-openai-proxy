@@ -4,7 +4,7 @@ import test from 'node:test';
 import { clearCatalogCache } from '../src/catalog.js';
 import { defaultConfig, type Config } from '../src/config.js';
 import { handleChatCompletions } from '../src/pipeline.js';
-import { ruleMode, descriptorsOf } from '../src/speech.js';
+import { descriptorsOf, humanTarget, interpolateSpeech, ruleFor, ruleMode } from '../src/speech.js';
 import { issuedCalls, pendingConfirmations } from '../src/state.js';
 import type { OpenAITool } from '../src/types.js';
 
@@ -52,7 +52,9 @@ function fakeResponse() {
   return { state, response: response as never };
 }
 
-function config(rules: { match: string; mode: 'speak' | 'silent' }[], overrides: Partial<Config['speech']> = {}): Config {
+type Rule = { match: string; mode: 'speak' | 'silent' | 'custom'; say?: string };
+
+function config(rules: Rule[], overrides: Partial<Config['speech']> = {}): Config {
   const base = defaultConfig();
   return {
     ...base,
@@ -184,4 +186,36 @@ test('"let the model phrase it" still forwards when nothing in the round was sil
   const content = JSON.parse(state.body).choices[0].message.content as string;
   assert.doesNotMatch(content, /Turned on Desk Lamp/);
   assert.match(content, /model server|reached|connect|reach/i);
+});
+
+test('a custom rule says exactly what it was told, with the call filled in', async () => {
+  issuedCalls.clear();
+  const active = config([{ match: 'light', mode: 'custom', say: '{action} the {entity}, sir.' }]);
+  issuedCalls.set('call_lamp', { action: 'turn_on', targets: ['light.desk_lamp'], domain: 'light', tool: 'HassTurnOn', at: Date.now() });
+  const spoken = await speak(active, round('call_lamp', [{ callId: 'call_lamp', name: 'HassTurnOn', content: TURNED_ON }]));
+  assert.equal(spoken, 'Turned on the Desk Lamp, sir.');
+  assert.notEqual(spoken, 'Turned on Desk Lamp.');
+});
+
+test('a custom rule wins over the model phrasing the answer', async () => {
+  issuedCalls.clear();
+  const active = config([{ match: 'todo', mode: 'custom', say: 'On the list.' }], { afterTool: 'upstream' });
+  active.upstream = { ...active.upstream, baseUrl: 'http://127.0.0.1:9/v1' };
+  issuedCalls.set('call_list', { action: 'add', targets: ['todo.shopping_list'], domain: 'todo', tool: 'HassListAddItem', at: Date.now() });
+  const spoken = await speak(active, round('call_list', [{ callId: 'call_list', name: 'HassListAddItem', content: ADDED }]));
+  assert.equal(spoken, 'On the list.');
+});
+
+test('a custom sentence tolerates a missing entity or action', () => {
+  assert.equal(interpolateSpeech('{action} {entity}.', {}), '.');
+  assert.equal(interpolateSpeech('  {action}   {entity}  ', { action: 'Done' }), 'Done');
+  assert.equal(humanTarget(['light.desk_lamp']), 'Desk Lamp');
+  assert.equal(humanTarget(['Kitchen']), 'Kitchen');
+  assert.equal(humanTarget(undefined), '');
+});
+
+test('ruleFor returns the whole rule, so a custom sentence survives the lookup', () => {
+  const rule = ruleFor([{ match: 'todo.*', mode: 'custom', say: 'Noted.' }], { domain: 'todo', action: 'add' });
+  assert.equal(rule?.say, 'Noted.');
+  assert.equal(ruleFor([{ match: 'light', mode: 'silent' }], { domain: 'todo', action: 'add' }), null);
 });

@@ -375,7 +375,7 @@ intent:
 ### Per-intent speech
 
 One setting for every intent is too blunt: turning a lamp on does not need narrating, adding milk to
-a shopping list does. `Settings → Speech → Speak or stay quiet per intent` is an ordered rule list,
+a shopping list does. `Settings → Speech → Who gets a reply` is a table of rules, top to bottom,
 first match wins, and each rule matches one of:
 
 | Written as | Matches |
@@ -386,9 +386,18 @@ first match wins, and each rule matches one of:
 | `turn_on` | that action on every domain |
 | `todo.*` | every action on that domain (a trailing `.*` is a prefix) |
 
-Matching is case-insensitive and applies to the call the proxy issued, not to the sentence. A rule
-that says **Speak** overrides *Say nothing*, which is how you keep a shopping list audible while the
-house is otherwise quiet. Anything unmatched follows the setting above.
+Matching is case-insensitive and applies to the call the proxy issued, not to the sentence. Each rule
+then does one of three things:
+
+| Then | What Assist says |
+| --- | --- |
+| **Speak it** | Home Assistant's own response, or the template — the default behaviour, forced for this call |
+| **Stay quiet** | nothing; `speech.silence` is sent so no TTS job starts |
+| **Say this…** | your sentence, with `{action}` and `{entity}` filled in — e.g. `{action} the {entity}.` becomes "Turned on the Desk Lamp." |
+
+**Speak it** and a custom sentence both override *Stay quiet* as the default, which is how you keep a
+shopping list audible in an otherwise silent house. Anything with no matching rule follows
+`Default when nothing above matches`.
 
 The shipped default silences the on/off domains — `light`, `switch`, `fan`, `cover`, `climate`,
 `media_player` — and leaves everything else speaking, so a fresh install is quiet about the house

@@ -6,7 +6,8 @@
  * walks the default config and fails if any leaf is not described here.
  */
 
-import type { DecisionThresholds } from './config.js';
+import { ACTIONS, DOMAIN_LABELS, INTENTS } from './actions.js';
+import type { DecisionThresholds, SpeechRule } from './config.js';
 
 export type FieldType =
   | 'text'
@@ -39,6 +40,11 @@ export interface SettingsField {
    * a key a provider issues.
    */
   generate?: boolean;
+  /**
+   * Suggested values for a free-form field (`rules`): the dashboard offers them as a picker
+   * but still accepts anything typed.
+   */
+  suggestions?: string[];
 }
 
 export interface SettingsGroup {
@@ -304,27 +310,28 @@ export function settingsGroups(): SettingsGroup[] {
       description: 'What Home Assistant says after a tool call has run.',
       fields: [
         {
+          key: 'speech.rules',
+          label: 'Who gets a reply',
+          type: 'rules',
+          help: 'Top to bottom, first match wins. A match is an intent (HassTurnOn), a domain and action (todo.add), a domain (light), an action (turn_on) or a whole domain with .* (todo.*). Anything not listed here falls through to the default below.',
+          suggestions: speechSuggestions(),
+        },
+        {
           key: 'speech.afterTool',
-          label: 'After a tool runs',
+          label: 'Default when nothing above matches',
           type: 'select',
           options: [
-            { value: 'template', label: 'Speak it locally (fastest)' },
+            { value: 'template', label: 'Speak a short sentence (fastest)' },
             { value: 'upstream', label: 'Let the model phrase it' },
-            { value: 'empty', label: 'Say nothing' },
+            { value: 'empty', label: 'Stay quiet' },
           ],
-          help: 'Home Assistant\'s own intent response is preferred when it carries speech; these templates are the fallback.',
+          help: 'Home Assistant\'s own intent response is used when it carries speech; the templates below are the fallback.',
         },
         {
           key: 'speech.silence',
-          label: 'Silence for "Say nothing"',
+          label: 'Text sent instead of silence',
           type: 'text',
-          help: 'Text sent when no speech should be heard. Assist speaks whatever comes back, so a pause marker such as [pause:1.5s] is how the pipeline stays quiet.',
-        },
-        {
-          key: 'speech.rules',
-          label: 'Speak or stay quiet per intent',
-          type: 'rules',
-          help: 'First match wins, against the intent name (HassTurnOn), domain.action (todo.add), a domain (light) or an action (turn_on); todo.* matches a whole domain. Anything unmatched follows the setting above.',
+          help: 'Used whenever nothing should be heard. Assist speaks whatever comes back, so a pause marker such as [pause:1.5s] is how the pipeline stays quiet.',
         },
         {
           key: 'speech.confirmSeconds',
@@ -434,13 +441,19 @@ function coerce(field: SettingsField, value: unknown): unknown {
   }
   if (field.type === 'rules') {
     if (!Array.isArray(value)) return undefined;
-    const out: { match: string; mode: 'speak' | 'silent' }[] = [];
+    const out: SpeechRule[] = [];
     for (const item of value.slice(0, 50)) {
       if (!item || typeof item !== 'object') continue;
       const row = item as Record<string, unknown>;
       const match = typeof row.match === 'string' ? row.match.trim() : '';
       if (!match) continue;
-      out.push({ match: match.slice(0, 120), mode: row.mode === 'silent' ? 'silent' : 'speak' });
+      const mode = row.mode === 'silent' || row.mode === 'custom' ? row.mode : 'speak';
+      const say = typeof row.say === 'string' ? row.say.trim().slice(0, 200) : '';
+      out.push(
+        mode === 'custom'
+          ? { match: match.slice(0, 120), mode, say: say || '{action} {entity}.' }
+          : { match: match.slice(0, 120), mode },
+      );
     }
     return out;
   }
@@ -555,4 +568,24 @@ export function maskSecrets(config: Record<string, unknown>, mask = '•••�
     const current = getPath(config, field.key);
     if (typeof current === 'string' && current) setPath(config, field.key, maskSecret(current, mask));
   }
+}
+
+/**
+ * What a rule can be written against, offered as suggestions: the intents Home Assistant
+ * exposes, each domain, each action, and each domain.action pair. Free text is still allowed,
+ * because a Home Assistant install can offer intents this list has never heard of.
+ */
+function speechSuggestions(): string[] {
+  const intents = Object.values(INTENTS);
+  const domains = Object.keys(DOMAIN_LABELS);
+  const actions = new Set<string>();
+  const pairs: string[] = [];
+  for (const key of Object.keys(ACTIONS)) {
+    const [domain, action] = key.split(':');
+    if (!domain || !action) continue;
+    actions.add(action);
+    pairs.push(`${domain}.${action}`);
+  }
+  for (const domain of domains) pairs.push(`${domain}.*`);
+  return [...new Set([...intents, ...domains, ...actions, ...pairs])].sort((a, b) => a.localeCompare(b));
 }

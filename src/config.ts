@@ -8,7 +8,14 @@ export type DecisionBackend = 'none' | 'systemone' | 'heuristic';
 export interface SpeechRule {
   /** `HassTurnOn`, `light`, `turn_on`, `todo.add`, or `todo.*`. */
   match: string;
-  mode: 'speak' | 'silent';
+  /**
+   * `speak`  - what Home Assistant said, or the template;
+   * `silent` - nothing at all, but the rule still stops a later rule matching;
+   * `custom` - `say`, with `{entity}` and `{action}` substituted.
+   */
+  mode: 'speak' | 'silent' | 'custom';
+  /** Only for `mode: 'custom'`. */
+  say?: string;
 }
 
 export interface DecisionThresholds {

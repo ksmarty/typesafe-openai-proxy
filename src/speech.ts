@@ -47,6 +47,44 @@ export function ruleMode(rules: SpeechRule[] | undefined, call: CallDescriptor):
   return null;
 }
 
+/** The first rule that matches this call, or null. */
+export function ruleFor(rules: SpeechRule[] | undefined, call: CallDescriptor): SpeechRule | null {
+  if (!rules?.length) return null;
+  const candidates = descriptorsOf(call).map((value) => value.toLowerCase());
+  for (const rule of rules) {
+    const match = (rule.match ?? '').trim().toLowerCase();
+    if (!match) continue;
+    // `todo.*` matches every todo action; anything else is an exact descriptor.
+    const pattern = match.endsWith('.*') ? match.slice(0, -1) : match;
+    const hit = candidates.some((value) => (pattern.endsWith('.') ? value.startsWith(pattern) : value === pattern));
+    if (hit) return rule;
+  }
+  return null;
+}
+
+/** `light.desk_lamp` -> `Desk Lamp`, so a custom sentence reads like one. */
+export function humanTarget(targets: string[] | undefined): string {
+  const first = targets?.[0];
+  if (!first) return '';
+  const tail = first.includes('.') ? first.split('.').slice(1).join('.') : first;
+  return tail
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .trim();
+}
+
+/** Fill `{entity}` and `{action}` in a custom sentence. */
+export function interpolateSpeech(
+  template: string,
+  values: { entity?: string; action?: string },
+): string {
+  return template
+    .replace(/\{entity\}/gi, values.entity ?? '')
+    .replace(/\{action\}/gi, values.action ?? '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
 /** True when this call should produce no speech at all. */
 export function isSilentCall(rules: SpeechRule[] | undefined, call: CallDescriptor): boolean {
   return ruleMode(rules, call) === 'silent';

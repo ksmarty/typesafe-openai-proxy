@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import FormControlLabel from '@mui/material/FormControlLabel';
@@ -8,8 +9,16 @@ import Paper from '@mui/material/Paper';
 import Slider from '@mui/material/Slider';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
 import KeyIcon from '@mui/icons-material/Key';
@@ -230,18 +239,99 @@ function TemplateField({ field, config, onChange }: ControlProps) {
   );
 }
 
+/** One row's controls, shared by the table and the stacked phone layout. */
+function RuleControls({
+  rule,
+  suggestions,
+  stacked,
+  onMatch,
+  onMode,
+  onSay,
+  onRemove,
+}: {
+  rule: SpeechRule;
+  suggestions: string[];
+  stacked: boolean;
+  onMatch: (value: string) => void;
+  onMode: (value: SpeechRule['mode']) => void;
+  onSay: (value: string) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <>
+      <Autocomplete
+        freeSolo
+        size="small"
+        options={suggestions}
+        value={rule.match}
+        onChange={(_event, next) => onMatch(next ?? '')}
+        onInputChange={(_event, next) => onMatch(next)}
+        renderInput={(params) => (
+          <TextField
+            {...params}
+            label={stacked ? 'Match' : undefined}
+            placeholder={stacked ? undefined : 'light, HassTurnOn, todo.*'}
+            fullWidth
+          />
+        )}
+        sx={{ minWidth: 0 }}
+      />
+      <TextField
+        select
+        size="small"
+        label={stacked ? 'Then' : undefined}
+        value={rule.mode}
+        onChange={(event) => onMode(event.target.value as SpeechRule['mode'])}
+        fullWidth
+      >
+        <MenuItem value="speak">Speak it</MenuItem>
+        <MenuItem value="silent">Stay quiet</MenuItem>
+        <MenuItem value="custom">Say this…</MenuItem>
+      </TextField>
+      {rule.mode === 'custom' || !stacked ? (
+        <TextField
+          size="small"
+          label={stacked ? 'Say this' : undefined}
+          value={rule.say ?? ''}
+          placeholder="{action} {entity}."
+          disabled={rule.mode !== 'custom'}
+          onChange={(event) => onSay(event.target.value)}
+          helperText={!stacked && rule.mode === 'custom' ? '{action} and {entity} are filled in' : undefined}
+          fullWidth
+        />
+      ) : null}
+      <IconButton aria-label={`Remove the rule for ${rule.match || 'a new rule'}`} onClick={onRemove} sx={{ flexShrink: 0 }}>
+        <DeleteIcon fontSize="small" />
+      </IconButton>
+    </>
+  );
+}
+
 function RulesField({ field, config, onChange }: ControlProps) {
+  const theme = useTheme();
+  const stacked = useMediaQuery(theme.breakpoints.down('sm'));
   const rules = asRules(readPath(config, field.key));
+  const suggestions = field.suggestions ?? [];
   const [draft, setDraft] = useState('');
+
   const write = (next: SpeechRule[]) => onChange(field.key, next);
+  const patch = (index: number, change: Partial<SpeechRule>) => {
+    const next = rules.slice();
+    const current = next[index];
+    if (!current) return;
+    const merged = { ...current, ...change };
+    // A rule that stops being custom should not carry a stale sentence around.
+    if (merged.mode !== 'custom') delete merged.say;
+    if (merged.mode === 'custom' && !merged.say) merged.say = '{action} {entity}.';
+    next[index] = merged;
+    write(next);
+  };
   const add = () => {
     const match = draft.trim();
     if (!match) return;
-    if (rules.some((rule) => rule.match.toLowerCase() === match.toLowerCase())) {
-      setDraft('');
-      return;
+    if (!rules.some((rule) => rule.match.toLowerCase() === match.toLowerCase())) {
+      write([...rules, { match, mode: 'silent' }]);
     }
-    write([...rules, { match, mode: 'silent' }]);
     setDraft('');
   };
 
@@ -255,73 +345,96 @@ function RulesField({ field, config, onChange }: ControlProps) {
           {field.help}
         </Typography>
       ) : null}
-      {rules.length === 0 ? (
-        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-          No rules yet — every finished action says what it did.
-        </Typography>
-      ) : null}
-      {rules.map((rule, index) => (
-        <Stack
-          key={`${rule.match}-${index}`}
-          direction="row"
-          spacing={1}
-          sx={{ alignItems: 'center', flexWrap: { xs: 'wrap', sm: 'nowrap' } }}
-        >
-          <TextField
-            label="Match"
-            value={rule.match}
-            size="small"
-            placeholder="light, HassTurnOn, todo.add"
-            onChange={(event) => {
-              const next = rules.slice();
-              next[index] = { ...rule, match: event.target.value };
-              write(next);
-            }}
-            sx={{ flex: 1, minWidth: 0 }}
-          />
-          <TextField
-            select
-            label="Then"
-            size="small"
-            value={rule.mode}
-            onChange={(event) => {
-              const next = rules.slice();
-              next[index] = { ...rule, mode: event.target.value === 'silent' ? 'silent' : 'speak' };
-              write(next);
-            }}
-            sx={{ width: { xs: '100%', sm: 148 }, flexShrink: 0 }}
-          >
-            <MenuItem value="silent">Stay quiet</MenuItem>
-            <MenuItem value="speak">Speak the result</MenuItem>
-          </TextField>
-          <IconButton
-            aria-label={`Remove the rule for ${rule.match}`}
-            onClick={() => write(rules.filter((_rule, position) => position !== index))}
-            sx={{ flexShrink: 0 }}
-          >
-            <DeleteIcon fontSize="small" />
-          </IconButton>
-        </Stack>
-      ))}
+
+      {stacked
+        ? rules.map((rule, index) => (
+            <Paper key={`${rule.match}-${index}`} variant="outlined" sx={{ p: 1.5 }}>
+              <Stack spacing={1.25}>
+                <RuleControls
+                  rule={rule}
+                  suggestions={suggestions}
+                  stacked
+                  onMatch={(value) => patch(index, { match: value })}
+                  onMode={(mode) => patch(index, { mode })}
+                  onSay={(say) => patch(index, { say })}
+                  onRemove={() => write(rules.filter((_rule, position) => position !== index))}
+                />
+              </Stack>
+            </Paper>
+          ))
+        : (
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small" sx={{ '& td, & th': { verticalAlign: 'top', py: 1 } }}>
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ width: '34%' }}>Match</TableCell>
+                    <TableCell sx={{ width: 168 }}>Then</TableCell>
+                    <TableCell>Response</TableCell>
+                    <TableCell sx={{ width: 56 }} />
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {rules.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} sx={{ color: 'text.secondary' }}>
+                        No rules yet — every finished action follows the default below.
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
+                  {rules.map((rule, index) => (
+                    <TableRow key={`${rule.match}-${index}`}>
+                      <TableCell colSpan={4} sx={{ p: 0, border: 0 }}>
+                        <Box
+                          sx={{
+                            display: 'grid',
+                            gridTemplateColumns: 'minmax(0, 34fr) minmax(0, 22fr) minmax(0, 40fr) 56px',
+                            gap: 1,
+                            alignItems: 'start',
+                            px: 2,
+                            py: 1,
+                            borderTop: index === 0 ? 0 : '1px solid',
+                            borderColor: 'divider',
+                          }}
+                        >
+                          <RuleControls
+                            rule={rule}
+                            suggestions={suggestions}
+                            stacked={false}
+                            onMatch={(value) => patch(index, { match: value })}
+                            onMode={(mode) => patch(index, { mode })}
+                            onSay={(say) => patch(index, { say })}
+                            onRemove={() => write(rules.filter((_rule, position) => position !== index))}
+                          />
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          )}
+
       <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
-        <TextField
-          label="Add a rule"
-          value={draft}
+        <Autocomplete
+          freeSolo
           size="small"
-          placeholder="vacuum, media_player, todo.*"
-          helperText="Intent, domain.action, domain or action. First match wins."
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') add();
-          }}
+          options={suggestions}
+          inputValue={draft}
+          onInputChange={(_event, next) => setDraft(next)}
+          onChange={(_event, next) => setDraft(next ?? '')}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Add a rule"
+              placeholder="vacuum, media_player, todo.*"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') add();
+              }}
+            />
+          )}
           sx={{ flex: 1, minWidth: 0 }}
         />
-        <Button
-          onClick={add}
-          startIcon={<AddIcon />}
-          disabled={!draft.trim()}
-          sx={{ flexShrink: 0, minWidth: 96, height: 40 }}
-        >
+        <Button onClick={add} startIcon={<AddIcon />} disabled={!draft.trim()} sx={{ flexShrink: 0, minWidth: 96, height: 40 }}>
           Add
         </Button>
       </Stack>
