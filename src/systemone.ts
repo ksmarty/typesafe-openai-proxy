@@ -19,6 +19,7 @@ import type {
   ScoreAnswer,
 } from './types.js';
 import { fetchWithTimeout, round, sleep } from './util.js';
+import { note } from './log.js';
 
 export const SYSTEM_ONE_PATH = '/v1/systemone';
 export const MODELS_PATH = '/v1/models';
@@ -260,6 +261,24 @@ export function resetBreaker(): void {
 }
 
 /** Which models does the configured decision server offer? */
+/**
+ * Open the connection to the decision model before anyone speaks.
+ *
+ * A first call pays DNS, TCP and TLS — a few hundred milliseconds on a hosted model, which is
+ * exactly the delay heard after a restart. Asking for the model list warms all of it, and a
+ * failure here costs nothing.
+ */
+export async function warmDecision(config: Config): Promise<void> {
+  if (config.decision.backend !== 'systemone') return;
+  if (!decisionBase(config.decision.baseUrl)) return;
+  try {
+    const models = await listModels(config);
+    note(`decision: connection warmed (${models.length} models offered)`);
+  } catch (error) {
+    note(`decision: could not warm the connection (${error instanceof Error ? error.message : String(error)})`);
+  }
+}
+
 export async function listModels(config: Config): Promise<{ id: string; jev: boolean }[]> {
   const baseUrl = decisionBase(config.decision.baseUrl);
   if (!baseUrl) return [];

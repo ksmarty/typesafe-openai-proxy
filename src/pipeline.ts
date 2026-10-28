@@ -10,6 +10,8 @@
 import type { ServerResponse } from 'node:http';
 
 import { getCatalog, homeSignature } from './catalog.js';
+import { directStatePlan } from './answer.js';
+import { looksLikeChatter } from './chatter.js';
 import { cachedDecision, decisionKey, isQuestion, rememberDecision } from './decidecache.js';
 import { loadConfig, ROUTER_MODEL, type Config } from './config.js';
 import { extract } from './extract.js';
@@ -161,7 +163,68 @@ export async function runPipeline(
       : undefined,
   });
   catalogMs = Date.now() - catalogStarted;
+  // "Is the desk lamp on?" is a catalogue lookup, not a decision: the state is already here,
+  // so answering locally turns the most common query into a couple of milliseconds.
+  if (active.routing.enabled) {
+    const direct = directStatePlan(catalog, utterance);
+    if (direct) {
+      const reason = `state question about ${direct.entity.id} — answered from the catalog, no model call`;
+      const entry: TraceEntry = {
+        id: uid('trace'),
+        at: startedAt,
+        utterance,
+        route: 'text',
+        reason,
+        gates: [],
+        category: 'query',
+        backend: 'off',
+        catalogSource: catalog.source,
+        catalogExposure: catalog.exposure,
+        toolsOffered,
+        timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+        totalMs: Date.now() - startedAt,
+      };
+      rememberTrace(entry);
+      stats.requests += 1;
+      return {
+        route: { plan: { kind: 'text', text: direct.text } as Plan, gates: [], reason, category: 'query' },
+        entry,
+      };
+    }
+  }
+
   const entityNames = catalog.entities.map((entity) => entity.name);
+
+  // "no you", "ignore that", "thanks" — conversation, not a command. Answering it with a
+  // decision call would cost a round trip and could nudge a device; the model server is the
+  // right reader for it.
+  if (active.routing.enabled) {
+    const chatter = looksLikeChatter(utterance, catalog);
+    if (chatter) {
+      const entry: TraceEntry = {
+        id: uid('trace'),
+        at: startedAt,
+        utterance,
+        route: 'forward',
+        reason: chatter,
+        gates: [],
+        backend: 'off',
+        catalogSource: catalog.source,
+        catalogExposure: catalog.exposure,
+        toolsOffered,
+        timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+        totalMs: Date.now() - startedAt,
+      };
+      rememberTrace(entry);
+      stats.requests += 1;
+      stats.bypassed += 1;
+      return {
+        route: { plan: { kind: 'forward', reason: chatter } as Plan, gates: [], reason: chatter },
+        entry,
+        bypass: chatter,
+      };
+    }
+  }
 
   /**
    * Decide one sentence: extraction, question set, the model, then the routing gates.

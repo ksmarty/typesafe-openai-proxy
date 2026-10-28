@@ -127,3 +127,53 @@ export function answerCount(catalog: Catalog, domain: string, stateWord?: string
   }
   return `${matches.length} of the ${pool.length} ${things} ${verb} ${wantedWords}: ${list}${more}.`;
 }
+
+/** "is", "are", "was", "were" — the shape of a yes/no question about one thing. */
+const STATE_LEAD = /^(is|are|was|were|tell me if|check if|do you know if|has|have)\s+/;
+
+/** The words a speaker uses to ask about a state rather than give an order. */
+const STATE_TAIL = /\b(on|off|open|closed|locked|unlocked|running|playing|paused|home|away)\b/;
+
+/**
+ * A plain yes/no question about one device, answered from the catalogue instead of the
+ * decision model.
+ *
+ * "Is the desk lamp on?" needs no model: the sentence names the device and the state, and the
+ * catalogue already holds that state. This is the single most common query in a voice
+ * assistant, so skipping the round trip takes it from ~400 ms to a couple of milliseconds.
+ * Anything it cannot read with certainty returns null and takes the normal path.
+ */
+export function directStatePlan(
+  catalog: Catalog,
+  text: string,
+): { text: string; entity: CatalogEntity } | null {
+  const spoken = normalise(text);
+  if (!spoken) return null;
+  if (!STATE_LEAD.test(spoken)) return null;
+
+  const body = spoken.replace(STATE_LEAD, '').replace(/[?.!]+$/, '').trim();
+  if (!body) return null;
+
+  const tail = STATE_TAIL.exec(body);
+  if (!tail) return null;
+  const asked = tail[1] ?? '';
+
+  // The device has to be named outright and only once, or the choice is a guess.
+  const named = catalog.entities
+    .filter((entity) => {
+      const name = normalise(entity.name);
+      return name.length > 2 && ` ${body} `.includes(` ${name} `);
+    })
+    .sort((left, right) => right.name.length - left.name.length);
+  if (named.length !== 1) return null;
+
+  const entity = named[0]!;
+  // "is the office light on" where the light is a dimmer: the answer is the state, not a guess.
+  const phrase = statePhrase(entity);
+  if (!phrase) return null;
+  if (asked === 'on' || asked === 'off' || asked === 'open' || asked === 'closed') {
+    // The question fixes the polarity; answering "on" to "is it off" would be a trap.
+    return { text: answerDeviceState(entity), entity };
+  }
+  return { text: `The ${entity.name} is ${phrase}.`, entity };
+}

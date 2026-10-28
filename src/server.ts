@@ -37,7 +37,7 @@ import { installLogCapture, note, recentLogs } from './log.js';
 import { jsonResponse } from './respond.js';
 import { secretOrStored, settingsGroups } from './schema.js';
 import { averageDecisionMs, pendingConfirmations, rememberRequest, rememberTrace, requestLog, routableShare, startedAt, stats, trace } from './state.js';
-import { breakerState, listModels, resetBreaker } from './systemone.js';
+import { breakerState, listModels, resetBreaker, warmDecision } from './systemone.js';
 import { ensureUiBundle } from './ui.js';
 import { fetchWithTimeout, uid } from './util.js';
 import type { Config } from './config.js';
@@ -351,6 +351,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
     const parsed = await jsonBody(request) as Record<string, unknown>;
     const before = loadConfig();
     const { config, adjusted } = saveConfig(parsed);
+    void warmDecision(config);
     const restartRequired = before.server.port !== config.server.port || before.server.host !== config.server.host;
     jsonResponse(response, 200, { ok: true, config: publicConfig(), adjusted, restartRequired });
     return true;
@@ -687,6 +688,8 @@ export function startServer(options?: Partial<ServeOptions>) {
   // default 10 s SIGKILL timeout: stop accepting work, drop idle keep-alive
   // sockets, and take a hard exit if something (an open stream) lingers.
   startCatalogWarmer(loadConfig);
+  // Warm the decision connection too: the first command after a restart should not pay TLS.
+  void warmDecision(loadConfig());
 
   const shutdown = (signal: string) => {
     stopCatalogWarmer();

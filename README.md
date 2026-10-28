@@ -265,6 +265,14 @@ Two sources, used automatically:
   because an area-scoped request cannot resolve without them. Version-dependent by nature, so it
   is the fallback, not the preference.
 
+### Conversation that is not a command
+
+"No you", "ignore that", "thanks", "wait" are about the conversation, not about the house. The
+proxy recognises a short sentence that names no device or room and contains no command verb, and
+sends it straight to your model server — no decision call, no chance of nudging a device. Anything
+it is unsure about still goes through the decision model, and a sentence that names a device or a
+room always does.
+
 ### When everything is forwarded
 
 Every forwarded turn records its reason in the dashboard's decision list. The reasons that say the
@@ -423,7 +431,11 @@ three small:
 
 - **The catalog is built in the background.** A timer refreshes it every half cache-window, so a
   request finds it warm instead of paying the Home Assistant round trip (40–100 ms) before it can
-  start deciding.
+  start deciding. The last good catalog is also written to `data/catalog.json`, so the first
+  command after a restart is answered from it while a fresh one is built behind that request.
+- **Nothing is decided that does not need deciding.** A plain state question ("is the desk lamp
+  on?") is answered from the catalog in about two milliseconds, and a conversational aside ("no
+  you", "ignore that") goes straight to your model server instead of costing a decision call.
 - **The catalog is narrowed to what Assist can see.** Exposure is read from Home Assistant, so 19
   exposed entities reach the model instead of 356 — roughly 33 000 input tokens become a couple of
   thousand, which is the single largest latency lever on a hosted decision model.

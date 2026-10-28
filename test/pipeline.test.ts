@@ -108,13 +108,24 @@ test('a single clear command becomes a tool call with the entity id in the name 
   assert.equal(plan.args.name, 'light.kitchen_ceiling');
 });
 
-test('a state question becomes a HassGetState call', async () => {
+test('a state question about one named device is answered from the catalog', async () => {
   const result = await decide('is the desk lamp on');
-  assert.equal(result.route.plan.kind, 'tool', JSON.stringify(result.route.gates));
+  assert.equal(result.route.plan.kind, 'text', JSON.stringify(result.route.gates));
   const plan = result.route.plan;
-  if (plan.kind !== 'tool') return;
-  assert.equal(plan.tool, 'HassGetState');
-  assert.equal(plan.args.name, 'light.desk_lamp');
+  if (plan.kind !== 'text') return;
+  assert.match(plan.text, /Desk Lamp is (on|off)/);
+  // No model call: the catalog already held the answer.
+  assert.equal(result.entry.timings?.decideMs, 0);
+});
+
+test('a state question the shortcut cannot read still reaches the decision model', async () => {
+  const result = await decide('how many lights are on');
+  // The decision backend ran (the local shortcut leaves it 'off').
+  assert.equal(result.entry.backend, 'heuristic');
+  assert.ok(
+    result.route.plan.kind === 'tool' || result.route.plan.kind === 'text' || result.route.plan.kind === 'forward',
+    JSON.stringify(result.route.gates),
+  );
 });
 
 test('unlocking is confirmed before it is sent', async () => {

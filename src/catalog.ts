@@ -10,6 +10,9 @@
  *     parser is deliberately tolerant and simply finds nothing rather than guessing wrongly.
  */
 
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+
 import type { Catalog, CatalogArea, CatalogEntity } from './types.js';
 import type { Config } from './config.js';
 import { normalise, sha1, titleCase } from './util.js';
@@ -751,6 +754,58 @@ function matchArea(line: string): string | undefined {
   return name;
 }
 
+/** Where the last good catalog is kept, so a restart does not pay the first round trip. */
+const SNAPSHOT_PATH = resolve(process.env.DATA_DIR || 'data', 'catalog.json');
+/** Older than this and the state is a lie: a day-old "off" is worse than a moment of waiting. */
+const SNAPSHOT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+let snapshotUsed = false;
+
+function saveSnapshot(catalog: Catalog): void {
+  try {
+    mkdirSync(dirname(SNAPSHOT_PATH), { recursive: true });
+    writeFileSync(SNAPSHOT_PATH, JSON.stringify({ at: Date.now(), catalog }));
+  } catch (error) {
+    note(`catalog: could not save the snapshot (${error instanceof Error ? error.message : String(error)})`);
+  }
+}
+
+function loadSnapshot(): Catalog | null {
+  try {
+    const parsed = JSON.parse(readFileSync(SNAPSHOT_PATH, 'utf8')) as { at?: number; catalog?: Catalog };
+    if (!parsed.catalog || typeof parsed.at !== 'number') return null;
+    if (Date.now() - parsed.at > SNAPSHOT_MAX_AGE_MS) return null;
+    return parsed.catalog;
+  } catch {
+    return null;
+  }
+}
+
+/** One build at a time; everyone who asks during it gets the same promise. */
+function buildCatalog(config: Config, prompt?: string): Promise<Catalog> {
+  if (inFlight) return inFlight;
+  inFlight = catalogFromHomeAssistant(config)
+    .then((catalog) => {
+      const narrowed = narrowFromPrompt(catalog, prompt, config);
+      cache = { catalog: narrowed, at: Date.now() };
+      saveSnapshot(narrowed);
+      return narrowed;
+    })
+    .catch((error: unknown) => {
+      const fallback = prompt ? catalogFromPrompt(prompt) : emptyCatalog();
+      if (prompt) rememberPromptExposure(fallback.entities.map((entity) => entity.id));
+      return {
+        ...fallback,
+        note: `${fallback.note ?? ''} (Home Assistant unreachable: ${
+          error instanceof Error ? error.message : String(error)
+        })`.trim(),
+      };
+    })
+    .finally(() => {
+      inFlight = null;
+    });
+  return inFlight;
+}
+
 /** Cached catalog, rebuilt when stale. Never throws: falls back to the prompt. */
 export async function getCatalog(
   config: Config,
@@ -758,34 +813,31 @@ export async function getCatalog(
   options: { maxAgeMs?: number } = {},
 ): Promise<Catalog> {
   const wantHa = Boolean(config.catalog.haUrl && config.catalog.haToken);
+
+  // Cold start: answer the first request from the last catalog this process wrote, and
+  // rebuild behind it. Without this, the first command after a restart pays the whole
+  // Home Assistant round trip — which is exactly when a voice command arrives.
+  if (wantHa && !cache) {
+    const snapshot = loadSnapshot();
+    if (snapshot) {
+      cache = { catalog: snapshot, at: 0 };
+      note(`catalog: starting from the saved snapshot (${snapshot.entities.length} entities)`);
+    }
+  }
+
   const ttl = Math.min(config.catalog.cacheMs, options.maxAgeMs ?? config.catalog.cacheMs);
-  const fresh = cache && Date.now() - cache.at < ttl;
+  const fresh = cache && cache.at > 0 && Date.now() - cache.at < ttl;
 
   if (wantHa && fresh) return cache!.catalog;
   if (wantHa && inFlight) return inFlight;
 
-  if (wantHa) {
-    inFlight = catalogFromHomeAssistant(config)
-      .then((catalog) => {
-        const narrowed = narrowFromPrompt(catalog, prompt, config);
-        cache = { catalog: narrowed, at: Date.now() };
-        return narrowed;
-      })
-      .catch((error: unknown) => {
-        const fallback = prompt ? catalogFromPrompt(prompt) : emptyCatalog();
-        if (prompt) rememberPromptExposure(fallback.entities.map((entity) => entity.id));
-        return {
-          ...fallback,
-          note: `${fallback.note ?? ''} (Home Assistant unreachable: ${
-            error instanceof Error ? error.message : String(error)
-          })`.trim(),
-        };
-      })
-      .finally(() => {
-        inFlight = null;
-      });
-    return inFlight;
+  if (wantHa && cache && cache.at === 0 && !snapshotUsed) {
+    snapshotUsed = true;
+    void buildCatalog(config, prompt);
+    return cache.catalog;
   }
+
+  if (wantHa) return buildCatalog(config, prompt);
 
   if (prompt) {
     const parsed = catalogFromPrompt(prompt);
@@ -827,11 +879,14 @@ export function cachedCatalog(): Catalog | null {
 
 export function clearCatalogCache(): void {
   cache = null;
+  snapshotUsed = false;
 }
 
 /** Remember a catalog that was built outside getCatalog (the Refresh button). */
 export function rememberCatalog(catalog: Catalog): void {
   cache = { catalog, at: Date.now() };
+  snapshotUsed = true;
+  saveSnapshot(catalog);
 }
 
 
