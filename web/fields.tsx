@@ -33,6 +33,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
 import type { SettingsField } from '../src/schema.js';
+import { previewForRule } from '../src/speech.js';
 import { generateToken } from '../src/token.js';
 import { asNumber, asRules, asString, asTemplates, readPath, writePath, type Config, type SpeechRule } from './config';
 import { fixed } from './format';
@@ -330,16 +331,23 @@ function RuleFields({
         <MenuItem value="custom">Say this…</MenuItem>
       </TextField>
       {rule.mode === 'custom' || !stacked ? (
-        <TextField
-          size="small"
-          label={stacked ? 'Say this' : undefined}
-          value={rule.say ?? ''}
-          placeholder="{action} {entity}."
-          disabled={rule.mode !== 'custom'}
-          onChange={(event) => onSay(event.target.value)}
-          helperText={!stacked && rule.mode === 'custom' ? '{action} and {entity} are filled in' : undefined}
-          fullWidth
-        />
+        <Stack spacing={0.5} sx={{ minWidth: 0 }}>
+          <TextField
+            size="small"
+            label={stacked ? 'Say this' : undefined}
+            value={rule.say ?? ''}
+            placeholder="{action} {entity}."
+            disabled={rule.mode !== 'custom'}
+            onChange={(event) => onSay(event.target.value)}
+            helperText={!stacked && rule.mode === 'custom' ? '{action} and {entity} are filled in' : undefined}
+            fullWidth
+          />
+          {rule.mode === 'custom' ? (
+            <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
+              Says: “‘{previewForRule(rule)}’”
+            </Typography>
+          ) : null}
+        </Stack>
       ) : null}
     </>
   );

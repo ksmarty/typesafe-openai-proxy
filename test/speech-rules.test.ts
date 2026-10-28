@@ -4,7 +4,7 @@ import test from 'node:test';
 import { clearCatalogCache } from '../src/catalog.js';
 import { defaultConfig, type Config } from '../src/config.js';
 import { handleChatCompletions } from '../src/pipeline.js';
-import { descriptorsOf, humanTarget, interpolateSpeech, ruleFor, ruleMode } from '../src/speech.js';
+import { descriptorsOf, humanTarget, interpolateSpeech, previewForRule, ruleFor, ruleMode, samplePairFor } from '../src/speech.js';
 import { issuedCalls, pendingConfirmations } from '../src/state.js';
 import type { OpenAITool } from '../src/types.js';
 
@@ -218,4 +218,23 @@ test('ruleFor returns the whole rule, so a custom sentence survives the lookup',
   const rule = ruleFor([{ match: 'todo.*', mode: 'custom', say: 'Noted.' }], { domain: 'todo', action: 'add' });
   assert.equal(rule?.say, 'Noted.');
   assert.equal(ruleFor([{ match: 'light', mode: 'silent' }], { domain: 'todo', action: 'add' }), null);
+});
+
+test('a custom sentence previews what the substitutions produce', () => {
+  assert.equal(previewForRule({ match: 'light', mode: 'custom', say: '{action} the {entity}.' }), 'Turned on the Desk Lamp.');
+  assert.equal(previewForRule({ match: 'todo.add', mode: 'custom', say: '{entity} updated.' }), 'Shopping List updated.');
+  assert.equal(previewForRule({ match: 'todo.*', mode: 'custom', say: '{action} {entity}.' }), 'Added that to Shopping List.');
+  assert.equal(previewForRule({ match: 'todo.add_item', mode: 'custom', say: '{action} {entity}.' }), 'Added that to Shopping List.');
+  assert.equal(previewForRule({ match: 'HassTurnOn', mode: 'custom', say: '{action} {entity}.' }), 'Turned on Desk Lamp.');
+});
+
+test('a preview only exists for a custom sentence', () => {
+  assert.equal(previewForRule({ match: 'light', mode: 'silent' }), '');
+  assert.equal(previewForRule({ match: 'light', mode: 'speak' }), '');
+  assert.equal(previewForRule({ match: 'light', mode: 'custom', say: '' }), '');
+});
+
+test('an unknown match still previews something plausible', () => {
+  assert.equal(previewForRule({ match: '', mode: 'custom', say: '{action} {entity}.' }), 'Turned on Desk Lamp.');
+  assert.equal(samplePairFor('light').domain, 'light');
 });

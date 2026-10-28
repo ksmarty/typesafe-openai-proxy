@@ -11,6 +11,7 @@
  * default applies.
  */
 
+import { ACTION_VERBS, ACTIONS, DOMAIN_LABELS } from './actions.js';
 import type { SpeechRule } from './config.js';
 
 export interface CallDescriptor {
@@ -88,4 +89,79 @@ export function interpolateSpeech(
 /** True when this call should produce no speech at all. */
 export function isSilentCall(rules: SpeechRule[] | undefined, call: CallDescriptor): boolean {
   return ruleMode(rules, call) === 'silent';
+}
+
+/** One plausible entity per domain, so a preview reads like a real reply. */
+const SAMPLE_ENTITY: Record<string, string> = {
+  light: 'light.desk_lamp',
+  switch: 'switch.coffee_machine',
+  fan: 'fan.bedroom',
+  cover: 'cover.office_blind',
+  lock: 'lock.front_door',
+  climate: 'climate.office',
+  media_player: 'media_player.living_room',
+  vacuum: 'vacuum.robot',
+  todo: 'todo.shopping_list',
+  scene: 'scene.movie_night',
+  humidifier: 'humidifier.bedroom',
+  water_heater: 'water_heater.boiler',
+  script: 'script.goodnight',
+  button: 'button.doorbell',
+  input_boolean: 'input_boolean.guest_mode',
+};
+
+/**
+ * The domain and action a rule most likely means, for the preview only.
+ *
+ * A rule can be written five ways, so this walks them: an intent name is resolved through the
+ * action table (which knows every intentHome Assistant offers), `domain.action` is split, a
+ * `domain.*` or bare domain takes the first action that domain has, and a bare action takes the
+ * first domain that has it.
+ */
+export function samplePairFor(match: string): { domain: string; action: string } {
+  const text = (match ?? '').trim();
+  const entries = Object.keys(ACTIONS).map((key) => {
+    const [domain, action] = key.split(':');
+    return { domain: domain ?? '', action: action ?? '' };
+  });
+  const fallback = { domain: 'light', action: 'turn_on' };
+  if (!text) return fallback;
+
+  const byIntent = Object.entries(ACTIONS).find(([, spec]) => spec.intentType === text);
+  if (byIntent) {
+    const [domain, action] = byIntent[0].split(':');
+    return { domain: domain ?? 'light', action: action ?? 'turn_on' };
+  }
+  if (text.endsWith('.*')) {
+    const domain = text.slice(0, -2).toLowerCase();
+    const first = entries.find((entry) => entry.domain === domain);
+    return first ? { domain, action: first.action } : fallback;
+  }
+  if (text.includes('.')) {
+    const [rawDomain, rawAction] = text.split('.');
+    const wantDomain = (rawDomain ?? 'light').toLowerCase();
+    const wantAction = (rawAction ?? 'turn_on').toLowerCase();
+    if (ACTIONS[`${wantDomain}:${wantAction}`]) return { domain: wantDomain, action: wantAction };
+    // A domain with an action it does not have (a typo, or "todo.add" for "todo.add_item").
+    const first = entries.find((entry) => entry.domain === wantDomain);
+    return first ? { domain: wantDomain, action: first.action } : fallback;
+  }
+  const domain = text.toLowerCase();
+  if (DOMAIN_LABELS[domain]) {
+    const first = entries.find((entry) => entry.domain === domain);
+    return first ? { domain, action: first.action } : fallback;
+  }
+  const action = domain;
+  const first = entries.find((entry) => entry.action === action);
+  return first ? { domain: first.domain, action } : fallback;
+}
+
+/** What a custom sentence would say for a plausible call — shown under the field as a preview. */
+export function previewForRule(rule: SpeechRule): string {
+  if (rule.mode !== 'custom') return '';
+  const { domain, action } = samplePairFor(rule.match);
+  return interpolateSpeech(rule.say ?? '', {
+    action: ACTION_VERBS[action] ?? action.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
+    entity: humanTarget([SAMPLE_ENTITY[domain] ?? `${domain}.example`]),
+  });
 }
