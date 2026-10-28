@@ -387,8 +387,9 @@ function RulesField({ field, config, onChange }: ControlProps) {
     next.splice(target, 0, item);
     write(next);
   };
-  const add = () => {
-    const match = draft.trim();
+  /** Picking an option from the list adds the rule immediately: no second click. */
+  const add = (value: string) => {
+    const match = value.trim();
     if (!match) return;
     if (!rules.some((rule) => rule.match.toLowerCase() === match.toLowerCase())) {
       write([...rules, { match, mode: 'silent' }]);
@@ -493,30 +494,23 @@ function RulesField({ field, config, onChange }: ControlProps) {
             </TableContainer>
           )}
 
-      <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
-        <Autocomplete
-          freeSolo
-          size="small"
-          options={suggestions}
-          inputValue={draft}
-          onInputChange={(_event, next) => setDraft(next)}
-          onChange={(_event, next) => setDraft(next ?? '')}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              label="Add a rule"
-              placeholder="vacuum, media_player, todo.*"
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') add();
-              }}
-            />
-          )}
-          sx={{ flex: 1, minWidth: 0 }}
-        />
-        <Button onClick={add} startIcon={<AddIcon />} disabled={!draft.trim()} sx={{ flexShrink: 0, minWidth: 96, height: 40 }}>
-          Add
-        </Button>
-      </Stack>
+      <Autocomplete
+        freeSolo
+        size="small"
+        options={suggestions}
+        inputValue={draft}
+        onChange={(_event, next) => {
+          // A selection, or a typed value confirmed with Enter, becomes a rule at once.
+          if (typeof next === 'string') add(next);
+        }}
+        onInputChange={(_event, next, reason) => {
+          if (reason === 'input' || reason === 'clear') setDraft(next);
+        }}
+        renderInput={(params) => (
+          <TextField {...params} label="Add a rule" placeholder="vacuum, media_player, todo.*" />
+        )}
+        sx={{ maxWidth: { xs: '100%', sm: 420 } }}
+      />
 
       <Stack
         direction="row"

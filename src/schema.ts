@@ -313,7 +313,6 @@ export function settingsGroups(): SettingsGroup[] {
           key: 'speech.rules',
           label: 'Rules',
           type: 'rules',
-          help: 'First match wins. The match is an intent (HassTurnOn), a domain and action (todo.add_item), a domain (light), an action (turn_on) or every action of a domain (todo.*). Anything not listed falls through to the default below.',
           suggestions: speechSuggestions(),
         },
         {
