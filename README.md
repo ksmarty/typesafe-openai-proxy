@@ -399,6 +399,10 @@ then does one of three things:
 shopping list audible in an otherwise silent house. Anything with no matching rule follows
 `Default when nothing above matches`.
 
+Order matters, so each rule carries its own controls: the arrows move it up or down the list, and the
+bin removes it after asking — a rule list is a small, hand-made thing and losing one by mis-tapping a
+phone should not be possible.
+
 The shipped default silences the on/off domains — `light`, `switch`, `fan`, `cover`, `climate`,
 `media_player` — and leaves everything else speaking, so a fresh install is quiet about the house
 and talkative about lists, scenes and the vacuum. A trace reads `silent by rule (…, sent

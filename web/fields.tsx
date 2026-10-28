@@ -1,6 +1,11 @@
 import { useRef, useState } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogContentText from '@mui/material/DialogContentText';
+import DialogTitle from '@mui/material/DialogTitle';
 import Button from '@mui/material/Button';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
@@ -20,6 +25,8 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import DeleteIcon from '@mui/icons-material/Delete';
 import KeyIcon from '@mui/icons-material/Key';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -239,15 +246,50 @@ function TemplateField({ field, config, onChange }: ControlProps) {
   );
 }
 
-/** One row's controls, shared by the table and the stacked phone layout. */
-function RuleControls({
+/** Up, down, remove — the order controls that sit to the left of every rule. */
+function RuleOrder({
+  rule,
+  index,
+  count,
+  onMove,
+  onRemove,
+}: {
+  rule: SpeechRule;
+  index: number;
+  count: number;
+  onMove: (direction: -1 | 1) => void;
+  onRemove: () => void;
+}) {
+  const label = rule.match || 'this rule';
+  return (
+    <Stack spacing={0} sx={{ width: 36, flexShrink: 0, alignItems: 'center' }}>
+      <IconButton size="small" aria-label={`Move the rule for ${label} up`} disabled={index === 0} onClick={() => onMove(-1)} sx={{ p: 0.5 }}>
+        <ArrowUpwardIcon fontSize="small" />
+      </IconButton>
+      <IconButton
+        size="small"
+        aria-label={`Move the rule for ${label} down`}
+        disabled={index === count - 1}
+        onClick={() => onMove(1)}
+        sx={{ p: 0.5 }}
+      >
+        <ArrowDownwardIcon fontSize="small" />
+      </IconButton>
+      <IconButton size="small" aria-label={`Remove the rule for ${label}`} onClick={onRemove} sx={{ p: 0.5, color: 'text.secondary' }}>
+        <DeleteIcon fontSize="small" />
+      </IconButton>
+    </Stack>
+  );
+}
+
+/** The match, then and response controls, shared by the table and the phone cards. */
+function RuleFields({
   rule,
   suggestions,
   stacked,
   onMatch,
   onMode,
   onSay,
-  onRemove,
 }: {
   rule: SpeechRule;
   suggestions: string[];
@@ -255,7 +297,6 @@ function RuleControls({
   onMatch: (value: string) => void;
   onMode: (value: SpeechRule['mode']) => void;
   onSay: (value: string) => void;
-  onRemove: () => void;
 }) {
   return (
     <>
@@ -300,9 +341,6 @@ function RuleControls({
           fullWidth
         />
       ) : null}
-      <IconButton aria-label={`Remove the rule for ${rule.match || 'a new rule'}`} onClick={onRemove} sx={{ flexShrink: 0 }}>
-        <DeleteIcon fontSize="small" />
-      </IconButton>
     </>
   );
 }
@@ -313,6 +351,7 @@ function RulesField({ field, config, onChange }: ControlProps) {
   const rules = asRules(readPath(config, field.key));
   const suggestions = field.suggestions ?? [];
   const [draft, setDraft] = useState('');
+  const [pending, setPending] = useState<number | null>(null);
 
   const write = (next: SpeechRule[]) => onChange(field.key, next);
   const patch = (index: number, change: Partial<SpeechRule>) => {
@@ -326,6 +365,15 @@ function RulesField({ field, config, onChange }: ControlProps) {
     next[index] = merged;
     write(next);
   };
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= rules.length) return;
+    const next = rules.slice();
+    const [item] = next.splice(index, 1);
+    if (!item) return;
+    next.splice(target, 0, item);
+    write(next);
+  };
   const add = () => {
     const match = draft.trim();
     if (!match) return;
@@ -334,6 +382,7 @@ function RulesField({ field, config, onChange }: ControlProps) {
     }
     setDraft('');
   };
+  const confirming = pending !== null ? rules[pending] : undefined;
 
   return (
     <Stack spacing={1.5}>
@@ -348,17 +397,25 @@ function RulesField({ field, config, onChange }: ControlProps) {
 
       {stacked
         ? rules.map((rule, index) => (
-            <Paper key={`${rule.match}-${index}`} variant="outlined" sx={{ p: 1.5 }}>
-              <Stack spacing={1.25}>
-                <RuleControls
+            <Paper key={`${rule.match}-${index}`} variant="outlined" sx={{ p: 1.25 }}>
+              <Stack direction="row" spacing={1.25} sx={{ alignItems: 'flex-start' }}>
+                <RuleOrder
                   rule={rule}
-                  suggestions={suggestions}
-                  stacked
-                  onMatch={(value) => patch(index, { match: value })}
-                  onMode={(mode) => patch(index, { mode })}
-                  onSay={(say) => patch(index, { say })}
-                  onRemove={() => write(rules.filter((_rule, position) => position !== index))}
+                  index={index}
+                  count={rules.length}
+                  onMove={(direction) => move(index, direction)}
+                  onRemove={() => setPending(index)}
                 />
+                <Stack spacing={1.25} sx={{ flex: 1, minWidth: 0 }}>
+                  <RuleFields
+                    rule={rule}
+                    suggestions={suggestions}
+                    stacked
+                    onMatch={(value) => patch(index, { match: value })}
+                    onMode={(mode) => patch(index, { mode })}
+                    onSay={(say) => patch(index, { say })}
+                  />
+                </Stack>
               </Stack>
             </Paper>
           ))
@@ -367,10 +424,10 @@ function RulesField({ field, config, onChange }: ControlProps) {
               <Table size="small" sx={{ '& td, & th': { verticalAlign: 'top', py: 1 } }}>
                 <TableHead>
                   <TableRow>
-                    <TableCell sx={{ width: '34%' }}>Match</TableCell>
-                    <TableCell sx={{ width: 168 }}>Then</TableCell>
+                    <TableCell sx={{ width: 48, pr: 0 }} />
+                    <TableCell sx={{ width: '32%' }}>Match</TableCell>
+                    <TableCell sx={{ width: 160 }}>Then</TableCell>
                     <TableCell>Response</TableCell>
-                    <TableCell sx={{ width: 56 }} />
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -387,24 +444,33 @@ function RulesField({ field, config, onChange }: ControlProps) {
                         <Box
                           sx={{
                             display: 'grid',
-                            gridTemplateColumns: 'minmax(0, 34fr) minmax(0, 22fr) minmax(0, 40fr) 56px',
+                            gridTemplateColumns: '48px minmax(0, 32fr) minmax(0, 21fr) minmax(0, 40fr)',
                             gap: 1,
                             alignItems: 'start',
-                            px: 2,
+                            pl: 1,
+                            pr: 2,
                             py: 1,
                             borderTop: index === 0 ? 0 : '1px solid',
                             borderColor: 'divider',
                           }}
                         >
-                          <RuleControls
+                          <RuleOrder
                             rule={rule}
-                            suggestions={suggestions}
-                            stacked={false}
-                            onMatch={(value) => patch(index, { match: value })}
-                            onMode={(mode) => patch(index, { mode })}
-                            onSay={(say) => patch(index, { say })}
-                            onRemove={() => write(rules.filter((_rule, position) => position !== index))}
+                            index={index}
+                            count={rules.length}
+                            onMove={(direction) => move(index, direction)}
+                            onRemove={() => setPending(index)}
                           />
+                          <Box sx={{ display: 'contents' }}>
+                            <RuleFields
+                              rule={rule}
+                              suggestions={suggestions}
+                              stacked={false}
+                              onMatch={(value) => patch(index, { match: value })}
+                              onMode={(mode) => patch(index, { mode })}
+                              onSay={(say) => patch(index, { say })}
+                            />
+                          </Box>
                         </Box>
                       </TableCell>
                     </TableRow>
@@ -438,6 +504,35 @@ function RulesField({ field, config, onChange }: ControlProps) {
           Add
         </Button>
       </Stack>
+
+      <Dialog open={pending !== null} onClose={() => setPending(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Remove this rule?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {confirming
+              ? `“${confirming.match}” → ${
+                  confirming.mode === 'silent'
+                    ? 'stay quiet'
+                    : confirming.mode === 'custom'
+                      ? `say “${confirming.say ?? ''}”`
+                      : 'speak it'
+                }. The rules below it keep their order.`
+              : ''}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPending(null)}>Keep it</Button>
+          <Button
+            color="error"
+            onClick={() => {
+              if (pending !== null) write(rules.filter((_rule, position) => position !== pending));
+              setPending(null);
+            }}
+          >
+            Remove
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Stack>
   );
 }
