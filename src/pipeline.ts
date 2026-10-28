@@ -14,7 +14,7 @@ import { ACTION_VERBS } from './actions.js';
 import { getCatalog, homeSignature } from './catalog.js';
 import { directStatePlan } from './answer.js';
 import { looksLikeChatter } from './chatter.js';
-import { humanTarget, interpolateSpeech, ruleFor } from './speech.js';
+import { actionPhrase, humanTarget, interpolateSpeech, ruleFor } from './speech.js';
 import { cachedDecision, decisionKey, isQuestion, rememberDecision } from './decidecache.js';
 import { loadConfig, ROUTER_MODEL, type Config } from './config.js';
 import { extract } from './extract.js';
@@ -480,6 +480,7 @@ export async function handleChatCompletions(
       const call = message.tool_call_id ? issuedCalls.get(message.tool_call_id) : undefined;
       return {
         message,
+        args: call?.args,
         call: { tool: call?.tool, domain: call?.domain, action: call?.action, targets: call?.targets },
       };
     });
@@ -497,9 +498,12 @@ export async function handleChatCompletions(
       const rule = ruled[index];
       if (rule?.mode === 'silent') return '';
       if (rule?.mode === 'custom') {
-        return interpolateSpeech(rule.say ?? '', {
+        const template = rule.say ?? '';
+        const spokenItem = spokenItemOf(item.args);
+        return interpolateSpeech(template, {
           entity: humanTarget(item.call.targets),
-          action: actionVerb(item.call.action),
+          action: actionPhrase(item.call.action, template, spokenItem),
+          item: spokenItem,
         });
       }
       // An explicit "speak" outranks the default, which is the point of the rule.
@@ -687,6 +691,7 @@ function emitToolCall(
       targets: call.targets,
       ...(call.domain ? { domain: call.domain } : {}),
       tool: call.tool,
+      args: call.args,
       at: Date.now(),
     });
     return { id, name: call.tool, args: JSON.stringify(call.args) };
@@ -698,6 +703,12 @@ function emitToolCall(
 function actionVerb(action: string | undefined): string {
   if (!action) return '';
   return ACTION_VERBS[action] ?? action.replace(/_/g, ' ');
+}
+
+/** The free-text item a list call carries, so "Added Milk" can name it. */
+function spokenItemOf(args: Record<string, unknown> | undefined): string {
+  const raw = args?.item ?? args?.text ?? args?.search_query;
+  return typeof raw === 'string' ? raw.trim() : '';
 }
 
 /** A short, readable identity for a round of calls, used in the trace reason. */

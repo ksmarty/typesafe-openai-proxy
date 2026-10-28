@@ -311,9 +311,9 @@ export function settingsGroups(): SettingsGroup[] {
       fields: [
         {
           key: 'speech.rules',
-          label: 'Who gets a reply',
+          label: 'Rules',
           type: 'rules',
-          help: 'Top to bottom, first match wins. A match is an intent (HassTurnOn), a domain and action (todo.add), a domain (light), an action (turn_on) or a whole domain with .* (todo.*). Anything not listed here falls through to the default below.',
+          help: 'First match wins. The match is an intent (HassTurnOn), a domain and action (todo.add_item), a domain (light), an action (turn_on) or every action of a domain (todo.*). Anything not listed falls through to the default below.',
           suggestions: speechSuggestions(),
         },
         {

@@ -393,7 +393,7 @@ then does one of three things:
 | --- | --- |
 | **Speak it** | Home Assistant's own response, or the template — the default behaviour, forced for this call |
 | **Stay quiet** | nothing; `speech.silence` is sent so no TTS job starts |
-| **Say this…** | your sentence, with `{action}` and `{entity}` filled in — e.g. `{action} the {entity}.` becomes "Turned on the Desk Lamp." |
+| **Say this…** | your sentence, with `{action}`, `{entity}` and `{item}` filled in — e.g. `{action} the {entity}.` becomes "Turned on the Desk Lamp.", and `{action} {entity}.` for `todo.add_item` becomes "Added Milk to Shopping List." |
 
 **Speak it** and a custom sentence both override *Stay quiet* as the default, which is how you keep a
 shopping list audible in an otherwise silent house. Anything with no matching rule follows

@@ -234,9 +234,9 @@ export const ACTION_VERBS: Record<string, string> = {
   search_and_play: 'Playing that on',
   set_humidity: 'Set the humidity of',
   set_mode: 'Changed the mode of',
-  add_item: 'Added that to',
-  complete_item: 'Ticked that off',
-  remove_item: 'Removed that from',
+  add_item: 'Added',
+  complete_item: 'Ticked',
+  remove_item: 'Removed',
 };
 
 /** Domain -> human label, used for question options and clarifications. */

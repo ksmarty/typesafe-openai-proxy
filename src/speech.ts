@@ -74,13 +74,47 @@ export function humanTarget(targets: string[] | undefined): string {
     .trim();
 }
 
-/** Fill `{entity}` and `{action}` in a custom sentence. */
+/**
+ * The preposition a verb needs before the thing it acts on: "Added Milk **to** Shopping List",
+ * "Ticked Milk **off** Shopping List", "Removed Milk **from** Shopping List".
+ *
+ * It is only emitted when the sentence goes on to name the target, so "Added Milk." does not
+ * trail a dangling "to".
+ */
+const PREPOSITION: Record<string, string> = {
+  add_item: 'to',
+  complete_item: 'off',
+  remove_item: 'from',
+};
+
+/** Verbs whose object is the list item, not the list: the item reads better inside the phrase. */
+const ITEM_IN_PHRASE = new Set(['add_item', 'complete_item', 'remove_item']);
+
+/** `Todo.add_item` + `{action} {entity}.` -> `Added Milk to`. */
+export function actionPhrase(
+  action: string | undefined,
+  template: string,
+  item?: string,
+): string {
+  const key = (action ?? '').trim();
+  const verb = ACTION_VERBS[key] ?? key.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase());
+  if (!ITEM_IN_PHRASE.has(key)) return verb;
+  // The sentence names the item itself, so the verb stays bare and no preposition is added twice.
+  if (/\{item\}/i.test(template)) return verb;
+  const said = (item ?? '').trim();
+  const withItem = said ? `${verb} ${said}` : verb;
+  const preposition = PREPOSITION[key];
+  return preposition && /\{entity\}/i.test(template) ? `${withItem} ${preposition}` : withItem;
+}
+
+/** Fill `{action}`, `{entity}` and `{item}` in a custom sentence. */
 export function interpolateSpeech(
   template: string,
-  values: { entity?: string; action?: string },
+  values: { entity?: string; action?: string; item?: string },
 ): string {
   return template
     .replace(/\{entity\}/gi, values.entity ?? '')
+    .replace(/\{item\}/gi, values.item ?? '')
     .replace(/\{action\}/gi, values.action ?? '')
     .replace(/\s+/g, ' ')
     .trim();
@@ -160,8 +194,11 @@ export function samplePairFor(match: string): { domain: string; action: string }
 export function previewForRule(rule: SpeechRule): string {
   if (rule.mode !== 'custom') return '';
   const { domain, action } = samplePairFor(rule.match);
+  const entityId = SAMPLE_ENTITY[domain] ?? `${domain}.example`;
+  const item = domain === 'todo' ? 'Milk' : '';
   return interpolateSpeech(rule.say ?? '', {
-    action: ACTION_VERBS[action] ?? action.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()),
-    entity: humanTarget([SAMPLE_ENTITY[domain] ?? `${domain}.example`]),
+    action: actionPhrase(action, rule.say ?? '', item),
+    entity: humanTarget([entityId]),
+    item,
   });
 }

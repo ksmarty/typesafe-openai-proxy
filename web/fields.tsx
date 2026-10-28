@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
+import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
@@ -31,6 +32,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import KeyIcon from '@mui/icons-material/Key';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import { monoFont } from './theme.js';
 
 import type { SettingsField } from '../src/schema.js';
 import { previewForRule } from '../src/speech.js';
@@ -514,6 +516,30 @@ function RulesField({ field, config, onChange }: ControlProps) {
         <Button onClick={add} startIcon={<AddIcon />} disabled={!draft.trim()} sx={{ flexShrink: 0, minWidth: 96, height: 40 }}>
           Add
         </Button>
+      </Stack>
+
+      <Stack
+        direction="row"
+        useFlexGap
+        spacing={1}
+        sx={{ flexWrap: 'wrap', alignItems: 'center', pt: 0.5, rowGap: 0.75 }}
+      >
+        <Typography variant="caption" color="text.secondary">
+          Substitutions:
+        </Typography>
+        {[
+          { token: '{action}', sample: 'Turned on' },
+          { token: '{entity}', sample: 'Shopping List' },
+          { token: '{item}', sample: 'Milk' },
+        ].map((entry) => (
+          <Chip
+            key={entry.token}
+            size="small"
+            variant="outlined"
+            label={`${entry.token} = ${entry.sample}`}
+            sx={{ fontFamily: monoFont, fontSize: 11.5, maxWidth: '100%' }}
+          />
+        ))}
       </Stack>
 
       <Dialog open={pending !== null} onClose={() => setPending(null)} maxWidth="xs" fullWidth>

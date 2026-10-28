@@ -4,7 +4,7 @@ import test from 'node:test';
 import { clearCatalogCache } from '../src/catalog.js';
 import { defaultConfig, type Config } from '../src/config.js';
 import { handleChatCompletions } from '../src/pipeline.js';
-import { descriptorsOf, humanTarget, interpolateSpeech, previewForRule, ruleFor, ruleMode, samplePairFor } from '../src/speech.js';
+import { actionPhrase, descriptorsOf, humanTarget, interpolateSpeech, previewForRule, ruleFor, ruleMode, samplePairFor } from '../src/speech.js';
 import { issuedCalls, pendingConfirmations } from '../src/state.js';
 import type { OpenAITool } from '../src/types.js';
 
@@ -223,8 +223,15 @@ test('ruleFor returns the whole rule, so a custom sentence survives the lookup',
 test('a custom sentence previews what the substitutions produce', () => {
   assert.equal(previewForRule({ match: 'light', mode: 'custom', say: '{action} the {entity}.' }), 'Turned on the Desk Lamp.');
   assert.equal(previewForRule({ match: 'todo.add', mode: 'custom', say: '{entity} updated.' }), 'Shopping List updated.');
-  assert.equal(previewForRule({ match: 'todo.*', mode: 'custom', say: '{action} {entity}.' }), 'Added that to Shopping List.');
-  assert.equal(previewForRule({ match: 'todo.add_item', mode: 'custom', say: '{action} {entity}.' }), 'Added that to Shopping List.');
+  assert.equal(previewForRule({ match: 'todo.*', mode: 'custom', say: '{action} {entity}.' }), 'Added Milk to Shopping List.');
+  assert.equal(previewForRule({ match: 'todo.add_item', mode: 'custom', say: '{action} {entity}.' }), 'Added Milk to Shopping List.');
+  assert.equal(previewForRule({ match: 'todo.add_item', mode: 'custom', say: '{action}.' }), 'Added Milk.');
+  assert.equal(previewForRule({ match: 'todo.complete_item', mode: 'custom', say: '{action} {entity}.' }), 'Ticked Milk off Shopping List.');
+  // The sentence places the item itself, so the verb must not repeat it.
+  assert.equal(
+    previewForRule({ match: 'todo.add_item', mode: 'custom', say: '{action} {item} to {entity}.' }),
+    'Added Milk to Shopping List.',
+  );
   assert.equal(previewForRule({ match: 'HassTurnOn', mode: 'custom', say: '{action} {entity}.' }), 'Turned on Desk Lamp.');
 });
 
@@ -236,5 +243,6 @@ test('a preview only exists for a custom sentence', () => {
 
 test('an unknown match still previews something plausible', () => {
   assert.equal(previewForRule({ match: '', mode: 'custom', say: '{action} {entity}.' }), 'Turned on Desk Lamp.');
+  assert.equal(actionPhrase('add_item', '{action} {entity}.', ''), 'Added to');
   assert.equal(samplePairFor('light').domain, 'light');
 });
