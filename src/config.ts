@@ -80,6 +80,11 @@ export interface Config {
      * `empty`    - say nothing.
      */
     afterTool: 'upstream' | 'template' | 'empty';
+    /**
+     * What to send when the answer is "say nothing". Assist speaks whatever text comes back,
+     * so a pause marker is how you get silence rather than a stray empty TTS job.
+     */
+    silence: string;
     /** Seconds a confirmation question stays armed. */
     confirmSeconds: number;
     /** Per-language templates, `{entity}` and `{action}` are substituted. */
@@ -172,7 +177,12 @@ export function defaultConfig(): Config {
       maxEntities: 400,
     },
     routing: { enabled: true, thresholds: { ...DEFAULT_THRESHOLDS }, traceLimit: 50 },
-    speech: { afterTool: 'template', confirmSeconds: 90, templates: structuredClone(DEFAULT_TEMPLATES) },
+    speech: {
+      afterTool: 'template',
+      confirmSeconds: 90,
+      silence: '[pause:1.5s]',
+      templates: structuredClone(DEFAULT_TEMPLATES),
+    },
     catalog: { haUrl: '', haToken: '', cacheMs: 30000, defaultArea: '', exposedOnly: true },
     upstream: { baseUrl: '', apiKey: '', apiKeyFromDecision: false, model: '', timeoutMs: 120000 },
   };

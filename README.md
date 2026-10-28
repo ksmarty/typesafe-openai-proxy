@@ -361,6 +361,17 @@ Home Assistant's aliases are read and used, on both sides of a decision:
 Aliases come from the registry, so they need `HA_URL` + `HA_TOKEN` to be authoritative. The prompt
 parser picks up aliases when Home Assistant renders them, which not every version does.
 
+## Speech after a tool call
+
+`Settings → Speech → After a tool runs` decides what Assist says once Home Assistant has run the
+intent:
+
+- **Speak it locally (fastest)** — template sentences, no second model call.
+- **Let the model phrase it** — the tool result goes back to your model server for prose.
+- **Say nothing** — no second model call and no speech. Assist speaks whatever text comes back, so
+  this sends `speech.silence` instead of an empty string; the default is `[pause:1.5s]`, which the
+  speech pipeline renders as silence. Change it if you want a longer or shorter pause.
+
 ## Endpoints
 
 | path | purpose |

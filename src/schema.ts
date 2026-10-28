@@ -311,6 +311,12 @@ export function settingsGroups(): SettingsGroup[] {
           help: 'Home Assistant\'s own intent response is preferred when it carries speech; these templates are the fallback.',
         },
         {
+          key: 'speech.silence',
+          label: 'Silence for "Say nothing"',
+          type: 'text',
+          help: 'Text sent when no speech should be heard. Assist speaks whatever comes back, so a pause marker such as [pause:1.5s] is how the pipeline stays quiet.',
+        },
+        {
           key: 'speech.confirmSeconds',
           label: 'Confirmation stays armed for',
           type: 'number',

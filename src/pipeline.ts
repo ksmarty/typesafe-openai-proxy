@@ -478,7 +478,19 @@ export async function handleChatCompletions(
       return;
     }
     if (active.speech.afterTool === 'empty') {
-      respondText(options(), '', response);
+      // An empty string still starts a TTS job in some pipelines; a pause marker is silence.
+      const silence = active.speech.silence || '';
+      rememberTrace({
+        id: uid('trace'),
+        at: Date.now(),
+        utterance: '',
+        route: 'text',
+        reason: `silent by choice (speech.afterTool = "empty", sent "${silence}")`,
+        gates: [],
+        backend: 'speech',
+        ...(toolMessage.tool_call_id ? { tool: toolMessage.tool_call_id } : {}),
+      });
+      respondText(options(), silence, response);
       return;
     }
     if (toolMessage) {

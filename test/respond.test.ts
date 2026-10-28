@@ -291,3 +291,63 @@ test('a tool result from an earlier turn is not mistaken for the current one', a
   // No upstream is configured here, so the proxy forwards rather than inventing an answer.
   assert.match(state.body, /model server|needs your model|forwarded/i);
 });
+
+test('"say nothing" sends the configured pause instead of an empty TTS job', async () => {
+  clearCatalogCache();
+  pendingConfirmations.clear();
+  issuedCalls.clear();
+
+  const { state, response } = fakeResponse();
+  const callId = 'call_test_silent';
+  issuedCalls.set(callId, { action: 'turn_on', targets: ['light.desk_lamp'], domain: 'light', at: Date.now() });
+
+  await handleChatCompletions(
+    {
+      model: 'm',
+      stream: false,
+      tools: TOOLS,
+      messages: [
+        { role: 'system', content: PROMPT },
+        { role: 'user', content: 'turn on the desk lamp' },
+        { role: 'assistant', content: '', tool_calls: [{ id: callId, type: 'function', function: { name: 'HassTurnOn', arguments: '{"name":"light.desk_lamp"}' } }] },
+        { role: 'tool', tool_call_id: callId, content: '{"speech":{"plain":{"speech":"Turned on the desk lamp."}}}' },
+      ],
+    } as never,
+    JSON.stringify({}),
+    response,
+    config({ afterTool: 'empty' }),
+  );
+
+  const body = JSON.parse(state.body) as { choices: { message: { content: string } }[] };
+  assert.equal(body.choices[0]?.message.content, '[pause:1.5s]');
+});
+
+test('the pause is configurable, so a longer silence stays a setting', async () => {
+  clearCatalogCache();
+  pendingConfirmations.clear();
+  issuedCalls.clear();
+
+  const { state, response } = fakeResponse();
+  const callId = 'call_test_silent_2';
+  issuedCalls.set(callId, { action: 'turn_on', targets: ['light.desk_lamp'], domain: 'light', at: Date.now() });
+
+  await handleChatCompletions(
+    {
+      model: 'm',
+      stream: false,
+      tools: TOOLS,
+      messages: [
+        { role: 'system', content: PROMPT },
+        { role: 'user', content: 'turn on the desk lamp' },
+        { role: 'assistant', content: '', tool_calls: [{ id: callId, type: 'function', function: { name: 'HassTurnOn', arguments: '{"name":"light.desk_lamp"}' } }] },
+        { role: 'tool', tool_call_id: callId, content: '{"speech":{"plain":{"speech":"Turned on the desk lamp."}}}' },
+      ],
+    } as never,
+    JSON.stringify({}),
+    response,
+    config({ afterTool: 'empty', silence: '[pause:3s]' }),
+  );
+
+  const body = JSON.parse(state.body) as { choices: { message: { content: string } }[] };
+  assert.equal(body.choices[0]?.message.content, '[pause:3s]');
+});
