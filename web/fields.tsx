@@ -344,7 +344,10 @@ function RuleFields({
           />
           {rule.mode === 'custom' ? (
             <Typography variant="caption" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
-              Says: “‘{previewForRule(rule)}’”
+              Says:{' '}
+              <Box component="em" sx={{ fontStyle: 'italic', color: 'text.primary' }}>
+                {previewForRule(rule)}
+              </Box>
             </Typography>
           ) : null}
         </Stack>

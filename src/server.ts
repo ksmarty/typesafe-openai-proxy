@@ -41,6 +41,7 @@ import { breakerState, listModels, resetBreaker, warmDecision } from './systemon
 import { configureDecisionCache, decisionCachePath, decisionCacheSize } from './decidecache.js';
 import { ensureUiBundle } from './ui.js';
 import { fetchWithTimeout, uid } from './util.js';
+import { appVersion } from './version.js';
 import type { Config } from './config.js';
 import type { Catalog, OpenAIChatRequest, TraceEntry } from './types.js';
 
@@ -135,24 +136,6 @@ function activeEnvOverrides(): string[] {
   return keys.filter((key) => Boolean(process.env[key]));
 }
 
-/** The package version, from the manifest that sits next to dist/ or src/. */
-let versionCache: string | null = null;
-
-/** Read the manifest once and remember it, so status can name the build it is. */
-export async function primeVersion(): Promise<string> {
-  versionCache = await packageVersion();
-  return versionCache;
-}
-
-async function packageVersion(): Promise<string> {
-  try {
-    const raw = await readFile(new URL('../package.json', import.meta.url), 'utf8');
-    return (JSON.parse(raw) as { version?: string }).version ?? 'unknown';
-  } catch {
-    return 'unknown';
-  }
-}
-
 /** Environment variables the proxy honours: names always, values only where they are not secrets. */
 function environment(): Record<string, string> {
   const out: Record<string, string> = {};
@@ -175,7 +158,7 @@ function statusPayload(): Record<string, unknown> {
     ok: true,
     product: 'typesafe-routing-proxy',
     // Which build is answering. Without it, "the fix is not there" is unanswerable.
-    version: versionCache ?? 'unknown',
+    version: appVersion(),
     uptimeSeconds: Math.round((Date.now() - startedAt) / 1000),
     config: publicConfig(),
     configPath: configPath(),
@@ -268,7 +251,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
       generatedAt: new Date().toISOString(),
       meta: {
         product: 'typesafe-routing-proxy',
-        version: await packageVersion(),
+        version: appVersion(),
         node: process.version,
         platform: `${process.platform}/${process.arch}`,
         pid: process.pid,
@@ -678,8 +661,7 @@ export function startServer(options?: Partial<ServeOptions>) {
   const server = createApp();
   server.listen(port, host, async () => {
     installLogCapture();
-    await primeVersion();
-    note(`listening on http://${host}:${port} (version from package.json, captured for /api/debug/bundle)`);
+    note(`listening on http://${host}:${port} (version ${appVersion()}, re-read from package.json on each status call)`);
     process.stdout.write(`typesafe routing proxy listening on http://${host}:${port}\n`);
     process.stdout.write(`  hass_local_openai_llm -> http://<this-host>:${port}/v1\n`);
     process.stdout.write(`  dashboard            -> http://<this-host>:${port}/\n`);
