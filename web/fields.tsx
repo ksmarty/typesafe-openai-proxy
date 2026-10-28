@@ -18,7 +18,7 @@ import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
 import type { SettingsField } from '../src/schema.js';
 import { generateToken } from '../src/token.js';
-import { asNumber, asString, asTemplates, readPath, writePath, type Config } from './config';
+import { asNumber, asRules, asString, asTemplates, readPath, writePath, type Config, type SpeechRule } from './config';
 import { fixed } from './format';
 
 interface ControlProps {
@@ -230,11 +230,111 @@ function TemplateField({ field, config, onChange }: ControlProps) {
   );
 }
 
+function RulesField({ field, config, onChange }: ControlProps) {
+  const rules = asRules(readPath(config, field.key));
+  const [draft, setDraft] = useState('');
+  const write = (next: SpeechRule[]) => onChange(field.key, next);
+  const add = () => {
+    const match = draft.trim();
+    if (!match) return;
+    if (rules.some((rule) => rule.match.toLowerCase() === match.toLowerCase())) {
+      setDraft('');
+      return;
+    }
+    write([...rules, { match, mode: 'silent' }]);
+    setDraft('');
+  };
+
+  return (
+    <Stack spacing={1.5}>
+      <Typography variant="body2" component="label">
+        {field.label}
+      </Typography>
+      {field.help ? (
+        <Typography variant="caption" color="text.secondary">
+          {field.help}
+        </Typography>
+      ) : null}
+      {rules.length === 0 ? (
+        <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+          No rules yet — every finished action says what it did.
+        </Typography>
+      ) : null}
+      {rules.map((rule, index) => (
+        <Stack
+          key={`${rule.match}-${index}`}
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: 'center', flexWrap: { xs: 'wrap', sm: 'nowrap' } }}
+        >
+          <TextField
+            label="Match"
+            value={rule.match}
+            size="small"
+            placeholder="light, HassTurnOn, todo.add"
+            onChange={(event) => {
+              const next = rules.slice();
+              next[index] = { ...rule, match: event.target.value };
+              write(next);
+            }}
+            sx={{ flex: 1, minWidth: 0 }}
+          />
+          <TextField
+            select
+            label="Then"
+            size="small"
+            value={rule.mode}
+            onChange={(event) => {
+              const next = rules.slice();
+              next[index] = { ...rule, mode: event.target.value === 'silent' ? 'silent' : 'speak' };
+              write(next);
+            }}
+            sx={{ width: { xs: '100%', sm: 148 }, flexShrink: 0 }}
+          >
+            <MenuItem value="silent">Stay quiet</MenuItem>
+            <MenuItem value="speak">Speak the result</MenuItem>
+          </TextField>
+          <IconButton
+            aria-label={`Remove the rule for ${rule.match}`}
+            onClick={() => write(rules.filter((_rule, position) => position !== index))}
+            sx={{ flexShrink: 0 }}
+          >
+            <DeleteIcon fontSize="small" />
+          </IconButton>
+        </Stack>
+      ))}
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
+        <TextField
+          label="Add a rule"
+          value={draft}
+          size="small"
+          placeholder="vacuum, media_player, todo.*"
+          helperText="Intent, domain.action, domain or action. First match wins."
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') add();
+          }}
+          sx={{ flex: 1, minWidth: 0 }}
+        />
+        <Button
+          onClick={add}
+          startIcon={<AddIcon />}
+          disabled={!draft.trim()}
+          sx={{ flexShrink: 0, minWidth: 96, height: 40 }}
+        >
+          Add
+        </Button>
+      </Stack>
+    </Stack>
+  );
+}
+
 export function FieldControl(props: ControlProps) {
   const { field, config, onChange } = props;
 
   if (field.type === 'slider') return <SliderField {...props} />;
   if (field.type === 'templates') return <TemplateField {...props} />;
+  if (field.type === 'rules') return <RulesField {...props} />;
 
   if (field.type === 'checkbox') {
     return (

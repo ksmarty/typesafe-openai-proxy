@@ -32,7 +32,7 @@ export const pendingConfirmations = new Map<string, PendingConfirmation>();
 /** Tool calls we issued, so the follow-up round can be spoken locally. */
 export const issuedCalls = new Map<
   string,
-  { action: string; targets: string[]; domain?: string; at: number }
+  { action: string; targets: string[]; domain?: string; tool?: string; at: number }
 >();
 
 /** Both maps are pruned when they grow past this, so a long-running proxy cannot leak. */

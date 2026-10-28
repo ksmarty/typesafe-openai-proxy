@@ -12,6 +12,7 @@ import type { ServerResponse } from 'node:http';
 import { getCatalog, homeSignature } from './catalog.js';
 import { directStatePlan } from './answer.js';
 import { looksLikeChatter } from './chatter.js';
+import { ruleMode } from './speech.js';
 import { cachedDecision, decisionKey, isQuestion, rememberDecision } from './decidecache.js';
 import { loadConfig, ROUTER_MODEL, type Config } from './config.js';
 import { extract } from './extract.js';
@@ -242,9 +243,8 @@ export async function runPipeline(
     questionsMs += Date.now() - questionsStarted;
 
     // A repeated sentence against an unchanged house does not need another model round trip.
-    const cacheMs = active.decision.cacheSeconds * 1000;
     const key =
-      cacheMs > 0 && !isQuestion(text)
+      active.decision.cache && !isQuestion(text)
         ? decisionKey({
             utterance: text,
             language: languageOf(request),
@@ -255,7 +255,7 @@ export async function runPipeline(
             homeSignature: homeSignature(catalog),
           })
         : '';
-    const remembered = key ? cachedDecision(key, cacheMs) : null;
+    const remembered = key ? cachedDecision(key) : null;
 
     const decision =
       remembered ??
@@ -473,19 +473,28 @@ export async function handleChatCompletions(
   const toolMessages = trailingTools;
   const toolMessage = trailingTools[trailingTools.length - 1];
   if (toolMessage) {
-    if (active.speech.afterTool === 'upstream') {
-      await forwardUpstream(request, rawBody, response, override);
-      return;
-    }
-    if (active.speech.afterTool === 'empty') {
-      // An empty string still starts a TTS job in some pipelines; a pause marker is silence.
-      const silence = active.speech.silence || '';
+    // Per-call policy first. A rule can silence a lamp and leave the shopping list speaking,
+    // which is the whole point: one setting for every intent was too blunt.
+    const described = toolMessages.map((message) => {
+      const call = message.tool_call_id ? issuedCalls.get(message.tool_call_id) : undefined;
+      return { message, call: { tool: call?.tool, domain: call?.domain, action: call?.action } };
+    });
+    const modes = described.map(({ call }) => {
+      const ruled = ruleMode(active.speech.rules, call);
+      if (ruled) return ruled;
+      return active.speech.afterTool === 'empty' ? 'silent' : 'speak';
+    });
+    const speaking = described.filter((_item, index) => modes[index] !== 'silent');
+    const silentAll = speaking.length === 0;
+    const silence = active.speech.silence || '';
+    // An empty string still starts a TTS job in some pipelines; a pause marker is silence.
+    if (silentAll) {
       rememberTrace({
         id: uid('trace'),
         at: Date.now(),
         utterance: '',
         route: 'text',
-        reason: `silent by choice (speech.afterTool = "empty", sent "${silence}")`,
+        reason: `silent by rule (${describeRules(described.map((item) => item.call))}, sent "${silence}")`,
         gates: [],
         backend: 'speech',
         ...(toolMessage.tool_call_id ? { tool: toolMessage.tool_call_id } : {}),
@@ -493,30 +502,37 @@ export async function handleChatCompletions(
       respondText(options(), silence, response);
       return;
     }
-    if (toolMessage) {
-      rememberTrace({
-        id: uid('trace'),
-        at: Date.now(),
-        utterance: '',
-        route: 'text',
-        reason: `answered from Home Assistant's tool result (speech.afterTool = "${active.speech.afterTool}")`,
-        gates: [],
-        backend: 'speech',
-        ...(toolMessage.tool_call_id ? { tool: toolMessage.tool_call_id } : {}),
-      });
+    // "Let the model phrase it" still forwards, unless a rule silenced part of the round —
+    // one spoken reply cannot be half-forwarded.
+    if (active.speech.afterTool === 'upstream' && speaking.length === toolMessages.length) {
+      await forwardUpstream(request, rawBody, response, override);
+      return;
     }
+    const spokenFor = speaking.length;
+    rememberTrace({
+      id: uid('trace'),
+      at: Date.now(),
+      utterance: '',
+      route: 'text',
+      reason: `answered from Home Assistant's tool result (speech.afterTool = "${active.speech.afterTool}"${
+        spokenFor < toolMessages.length ? `, ${toolMessages.length - spokenFor} of them silent by rule` : ''
+      })`,
+      gates: [],
+      backend: 'speech',
+      ...(toolMessage.tool_call_id ? { tool: toolMessage.tool_call_id } : {}),
+    });
     const text =
-      toolMessages.length > 1
+      spokenFor > 1
         ? speechForToolRound(
-            toolMessages.map((message) => ({
+            speaking.map(({ message }) => ({
               ...(message.tool_call_id ? { callId: message.tool_call_id } : {}),
               content: textOf(message.content),
             })),
             languageOf(request),
           )
         : speechForLastTool(
-            toolMessage.tool_call_id,
-            textOf(toolMessage.content) || undefined,
+            speaking[0]?.message.tool_call_id,
+            textOf(speaking[0]?.message.content) || undefined,
             languageOf(request),
           );
     respondText(options(), text || 'Done.', response);
@@ -664,9 +680,16 @@ function emitToolCall(
       action: call.action,
       targets: call.targets,
       ...(call.domain ? { domain: call.domain } : {}),
+      tool: call.tool,
       at: Date.now(),
     });
     return { id, name: call.tool, args: JSON.stringify(call.args) };
   });
   respondToolCalls(options, prepared, response);
+}
+
+/** A short, readable identity for a round of calls, used in the trace reason. */
+function describeRules(calls: { tool?: string; domain?: string; action?: string }[]): string {
+  const names = calls.map((call) => call.tool ?? [call.domain, call.action].filter(Boolean).join('.') ?? 'call');
+  return names.length > 1 ? `${names.length} calls: ${names.join(', ')}` : names[0] ?? 'no call';
 }

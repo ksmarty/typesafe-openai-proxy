@@ -2,7 +2,22 @@ import assert from 'node:assert/strict';
 import { createServer, type Server } from 'node:http';
 import { test } from 'node:test';
 
-import { clearDecisionCache, decisionCacheSize, isQuestion } from '../src/decidecache.js';
+import {
+  cachedDecision,
+  clearDecisionCache,
+  configureDecisionCache,
+  decisionCachePath,
+  decisionCacheSize,
+  decisionKey,
+  isQuestion,
+  loadDecisionCache,
+  rememberDecision,
+  saveDecisionCache,
+} from '../src/decidecache.js';
+import { existsSync, mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { clearCatalogCache } from '../src/catalog.js';
 import { defaultConfig } from '../src/config.js';
 import { handleChatCompletions } from '../src/pipeline.js';
@@ -155,7 +170,7 @@ async function ask(baseUrl: string, text: string): Promise<string> {
   const active = {
     ...config,
     catalog: { ...config.catalog, haUrl: '', haToken: '' },
-    decision: { ...config.decision, backend: 'systemone' as const, baseUrl, model: 'jev-test', cacheSeconds: 600 },
+    decision: { ...config.decision, backend: 'systemone' as const, baseUrl, model: 'jev-test', cache: true, persistCache: false },
   };
   clearCatalogCache();
   const body = {
@@ -217,4 +232,43 @@ test('a different sentence is a different decision', async () => {
   } finally {
     stub.stop();
   }
+});
+
+test('the cache survives a restart, because it lives in the data directory', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'trp-cache-'));
+  configureDecisionCache({ persist: true, directory: dir });
+  clearDecisionCache();
+  const key = 'key-for-a-sentence';
+  const value = { model: 'jev-test', answers: {}, inputTokens: 1, outputTokens: 1, latencyMs: 1, backend: 'systemone' as const };
+  rememberDecision(key, value);
+  saveDecisionCache();
+
+  // What a fresh process does: read the file back, keep nothing in memory that was not there.
+  const loaded = loadDecisionCache();
+  assert.equal(loaded, 1);
+  assert.deepEqual(cachedDecision(key)?.model, 'jev-test');
+  assert.equal(decisionCachePath().startsWith(dir), true);
+});
+
+test('a changed house is a different key, so nothing stale is served', () => {
+  const base = {
+    utterance: 'turn on the kitchen lights',
+    model: 'jev-test',
+    baseUrl: 'https://example.test/api',
+    questions: {} as never,
+  };
+  const before = decisionKey({ ...base, homeSignature: 'areas:a|entities:light.kitchen' });
+  const after = decisionKey({ ...base, homeSignature: 'areas:a|entities:light.kitchen,light.hall' });
+  const sameSentence = decisionKey({ ...base, homeSignature: 'areas:a|entities:light.kitchen' });
+  assert.notEqual(before, after, 'an added entity invalidates the entry');
+  assert.equal(before, sameSentence, 'the same house keeps the entry forever');
+});
+
+test('persistence can be turned off, and then nothing is written', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'trp-nocache-'));
+  configureDecisionCache({ persist: false, directory: dir });
+  clearDecisionCache();
+  rememberDecision('another-key', { model: 'x', answers: {}, inputTokens: 0, outputTokens: 0, latencyMs: 0, backend: 'systemone' });
+  saveDecisionCache();
+  assert.equal(existsSync(decisionCachePath()), false);
 });

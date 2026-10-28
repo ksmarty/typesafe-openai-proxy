@@ -38,6 +38,7 @@ import { jsonResponse } from './respond.js';
 import { secretOrStored, settingsGroups } from './schema.js';
 import { averageDecisionMs, pendingConfirmations, rememberRequest, rememberTrace, requestLog, routableShare, startedAt, stats, trace } from './state.js';
 import { breakerState, listModels, resetBreaker, warmDecision } from './systemone.js';
+import { configureDecisionCache, decisionCachePath, decisionCacheSize } from './decidecache.js';
 import { ensureUiBundle } from './ui.js';
 import { fetchWithTimeout, uid } from './util.js';
 import type { Config } from './config.js';
@@ -186,6 +187,12 @@ function statusPayload(): Record<string, unknown> {
       fastPath: fastPathStatus(active),
       breaker: breakerState(),
       averageMs: averageDecisionMs(),
+      cache: {
+        enabled: active.decision.cache,
+        persisted: active.decision.persistCache,
+        entries: decisionCacheSize(),
+        path: decisionCachePath(),
+      },
     },
     catalog: {
       source: catalog?.source ?? 'none',
@@ -351,6 +358,7 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
     const parsed = await jsonBody(request) as Record<string, unknown>;
     const before = loadConfig();
     const { config, adjusted } = saveConfig(parsed);
+    configureDecisionCache({ persist: config.decision.persistCache });
     void warmDecision(config);
     const restartRequired = before.server.port !== config.server.port || before.server.host !== config.server.host;
     jsonResponse(response, 200, { ok: true, config: publicConfig(), adjusted, restartRequired });
@@ -688,6 +696,9 @@ export function startServer(options?: Partial<ServeOptions>) {
   // default 10 s SIGKILL timeout: stop accepting work, drop idle keep-alive
   // sockets, and take a hard exit if something (an open stream) lingers.
   startCatalogWarmer(loadConfig);
+  // Read back the decisions an earlier run saved: the key carries a signature of the exposed
+  // entities, so anything stale simply never matches.
+  configureDecisionCache({ persist: loadConfig().decision.persistCache });
   // Warm the decision connection too: the first command after a restart should not pay TLS.
   void warmDecision(loadConfig());
 

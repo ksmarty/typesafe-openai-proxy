@@ -55,7 +55,8 @@ function config(overrides: Partial<Config['speech']> = {}): Config {
     ...base,
     decision: { ...base.decision, backend: 'heuristic', baseUrl: '', historyTurns: 0, autoStart: true },
     catalog: { ...base.catalog, haUrl: '', haToken: '' },
-    speech: { ...base.speech, afterTool: 'template', ...overrides },
+    // No per-call rules here: these tests are about the template path itself.
+    speech: { ...base.speech, afterTool: 'template', rules: [], ...overrides },
   };
 }
 

@@ -372,6 +372,30 @@ intent:
   this sends `speech.silence` instead of an empty string; the default is `[pause:1.5s]`, which the
   speech pipeline renders as silence. Change it if you want a longer or shorter pause.
 
+### Per-intent speech
+
+One setting for every intent is too blunt: turning a lamp on does not need narrating, adding milk to
+a shopping list does. `Settings → Speech → Speak or stay quiet per intent` is an ordered rule list,
+first match wins, and each rule matches one of:
+
+| Written as | Matches |
+| --- | --- |
+| `HassTurnOn` | that intent, whatever domain it acts on |
+| `todo.add` | one domain and action pair |
+| `light` | every action on that domain |
+| `turn_on` | that action on every domain |
+| `todo.*` | every action on that domain (a trailing `.*` is a prefix) |
+
+Matching is case-insensitive and applies to the call the proxy issued, not to the sentence. A rule
+that says **Speak** overrides *Say nothing*, which is how you keep a shopping list audible while the
+house is otherwise quiet. Anything unmatched follows the setting above.
+
+The shipped default silences the on/off domains — `light`, `switch`, `fan`, `cover`, `climate`,
+`media_player` — and leaves everything else speaking, so a fresh install is quiet about the house
+and talkative about lists, scenes and the vacuum. A trace reads `silent by rule (…, sent
+"[pause:1.5s]")` when a rule fired, and `1 of them silent by rule` when only part of a round was
+silenced.
+
 ## Endpoints
 
 | path | purpose |
@@ -450,11 +474,14 @@ three small:
 - **The catalog is narrowed to what Assist can see.** Exposure is read from Home Assistant, so 19
   exposed entities reach the model instead of 356 — roughly 33 000 input tokens become a couple of
   thousand, which is the single largest latency lever on a hosted decision model.
-- **A repeated sentence is not decided twice.** With `decision.cacheSeconds` (default 600) the
-  answer for an identical command, against an unchanged house and the same question set, is reused
-  with no model call: a repeat costs single-digit milliseconds instead of the 300–900 ms round trip.
-  Questions are never cached, because their answer depends on live entity state. A trace shows
-  `cached decision` when this happens.
+- **A repeated sentence is not decided twice.** With `decision.cache` on (the default) the answer for
+  an identical command is reused with no model call: a repeat costs single-digit milliseconds instead
+  of the 300–900 ms round trip. Nothing expires on a clock — the key carries a signature of the
+  exposed entities (their ids and rooms, never their state), so turning a light on cannot invalidate a
+  decision, while adding, removing or re-exposing an entity does. Questions are never cached, because
+  their answer *does* depend on live state. The cache is written to `data/decision-cache.json`
+  (`decision.persistCache`), so a container restart or update does not pay for the same decisions
+  again. A trace shows `cached decision` when a hit happened.
 
 What remains is the model you chose. If a turn still feels slow, look at the trace: `catalogMs`
 should be 0, `questionsMs` single digits, and `decideMs` is your provider. Lower `decision.historyTurns`

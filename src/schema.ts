@@ -15,7 +15,8 @@ export type FieldType =
   | 'slider'
   | 'checkbox'
   | 'select'
-  | 'templates';
+  | 'templates'
+  | 'rules';
 
 export interface SettingsField {
   /** Dotted path into the config object, e.g. `routing.thresholds.entity`. */
@@ -156,14 +157,17 @@ export function settingsGroups(): SettingsGroup[] {
           help: 'How long to wait for a decision before forwarding instead.',
         },
         {
-          key: 'decision.cacheSeconds',
+          key: 'decision.cache',
           label: 'Reuse a decision for the same sentence',
-          type: 'number',
-          unit: 's',
-          min: 0,
-          max: 86400,
-          step: 30,
-          help: 'Identical commands within this window are answered from the last decision, with no model call. Questions are never cached. 0 turns it off.',
+          type: 'checkbox',
+          help: 'An identical command against the same set of exposed entities is answered from the last decision, with no model call. Nothing expires on a clock: adding, removing or re-exposing an entity invalidates it, and entity state never does. Questions are never cached.',
+          advanced: true,
+        },
+        {
+          key: 'decision.persistCache',
+          label: 'Keep that cache across restarts',
+          type: 'checkbox',
+          help: 'Writes it to decision-cache.json in the data directory, so a container update does not pay for the same decisions again.',
           advanced: true,
         },
         {
@@ -317,6 +321,12 @@ export function settingsGroups(): SettingsGroup[] {
           help: 'Text sent when no speech should be heard. Assist speaks whatever comes back, so a pause marker such as [pause:1.5s] is how the pipeline stays quiet.',
         },
         {
+          key: 'speech.rules',
+          label: 'Speak or stay quiet per intent',
+          type: 'rules',
+          help: 'First match wins, against the intent name (HassTurnOn), domain.action (todo.add), a domain (light) or an action (turn_on); todo.* matches a whole domain. Anything unmatched follows the setting above.',
+        },
+        {
           key: 'speech.confirmSeconds',
           label: 'Confirmation stays armed for',
           type: 'number',
@@ -421,6 +431,18 @@ function coerce(field: SettingsField, value: unknown): unknown {
     const min = field.min ?? Number.NEGATIVE_INFINITY;
     const max = field.max ?? Number.POSITIVE_INFINITY;
     return Math.min(max, Math.max(min, rounded));
+  }
+  if (field.type === 'rules') {
+    if (!Array.isArray(value)) return undefined;
+    const out: { match: string; mode: 'speak' | 'silent' }[] = [];
+    for (const item of value.slice(0, 50)) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      const match = typeof row.match === 'string' ? row.match.trim() : '';
+      if (!match) continue;
+      out.push({ match: match.slice(0, 120), mode: row.mode === 'silent' ? 'silent' : 'speak' });
+    }
+    return out;
   }
   if (field.type === 'templates') {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;

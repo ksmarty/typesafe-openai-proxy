@@ -4,6 +4,13 @@ import { allFields, clampSettings, getPath, isMaskedValue, maskSecrets, pruneInv
 
 export type DecisionBackend = 'none' | 'systemone' | 'heuristic';
 
+/** One line of "what to say" policy: silent or spoken for a matching intent. */
+export interface SpeechRule {
+  /** `HassTurnOn`, `light`, `turn_on`, `todo.add`, or `todo.*`. */
+  match: string;
+  mode: 'speak' | 'silent';
+}
+
 export interface DecisionThresholds {
   minMargin: number;
   actTerse: number;
@@ -61,7 +68,10 @@ export interface Config {
     /** Keep the last N turns of the conversation in the decision state. */
     historyTurns: number;
     /** Reuse a decision for an identical sentence for this long; 0 disables it. */
-    cacheSeconds: number;
+    /** Reuse an identical decision until the exposed entities change. */
+    cache: boolean;
+    /** Keep that cache in the data directory so a restart does not lose it. */
+    persistCache: boolean;
     /** Send the whole catalog in the state even when the entity question is narrowed. */
     maxEntities: number;
   };
@@ -85,6 +95,11 @@ export interface Config {
      * so a pause marker is how you get silence rather than a stray empty TTS job.
      */
     silence: string;
+    /**
+     * Per-call overrides, first match wins: a lamp does not need to be told it is on, a
+     * shopping list does. Empty means every call follows `afterTool`.
+     */
+    rules: SpeechRule[];
     /** Seconds a confirmation question stays armed. */
     confirmSeconds: number;
     /** Per-language templates, `{entity}` and `{action}` are substituted. */
@@ -173,7 +188,8 @@ export function defaultConfig(): Config {
       alwaysConfirmRisky: true,
       inlineEntityDescriptions: false,
       historyTurns: 2,
-      cacheSeconds: 600,
+      cache: true,
+      persistCache: true,
       maxEntities: 400,
     },
     routing: { enabled: true, thresholds: { ...DEFAULT_THRESHOLDS }, traceLimit: 50 },
@@ -181,6 +197,16 @@ export function defaultConfig(): Config {
       afterTool: 'template',
       confirmSeconds: 90,
       silence: '[pause:1.5s]',
+      // The house nobody wants narrated: turning things on and off. Everything else —
+      // a shopping list, a scene, a vacuum — still answers.
+      rules: [
+        { match: 'light', mode: 'silent' },
+        { match: 'switch', mode: 'silent' },
+        { match: 'fan', mode: 'silent' },
+        { match: 'cover', mode: 'silent' },
+        { match: 'climate', mode: 'silent' },
+        { match: 'media_player', mode: 'silent' },
+      ],
       templates: structuredClone(DEFAULT_TEMPLATES),
     },
     catalog: { haUrl: '', haToken: '', cacheMs: 30000, defaultArea: '', exposedOnly: true },

@@ -54,3 +54,22 @@ export function asTemplates(value: unknown): Record<string, { done?: string; cla
   }
   return result;
 }
+
+export interface SpeechRule {
+  match: string;
+  mode: 'speak' | 'silent';
+}
+
+/** A rule list is free-form, so anything unreadable is dropped rather than crashing a field. */
+export function asRules(value: unknown): SpeechRule[] {
+  if (!Array.isArray(value)) return [];
+  const out: SpeechRule[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const match = asString(row.match);
+    if (!match.trim()) continue;
+    out.push({ match, mode: row.mode === 'silent' ? 'silent' : 'speak' });
+  }
+  return out;
+}
