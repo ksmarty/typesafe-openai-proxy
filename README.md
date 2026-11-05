@@ -359,6 +359,14 @@ The catalog is refreshed before a question is answered when it is older than two
 offer `HassGetState`, the intent call is still used — its answer includes attributes the catalog
 does not carry. An unconfident target still forwards rather than guessing.
 
+A question the proxy forwards may still come back as a tool call — your model server asks for a
+state by calling one of the intents the request offered, which is the only route to an answer when
+the installation has no `HassGetState` and no lock to read. Such a round is **spoken**, not
+silenced: the proxy looks at the tool call it never issued itself, describes it, and if the turn
+being answered was a question it lets your model's own answer through instead of applying the
+quiet default. In the Monitor it appears nested under the question it answers, tagged *spoken by the
+model*, with the round trip shown.
+
 ### Only what Assist can see
 
 The catalog asks Home Assistant which entities are exposed to the conversation agent
@@ -464,6 +472,11 @@ silenced.
 **Monitor** — status pills, counters, the circuit breaker, a *try a request* box that runs the
 decision path without executing anything, and the live trace: each turn shows its route, the tool
 call and arguments, and every gate as a bar with its threshold marked.
+
+A turn that gets spoken back is two calls to the proxy — the decision, then the follow-up carrying
+the tool result — so the trace shows them as one row: the reply is nested under the turn it answers,
+under **What was said back**, tagged with where the words came from (*spoken by the model* for a
+round the proxy forwarded) and how long that round trip took.
 
 A decision test answers the question you actually have — *what would Home Assistant be asked to
 do?* The result panel names the intent and its slots (`HassTurnOn {"name": "light.kitchen_ceiling"}`),
