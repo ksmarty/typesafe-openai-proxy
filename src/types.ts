@@ -192,7 +192,19 @@ export interface TextPlan {
   text: string;
 }
 
-export type Plan = ToolCallPlan | MultiCallPlan | ClarifyPlan | ConfirmPlan | ForwardPlan | TextPlan;
+/**
+ * The turn was heard but not addressed to the assistant, so it is answered with the
+ * silence text instead of being forwarded for the model to act on.
+ */
+export interface IgnorePlan {
+  kind: 'ignore';
+  /** Why it was judged to be a remark rather than a request. */
+  reason: string;
+  /** The configured silence text, sent in place of an answer. */
+  silence: string;
+}
+
+export type Plan = ToolCallPlan | MultiCallPlan | ClarifyPlan | ConfirmPlan | ForwardPlan | TextPlan | IgnorePlan;
 
 export interface RouteResult {
   plan: Plan;

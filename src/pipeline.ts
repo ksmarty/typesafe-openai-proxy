@@ -14,13 +14,14 @@ import { ACTION_VERBS } from './actions.js';
 import { getCatalog, homeSignature } from './catalog.js';
 import { directStatePlan } from './answer.js';
 import { looksLikeChatter } from './chatter.js';
+import { judgeAddressee } from './addressee.js';
 import { actionPhrase, humanTarget, interpolateSpeech, ruleFor } from './speech.js';
 import { cachedDecision, decisionKey, isQuestion, rememberDecision } from './decidecache.js';
 import { loadConfig, ROUTER_MODEL, type Config } from './config.js';
 import { extract } from './extract.js';
 import { heuristicDecide } from './heuristic.js';
-import { buildQuestions } from './questions.js';
-import { route as routeRequest } from './router.js';
+import { buildQuestions, Q } from './questions.js';
+import { noulOf, route as routeRequest } from './router.js';
 import {
   completionId,
   forwardUpstream,
@@ -35,7 +36,17 @@ import { issuedCalls, pendingConfirmations, rememberTrace, stats, updateTrace } 
 import { splitClauses } from './compound.js';
 import { decide, DecisionUnavailable } from './systemone.js';
 import { inventoryFor } from './toolcall.js';
-import type { Gate, OpenAIChatRequest, OpenAIMessage, Plan, RouteResult, ToolCall, TraceEntry } from './types.js';
+import type {
+  Answer,
+  Catalog,
+  Gate,
+  OpenAIChatRequest,
+  OpenAIMessage,
+  Plan,
+  RouteResult,
+  ToolCall,
+  TraceEntry,
+} from './types.js';
 import { sha1, textOf, uid } from './util.js';
 
 function languageOf(request: OpenAIChatRequest): string | undefined {
@@ -89,6 +100,78 @@ export interface PipelineResult {
   bypass?: string;
 }
 
+/** The trace entry for a turn that was heard but not addressed to the assistant. */
+function ignoredEntry(
+  startedAt: number,
+  utterance: string,
+  catalog: Catalog,
+  toolsOffered: string[],
+  catalogMs: number,
+  reason: string,
+  extra: Partial<TraceEntry> = {},
+): TraceEntry {
+  return {
+    ...extra,
+    id: uid('trace'),
+    at: startedAt,
+    utterance,
+    route: 'ignore',
+    reason,
+    gates: [],
+    backend: 'off',
+    catalogSource: catalog.source,
+    catalogExposure: catalog.exposure,
+    ...(toolsOffered.length ? { toolsOffered } : {}),
+    timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+    totalMs: Date.now() - startedAt,
+  };
+}
+
+/**
+ * Was this sentence addressed to the assistant?
+ *
+ * The answer decides whether a turn that the fast path cannot handle itself is forwarded
+ * for the model to act on, or answered with silence because it was a remark between people
+ * that the microphone happened to catch.
+ *
+ * Two readers, in order of authority:
+ *  1. the decision model's answer to `Q.addressed`, when one was asked;
+ *  2. the local pattern reader (`src/addressee.ts`), when `listening.local` is on and no
+ *     model answered — a pass-through install, the backend switched off, a model that is
+ *     down.
+ *
+ * Anything neither reader is sure about is forwarded exactly as before.
+ */
+export function addresseeVerdict(
+  active: Config,
+  utterance: string,
+  catalog: Catalog,
+  answers?: Record<string, Answer>,
+): { silent: boolean; reason: string } {
+  if (!active.listening.enabled) return { silent: false, reason: 'listening is switched off' };
+
+  const fromModel = answers ? noulOf(answers, Q.addressed) : undefined;
+  if (typeof fromModel === 'number') {
+    // `addressed` is a noul: the number is the probability that it WAS meant for us.
+    const notAddressed = 1 - fromModel;
+    if (notAddressed >= active.listening.confidence) {
+      return {
+        silent: true,
+        reason: `not addressed to the assistant (the decision model read it as ${Math.round(notAddressed * 100)}% a remark)`,
+      };
+    }
+    return { silent: false, reason: 'the decision model read it as addressed to the assistant' };
+  }
+
+  if (!active.listening.local) return { silent: false, reason: 'no model answered and the local reader is off' };
+
+  const verdict = judgeAddressee(utterance, catalog);
+  if (verdict.notAddressed >= active.listening.confidence) {
+    return { silent: true, reason: `not addressed to the assistant (${verdict.reason})` };
+  }
+  return { silent: false, reason: verdict.reason };
+}
+
 /** Is the fast path willing to decide, and if not, why not? */
 export function fastPathStatus(active: Config): { ready: boolean; reason: string } {
   if (!active.routing.enabled) return { ready: false, reason: 'routing is switched off' };
@@ -132,6 +215,18 @@ export async function runPipeline(
     const catalogStarted = Date.now();
     const catalog = await getCatalog(active, systemPrompt);
     catalogMs = Date.now() - catalogStarted;
+    // Nothing can be called, but a remark that was overheard must still not be answered.
+    const verdict = addresseeVerdict(active, utterance, catalog);
+    if (verdict.silent) {
+      const entry = ignoredEntry(startedAt, utterance, catalog, toolsOffered, catalogMs, verdict.reason);
+      rememberTrace(entry);
+      stats.requests += 1;
+      stats.ignored += 1;
+      return {
+        route: { plan: { kind: 'ignore', reason: verdict.reason, silence: active.speech.silence }, gates: [], reason: verdict.reason },
+        entry,
+      };
+    }
     const entry: TraceEntry = {
       id: uid('trace'),
       at: startedAt,
@@ -203,6 +298,23 @@ export async function runPipeline(
   if (active.routing.enabled) {
     const chatter = looksLikeChatter(utterance, catalog);
     if (chatter) {
+      // "ignore that", "no you", "thanks": the model is the right reader for a reply to the
+      // assistant, but a remark that was never addressed to it is answered with silence.
+      const verdict = addresseeVerdict(active, utterance, catalog);
+      if (verdict.silent) {
+        const entry = ignoredEntry(startedAt, utterance, catalog, toolsOffered, catalogMs, verdict.reason);
+        rememberTrace(entry);
+        stats.requests += 1;
+        stats.ignored += 1;
+        return {
+          route: {
+            plan: { kind: 'ignore', reason: verdict.reason, silence: active.speech.silence },
+            gates: [],
+            reason: verdict.reason,
+          },
+          entry,
+        };
+      }
       const entry: TraceEntry = {
         id: uid('trace'),
         at: startedAt,
@@ -342,6 +454,51 @@ export async function runPipeline(
     }
   }
 
+  // The fast path cannot resolve this one — it was going to forward the sentence to the
+  // model server, or ask a clarifying question aloud. Either way a remark that was never
+  // addressed to the assistant must not be answered at all. When the decision model was
+  // asked (`Q.addressed`) its answer is used; when it was not — a pass-through install, no
+  // backend, a model that is down — the local reader decides.
+  //
+  // Only a plan that was already unsure of itself is judged here. A plan the fast path
+  // resolved into a tool call is left alone: the model's answer to a brand-new question is
+  // not yet calibrated against the house, and silencing a real command is worse than
+  // answering a remark.
+  const unresolved = result.plan.kind === 'forward' || result.plan.kind === 'clarify' || result.plan.kind === 'confirm';
+  if (unresolved) {
+    const verdict = addresseeVerdict(
+      active,
+      utterance,
+      catalog,
+      readiness.ready ? first.decision.answers : undefined,
+    );
+    if (verdict.silent) {
+      const ignored = ignoredEntry(startedAt, utterance, catalog, toolsOffered, catalogMs, verdict.reason, {
+        ...(readiness.ready
+          ? {
+              decisionMs: decision.latencyMs,
+              backend: decision.backend,
+              model: decision.model,
+              timings: { catalogMs, questionsMs, decideMs: decision.latencyMs },
+              entities: catalog.entities.length,
+              ...(decision.cached ? { decisionCached: true } : {}),
+            }
+          : {}),
+      });
+      rememberTrace(ignored);
+      stats.requests += 1;
+      stats.ignored += 1;
+      return {
+        route: {
+          plan: { kind: 'ignore', reason: verdict.reason, silence: active.speech.silence },
+          gates: result.gates,
+          reason: verdict.reason,
+        },
+        entry: ignored,
+      };
+    }
+  }
+
   const entry: TraceEntry = {
     id: uid('trace'),
     at: Date.now(),
@@ -427,17 +584,48 @@ export async function handleChatCompletions(
     (active.decision.backend !== 'systemone' || Boolean(active.decision.baseUrl));
 
   if (!wanted || !canDecide) {
-    stats.requests += 1;
-    stats.bypassed += 1;
+    const utterance = lastUserMessage(request.messages ?? []) ?? '';
     const reason = !wanted
       ? `pass-through: model "${request.model ?? ''}" is not "${ROUTER_MODEL}" and autoStart is off`
       : active.decision.backend === 'none'
         ? 'pass-through: no decision backend configured'
         : 'pass-through: no decision base URL configured';
+
+    // No model will be asked on this path, so the local reader is the only thing that can
+    // tell a request from a remark. Without it, every overheard sentence is forwarded and
+    // answered.
+    if (active.listening.enabled && active.listening.local && utterance) {
+      const catalog = await getCatalog(active, systemPromptOf(request.messages ?? []));
+      const verdict = addresseeVerdict(active, utterance, catalog);
+      if (verdict.silent) {
+        rememberTrace({
+          id: uid('trace'),
+          at: Date.now(),
+          utterance,
+          route: 'ignore',
+          reason: verdict.reason,
+          gates: [],
+          backend: 'off',
+          catalogSource: catalog.source,
+          ...(request.model ? { model: request.model } : {}),
+        });
+        stats.requests += 1;
+        stats.ignored += 1;
+        respondText(
+          { model: request.model ?? 'proxy', stream: Boolean(request.stream), id: completionId() },
+          active.speech.silence,
+          response,
+        );
+        return;
+      }
+    }
+
+    stats.requests += 1;
+    stats.bypassed += 1;
     rememberTrace({
       id: uid('trace'),
       at: Date.now(),
-      utterance: lastUserMessage(request.messages ?? []) ?? '',
+      utterance,
       route: 'forward',
       reason,
       gates: [],
@@ -612,7 +800,13 @@ export async function handleChatCompletions(
         decision: { ...active.decision, backend: 'heuristic' },
       }).catch(() => null);
       const localPlan = local?.route.plan;
-      const usable = localPlan && (localPlan.kind === 'tool' || localPlan.kind === 'calls' || localPlan.kind === 'clarify' || localPlan.kind === 'confirm');
+      const usable =
+        localPlan &&
+        (localPlan.kind === 'tool' ||
+          localPlan.kind === 'calls' ||
+          localPlan.kind === 'clarify' ||
+          localPlan.kind === 'confirm' ||
+          localPlan.kind === 'ignore');
       if (local && usable) {
         const note = `decision unavailable (${error.message}) — read locally instead`;
         updateTrace(local.entry.id, { reason: note, error: error.message });
@@ -645,6 +839,10 @@ export async function handleChatCompletions(
     case 'clarify':
     case 'text':
       respondText(options(), plan.text, response);
+      return;
+    case 'ignore':
+      // Heard, judged a remark, answered with the configured silence.
+      respondText(options(), plan.silence, response);
       return;
     case 'confirm':
       pendingConfirmations.set(key, {

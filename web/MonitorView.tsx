@@ -55,6 +55,7 @@ const ROUTE_COLOR: Record<string, 'success' | 'info' | 'warning' | 'secondary' |
   clarify: 'info',
   confirm: 'warning',
   forward: 'secondary',
+  ignore: 'info',
   text: 'default',
   refused: 'error',
 };
@@ -196,6 +197,9 @@ function CallPanel({ plan }: { plan: Plan }) {
   } else if (kind === 'forward') {
     heading = 'No call — forwarded to your model server';
     body = String(plan.reason ?? '');
+  } else if (kind === 'ignore') {
+    heading = 'No call — not addressed to the assistant, staying quiet';
+    body = `${String(plan.reason ?? '')}\n\nSent: ${JSON.stringify(plan.silence ?? '')}`;
   } else if (kind === 'text') {
     heading = 'No call — answered by the proxy';
     body = text;
@@ -447,6 +451,7 @@ export function MonitorView({ status, onRefresh }: { status: Status | null; onRe
       { label: 'tool calls', value: compact(stats.toolCalls as number | undefined) },
       { label: 'forwarded', value: compact(stats.forwarded as number | undefined) },
       { label: 'passed through', value: compact(stats.bypassed as number | undefined) },
+      { label: 'not addressed', value: compact(stats.ignored as number | undefined) },
       { label: 'clarified', value: compact(stats.clarifications as number | undefined) },
       { label: 'confirmed', value: compact(stats.confirmations as number | undefined) },
       { label: 'errors', value: compact(stats.errors as number | undefined) },

@@ -35,6 +35,7 @@ import SaveIcon from '@mui/icons-material/Save';
 import SyncIcon from '@mui/icons-material/Sync';
 import TuneIcon from '@mui/icons-material/Tune';
 import WaterDropIcon from '@mui/icons-material/WaterDrop';
+import HearingIcon from '@mui/icons-material/Hearing';
 import RouteIcon from '@mui/icons-material/Route';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import HubIcon from '@mui/icons-material/Hub';
@@ -67,6 +68,7 @@ const GROUP_ICON: Record<string, ReactElement> = {
   upstream: <RouteIcon fontSize="small" />,
   speech: <RecordVoiceOverIcon fontSize="small" />,
   routing: <WaterDropIcon fontSize="small" />,
+  listening: <HearingIcon fontSize="small" />,
   server: <DnsIcon fontSize="small" />,
 };
 

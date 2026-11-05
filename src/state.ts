@@ -13,6 +13,7 @@ export const stats = {
   toolCalls: 0,
   forwarded: 0,
   bypassed: 0,
+  ignored: 0,
   clarifications: 0,
   confirmations: 0,
   errors: 0,

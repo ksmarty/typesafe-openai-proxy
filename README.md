@@ -273,6 +273,33 @@ sends it straight to your model server — no decision call, no chance of nudgin
 it is unsure about still goes through the decision model, and a sentence that names a device or a
 room always does.
 
+### When it was not addressed to the assistant
+
+A microphone hears the whole room. "Did you see the game last night", "my wife says the door is
+still open", "we should get that boiler serviced" are not requests, and a model server that is
+handed one still answers it — usually by doing something to the house. The proxy judges every
+sentence it is about to forward, or to ask a clarifying question about, and answers the ones that
+were not meant for it with the configured silence instead.
+
+Two readers, in order of authority:
+
+- **The decision model.** `addressed` is one of the questions in the set it already answers, so the
+  judgement costs nothing extra. Its answer decides whenever it was asked.
+- **The local pattern reader.** A pass-through install, a backend that is switched off, a model
+  that is unreachable: no model was asked at all, so a small pattern reader on the proxy reads the
+  sentence instead. It only ever calls a sentence a remark when it is structurally one — a
+  question aimed at another person, a report about a third party, a plan between people, narration
+  about the room. Anything else is "cannot tell", which forwards as before.
+
+Silencing a real request is worse than answering an overheard remark, so the judgement is
+deliberately one-sided: a command verb anywhere in the sentence, a question, or a device or room
+named outright means "addressed", whatever else the sentence looks like. A turn the fast path
+already resolved into a tool call is never revisited — only a turn that was heading for the model
+server or asking a clarification aloud is.
+
+*Settings → Listening* holds the switch, the confidence the judgement has to reach (0.75 by
+default), and the local reader. Turning it off restores the old behaviour exactly: every sentence
+is forwarded.
 ### When everything is forwarded
 
 Every forwarded turn records its reason in the dashboard's decision list. The reasons that say the
@@ -285,6 +312,7 @@ most about a setup:
 | `no rooms in the catalog — …` | the catalog has entities but no areas | set a Home Assistant token in *Settings → Home Assistant catalog* (the wake-word side of a sentence needs real areas) |
 | `no confident reading of how wide the request is` | the model could not say whether one device, a room or the whole house is meant, and no room or device was named outright | say the room or device plainly ("the kitchen ceiling light") |
 | `no confident room` | the model was unsure which room, and the sentence named none | name the room, or lower *target area* in *Routing gates* |
+| `not addressed to the assistant` | the sentence was judged to be a remark between people rather than a request | expected for overheard conversation; turn off *Settings → Listening* to forward everything again |
 
 A room or device named outright now rescues an unsure scope instead of forwarding: "turn on the
 kitchen lights" resolves to `HassTurnOn {"area": "Kitchen", "domain": "light"}` even when the model

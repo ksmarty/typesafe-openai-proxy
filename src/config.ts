@@ -89,6 +89,30 @@ export interface Config {
     /** Percentage of requests sampled into the in-memory trace ring. */
     traceLimit: number;
   };
+  /**
+   * Was that sentence meant for the assistant?
+   *
+   * A voice assistant hears the whole room, and anything the fast path declines is
+   * forwarded to the model server, which will answer whatever text arrives. A remark
+   * between two people therefore came back as a confident attempt at the house. This
+   * section decides whether a turn is a request at all, and answers the ones that are
+   * not with silence.
+   */
+  listening: {
+    /** Silence turns that were not addressed to the assistant. */
+    enabled: boolean;
+    /**
+     * How sure the judge has to be that the sentence was *not* addressed before it stays
+     * quiet, as a probability. Higher is more cautious: 0.75 means a remark has to be
+     * plainly a remark, and a model answer of 0.5 ("unsure") still gets forwarded.
+     */
+    confidence: number;
+    /**
+     * Read the sentence locally when no decision model answered it (a pass-through
+     * install, the backend switched off, a model that is down).
+     */
+    local: boolean;
+  };
   speech: {
     /**
      * What speaks the result of a tool call:
@@ -200,6 +224,9 @@ export function defaultConfig(): Config {
       maxEntities: 400,
     },
     routing: { enabled: true, thresholds: { ...DEFAULT_THRESHOLDS }, traceLimit: 50 },
+    // On by default: an overheard remark answered with an action is the failure this
+    // exists to prevent, and the judge declines to speak unless it is sure.
+    listening: { enabled: true, confidence: 0.75, local: true },
     speech: {
       afterTool: 'template',
       confirmSeconds: 90,
@@ -277,6 +304,16 @@ function applyEnv(config: Config): void {
   }
   if (env.AUTO_START !== undefined && env.AUTO_START !== '') {
     config.decision.autoStart = /^(1|true|yes|on)$/i.test(env.AUTO_START);
+  }
+  if (env.LISTENING !== undefined && env.LISTENING !== '') {
+    config.listening.enabled = /^(1|true|yes|on)$/i.test(env.LISTENING);
+  }
+  if (env.LISTENING_LOCAL !== undefined && env.LISTENING_LOCAL !== '') {
+    config.listening.local = /^(1|true|yes|on)$/i.test(env.LISTENING_LOCAL);
+  }
+  if (env.LISTENING_CONFIDENCE !== undefined && env.LISTENING_CONFIDENCE !== '') {
+    const confidence = Number(env.LISTENING_CONFIDENCE);
+    if (Number.isFinite(confidence)) config.listening.confidence = Math.min(1, Math.max(0, confidence));
   }
   if (env.HA_URL) config.catalog.haUrl = env.HA_URL;
   if (env.HA_TOKEN) config.catalog.haToken = env.HA_TOKEN;

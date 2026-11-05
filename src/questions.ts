@@ -12,6 +12,14 @@ import type { Catalog, CatalogEntity, Question, QuestionSet } from './types.js';
 import type { Extraction } from './extract.js';
 
 export const Q = {
+  /**
+   * The first question asked of every turn: was it addressed to the assistant at all?
+   *
+   * A voice assistant hears the whole room, and the answers to everything else are
+   * meaningless for a sentence that was never meant for it — an overheard remark must not
+   * be read as a command, and must not be forwarded to a model that will answer it.
+   */
+  addressed: 'addressed',
   category: 'category',
   compound: 'compound',
   scope: 'scope',
@@ -34,6 +42,15 @@ export const NO_DOMAIN = 'none';
 export const NOT_TARGETED = 'not_targeted';
 
 export const STATIC_QUESTIONS: QuestionSet = {
+  [Q.addressed]: {
+    type: 'noul',
+    instructions:
+      'Was `request.text` spoken *to* the assistant, or was it overheard? Speech recognition captures whatever was said near the microphone, including remarks between people that were never meant for a device. Judge only whether the assistant is being spoken to. One sentence, one addressee: pick the closest match.',
+    criteria: {
+      true: 'Spoken to the assistant and expecting it to act or answer: a command, a question about the home, a question it was asked to answer, a follow-up to something it just said (yes, no, thanks, keep going).',
+      false: "A remark between people that the microphone happened to catch: a question aimed at someone in the room, a report about somebody else, a plan between people, narration, thinking out loud, or any sentence with no addressee.",
+    },
+  },
   [Q.category]: {
     type: 'choice',
     instructions:

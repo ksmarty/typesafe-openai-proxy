@@ -13,6 +13,7 @@ import type { DecisionResponse, Answer, ChoiceAnswer, QuestionSet } from './type
 import type { DecideInput } from './systemone.js';
 import type { BuiltQuestions } from './questions.js';
 import { Q, NO_AREA, NO_SINGLE_ENTITY, NO_DOMAIN, NOT_TARGETED, actionQuestion } from './questions.js';
+import { judgeAddressee } from './addressee.js';
 import { extract, extractListItem, extractMediaQuery } from './extract.js';
 import type { CatalogEntity } from './types.js';
 import { normalise, round } from './util.js';
@@ -192,6 +193,16 @@ export function heuristicDecide(input: HeuristicInput): DecisionResponse {
   const questions: QuestionSet = input.questions;
   const { built, catalog } = input;
   const item = extractListItem(raw);
+
+  // --- addressed to the assistant? ----------------------------------------
+  // The offline reader is the fallback for a turn no model saw, so it answers the same
+  // question the model does. It only ever says "no" on a pattern that is plainly a remark.
+  if (questions[Q.addressed]) {
+    // `addressed` is a noul like the others: the number is the probability of *true*,
+    // and true means "spoken to the assistant".
+    const verdict = judgeAddressee(raw, catalog);
+    answers[Q.addressed] = noul(1 - verdict.notAddressed);
+  }
 
   // --- category ------------------------------------------------------------
   if (questions[Q.category]) {

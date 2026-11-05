@@ -350,6 +350,35 @@ export function settingsGroups(): SettingsGroup[] {
       ],
     },
     {
+      id: 'listening',
+      title: 'Listening',
+      description:
+        'A voice assistant hears the whole room, and everything the fast path cannot call is forwarded to your model server, which answers whatever text arrives. These settings decide whether a sentence was addressed to the assistant at all: a remark between two people is answered with the silence text instead of being acted on.',
+      fields: [
+        {
+          key: 'listening.enabled',
+          label: 'Only act on sentences addressed to the assistant',
+          type: 'checkbox',
+          help: 'When off, every request is forwarded regardless of who it was meant for.',
+        },
+        {
+          key: 'listening.confidence',
+          label: 'How sure before staying quiet',
+          type: 'slider',
+          min: 0,
+          max: 1,
+          step: 0.05,
+          help: 'Below this confidence the turn is forwarded as normal. 0.75 means the sentence has to be plainly a remark; raising it to 1 turns the judge off in practice.',
+        },
+        {
+          key: 'listening.local',
+          label: 'Read it here when no model answered',
+          type: 'checkbox',
+          help: 'Covers the turns no decision model sees: a pass-through install, the backend switched off, or a model that is unreachable. The built-in reader only silences sentences that are plainly remarks.',
+        },
+      ],
+    },
+    {
       id: 'routing',
       title: 'Routing gates',
       description:
