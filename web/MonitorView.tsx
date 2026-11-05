@@ -281,7 +281,16 @@ function TraceRow({ entry, replies = [] }: { entry: TraceEntry; replies?: TraceE
   const headline = entry.route === 'refused' ? entry.reason : entry.utterance || '(empty)';
   return (
     <Accordion disableGutters elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, '&:before': { display: 'none' }, mb: 1 }}>
-      <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2 }}>
+      <AccordionSummary
+        expandIcon={<ExpandMoreIcon />}
+        sx={{
+          px: 2,
+          // MUI's own content wrapper is a flex item with `min-width: auto`, so a long
+          // sentence inside it widened the whole card instead of ellipsising. Allowing it
+          // to shrink is what keeps the row inside the viewport on a phone.
+          '& .MuiAccordionSummary-content': { minWidth: 0, overflow: 'hidden' },
+        }}
+      >
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', width: '100%', minWidth: 0 }}>
           <RouteChip kind={entry.route} />
           {entry.httpStatus ? <Chip label={`HTTP ${entry.httpStatus}`} color="error" variant="outlined" size="small" /> : null}
