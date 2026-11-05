@@ -425,8 +425,29 @@ function TraceRow({ entry, replies = [] }: { entry: TraceEntry; replies?: TraceE
                       minWidth: 0,
                     }}
                   >
-                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5, minWidth: 0 }}>
-                      <Chip size="small" variant="outlined" label={reply.backend ?? 'speech'} sx={{ flexShrink: 0 }} />
+                    <Stack
+                      direction="row"
+                      spacing={1}
+                      // The chips are `flexShrink: 0` like every other chip in a row, so wrap
+                      // rather than gamble on the row fitting a phone: a round trip caption
+                      // pushed past the edge is the same bug the sentence had.
+                      sx={{ alignItems: 'center', mb: 0.5, minWidth: 0, flexWrap: 'wrap', rowGap: 0.5 }}
+                    >
+                      <Chip
+                        size="small"
+                        variant="outlined"
+                        // A round the proxy did not answer itself was spoken by the model
+                        // server, and saying so is the difference between "the proxy was
+                        // quiet" and "your model had the answer all along".
+                        label={reply.route === 'forward' ? 'spoken by the model' : (reply.backend ?? 'speech')}
+                        color={reply.route === 'forward' ? 'secondary' : 'default'}
+                        sx={{ flexShrink: 0 }}
+                      />
+                      {reply.upstreamMs !== undefined ? (
+                        <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
+                          {(reply.upstreamMs / 1000).toFixed(1)}s round trip
+                        </Typography>
+                      ) : null}
                       <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
                         {timeAgo(reply.at)}
                       </Typography>

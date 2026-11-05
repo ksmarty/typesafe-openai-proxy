@@ -6,7 +6,7 @@
  * declare, means this proxy cannot act and the request is forwarded upstream instead.
  */
 
-import { INTENTS, type ActionSpec } from './actions.js';
+import { ACTIONS, INTENTS, type ActionSpec } from './actions.js';
 import type { CatalogEntity, OpenAITool, OpenAIToolFunction } from './types.js';
 import { clamp } from './util.js';
 
@@ -90,6 +90,78 @@ export function findTool(
     if (shortToolName(name).endsWith(intent)) return { name, function: fn };
   }
   return undefined;
+}
+
+/**
+ * What a call is, for the speech rules and the trace, when this proxy did not issue it.
+ *
+ * A request the proxy forwarded goes to the model server, and the model may answer it with a
+ * tool call of its own. Home Assistant then replays that call back in the follow-up round, but
+ * `issuedCalls` knows nothing about it — so the rules had no descriptor to match, no rule fired,
+ * and the configured default (often "stay quiet") swallowed the answer to a plain question.
+ *
+ * Everything needed is in the announcement Home Assistant replays: the tool name, and the
+ * slots the model sent. From `{"name": "lock.front_door"}` the domain follows, which is what a
+ * `lock` or `HassGetState` rule matches on.
+ */
+export interface CallDescriptor {
+  tool?: string;
+  domain?: string;
+  action?: string;
+  targets?: string[];
+}
+
+/** The slots announced for a call, tolerating the string arguments the wire carries. */
+export function parseToolArguments(raw: unknown): Record<string, unknown> {
+  if (raw && typeof raw === 'object') return raw as Record<string, unknown>;
+  if (typeof raw !== 'string' || !raw.trim()) return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The first `${domain}:${action}` whose intent this is, preferring a known domain. */
+function actionForIntent(intent: string, domain?: string): string | undefined {
+  for (const [key, spec] of Object.entries(ACTIONS)) {
+    if (spec.intentType !== intent) continue;
+    const [entryDomain, action] = key.split(':');
+    if (!domain || entryDomain === domain) return action;
+  }
+  return undefined;
+}
+
+/** The domain an intent acts on when the slots do not say (the first one that uses it). */
+function domainForIntent(intent: string): string | undefined {
+  for (const [key, spec] of Object.entries(ACTIONS)) {
+    if (spec.intentType === intent) return key.split(':')[0];
+  }
+  return undefined;
+}
+
+/** Identify a call from the name and slots Home Assistant replayed. */
+export function descriptorFromAnnouncement(name: string, args: unknown): CallDescriptor {
+  const tool = shortToolName(name);
+  const slots = parseToolArguments(args);
+  const named = typeof slots.name === 'string' ? slots.name.trim() : '';
+  const area = typeof slots.area === 'string' ? slots.area.trim() : '';
+  const declared = typeof slots.domain === 'string' ? slots.domain.trim() : '';
+
+  // A named entity carries its own domain (`light.kitchen_lights`), which is the most
+  // reliable signal there is; otherwise the slot, then the intent's own domain.
+  const fromName = named.includes('.') ? named.slice(0, named.indexOf('.')) : '';
+  const domain = declared || fromName || domainForIntent(tool) || undefined;
+  const action = actionForIntent(tool, domain) ?? actionForIntent(tool);
+  const targets = named ? [named] : area ? [area] : [];
+
+  return {
+    tool,
+    ...(domain ? { domain } : {}),
+    ...(action ? { action } : {}),
+    ...(targets.length ? { targets } : {}),
+  };
 }
 
 export function hasTool(inventory: ToolInventory, intent: string): boolean {

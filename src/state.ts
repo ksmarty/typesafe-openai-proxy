@@ -50,6 +50,64 @@ export const issuedCalls = new Map<
   }
 >();
 
+/** Long enough for a slow model round trip, short enough not to grab an unrelated turn. */
+const TURN_TTL_MS = 120 * 1000;
+
+/**
+ * The turns a conversation has been on, keyed by the sentence that started each.
+ *
+ * A forwarded request goes to the model server, which may answer it with a tool call of its
+ * own; Home Assistant runs it and replays it in a follow-up request. That follow-up has no
+ * `issuedCalls` entry to point at, and without one the two rows read as unrelated requests —
+ * and a speech rule had nothing to match, so a plain question was answered with silence.
+ *
+ * Keyed by sentence rather than "the newest turn", because Home Assistant replays the whole
+ * conversation back and two questions in a row would otherwise attach the first one's answer
+ * to the second one's row.
+ */
+export const turnBySession = new Map<string, Map<string, { id: string; at: number; category?: string }>>();
+
+/** Turns remembered per conversation. Home Assistant starts a new conversation often enough. */
+const TURNS_PER_SESSION = 12;
+
+/** Remember the turn this sentence started. */
+export function rememberTurn(session: string, utterance: string, id: string, category?: string): void {
+  let turns = turnBySession.get(session);
+  if (!turns) {
+    turns = new Map();
+    turnBySession.set(session, turns);
+  }
+  // Re-asking the same sentence supersedes the old turn rather than piling up.
+  turns.delete(utterance);
+  turns.set(utterance, { id, at: Date.now(), ...(category ? { category } : {}) });
+  while (turns.size > TURNS_PER_SESSION) {
+    const oldest = turns.keys().next().value;
+    if (oldest === undefined) break;
+    turns.delete(oldest);
+  }
+}
+
+/**
+ * The turn this sentence is following up on, if it is recent enough to own the answer.
+ *
+ * The category comes back too: a question is owed an answer, and a follow-up round that
+ * answers one should not be silenced by a default meant for commands.
+ */
+export function lastTurnFor(
+  session: string,
+  utterance: string,
+): { id: string; category?: string } | undefined {
+  const turns = turnBySession.get(session);
+  const turn = turns?.get(utterance);
+  if (!turns || !turn) return undefined;
+  if (turn.at <= Date.now() - TURN_TTL_MS) {
+    turns.delete(utterance);
+    if (!turns.size) turnBySession.delete(session);
+    return undefined;
+  }
+  return { id: turn.id, ...(turn.category ? { category: turn.category } : {}) };
+}
+
 /** Both maps are pruned when they grow past this, so a long-running proxy cannot leak. */
 const MAP_CAP = 200;
 /** Issued calls older than this are useless: the follow-up round already happened. */
@@ -72,6 +130,12 @@ export function pruneState(): void {
   }
   for (const [id, call] of issuedCalls) {
     if (call.at <= now - ISSUED_TTL_MS) issuedCalls.delete(id);
+  }
+  for (const [session, turns] of turnBySession) {
+    for (const [utterance, turn] of turns) {
+      if (turn.at <= now - TURN_TTL_MS) turns.delete(utterance);
+    }
+    if (!turns.size) turnBySession.delete(session);
   }
   if (issuedCalls.size > MAP_CAP) {
     const excess = issuedCalls.size - MAP_CAP;

@@ -32,10 +32,19 @@ import {
   YES,
   type ChunkOptions,
 } from './respond.js';
-import { issuedCalls, pendingConfirmations, rememberTrace, stats, updateTrace } from './state.js';
+import {
+  issuedCalls,
+  lastTurnFor,
+  pendingConfirmations,
+  rememberTrace,
+  rememberTurn,
+  stats,
+  trace,
+  updateTrace,
+} from './state.js';
 import { splitClauses } from './compound.js';
 import { decide, DecisionUnavailable } from './systemone.js';
-import { inventoryFor } from './toolcall.js';
+import { descriptorFromAnnouncement, inventoryFor, parseToolArguments } from './toolcall.js';
 import type {
   Answer,
   Catalog,
@@ -78,6 +87,40 @@ function sessionKey(request: OpenAIChatRequest, systemPrompt: string): string {
   if (typeof explicit === 'string' && explicit) return explicit;
   const device = (request as Record<string, unknown>).device_id;
   return sha1(`${device ?? ''}|${systemPrompt.slice(0, 400)}|${request.model ?? ''}`);
+}
+
+/**
+ * The tool calls the *model* made, as Home Assistant replays them.
+ *
+ * The assistant message carries one entry per call with the arguments it sent; the tool
+ * messages that follow refer back to them by id. Reading this is what lets the proxy
+ * describe a call it did not issue itself.
+ */
+/**
+ * Note the turn a conversation is now on, so a follow-up round can be tied back to it.
+ *
+ * Only a turn that carries a sentence qualifies: a speech round has no utterance of its own,
+ * and recording it would make the next follow-up point at the wrong row.
+ */
+function recordTurn(request: OpenAIChatRequest, systemPrompt: string, entry: TraceEntry): void {
+  if (!entry.utterance) return;
+  rememberTurn(sessionKey(request, systemPrompt), entry.utterance, entry.id, entry.category);
+}
+
+function announcedCalls(messages: OpenAIMessage[]): Map<
+  string,
+  { name: string; arguments: string }
+> {
+  const out = new Map<string, { name: string; arguments: string }>();
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue;
+    for (const call of message.tool_calls ?? []) {
+      if (call?.id && call.function?.name) {
+        out.set(call.id, { name: call.function.name, arguments: call.function.arguments ?? '{}' });
+      }
+    }
+  }
+  return out;
 }
 
 function historyOf(messages: OpenAIMessage[], turns: number): { text: string; said_by: 'user' | 'assistant' }[] {
@@ -241,6 +284,7 @@ export async function runPipeline(
       totalMs: Date.now() - startedAt,
     };
     rememberTrace(entry);
+    recordTurn(request, systemPrompt, entry);
     stats.requests += 1;
     stats.bypassed += 1;
     return {
@@ -330,6 +374,7 @@ export async function runPipeline(
         totalMs: Date.now() - startedAt,
       };
       rememberTrace(entry);
+      recordTurn(request, systemPrompt, entry);
       stats.requests += 1;
       stats.bypassed += 1;
       return {
@@ -558,6 +603,7 @@ export async function runPipeline(
       break;
   }
   rememberTrace(entry);
+  recordTurn(request, systemPrompt, entry);
 
   return { route: result, entry, ...(readiness.ready ? {} : { bypass: readiness.reason }) };
 }
@@ -622,7 +668,7 @@ export async function handleChatCompletions(
 
     stats.requests += 1;
     stats.bypassed += 1;
-    rememberTrace({
+    const forwarded: TraceEntry = {
       id: uid('trace'),
       at: Date.now(),
       utterance,
@@ -631,7 +677,10 @@ export async function handleChatCompletions(
       gates: [],
       backend: 'off',
       ...(request.model ? { model: request.model } : {}),
-    });
+    };
+    rememberTrace(forwarded);
+    // Even with no fast path, the follow-up round belongs under this sentence.
+    recordTurn(request, systemPromptOf(request.messages ?? []), forwarded);
     await forwardUpstream(request, rawBody, response, override);
     return;
   }
@@ -664,12 +713,26 @@ export async function handleChatCompletions(
   if (toolMessage) {
     // Per-call policy first. A rule can silence a lamp, keep a shopping list speaking, or say
     // something of its own — one setting for every intent was too blunt.
+    // A round can carry calls this proxy issued and calls the model issued — the second
+    // kind arrives when a forwarded request was answered with a tool call of the model's
+    // own. `issuedCalls` only knows the first kind, and without a descriptor for the second
+    // no rule could match it, so the round fell to the default and a plain question was
+    // answered with silence. The announcement Home Assistant replays carries the name and
+    // the arguments, which is enough to identify the call.
+    const announcements = announcedCalls(messages);
     const described = toolMessages.map((message) => {
-      const call = message.tool_call_id ? issuedCalls.get(message.tool_call_id) : undefined;
+      const issued = message.tool_call_id ? issuedCalls.get(message.tool_call_id) : undefined;
+      const announced = message.tool_call_id ? announcements.get(message.tool_call_id) : undefined;
+      const call = issued
+        ? { tool: issued.tool, domain: issued.domain, action: issued.action, targets: issued.targets }
+        : announced
+          ? descriptorFromAnnouncement(announced.name, announced.arguments)
+          : {};
       return {
         message,
-        args: call?.args,
-        call: { tool: call?.tool, domain: call?.domain, action: call?.action, targets: call?.targets },
+        args: issued?.args ?? (announced ? parseToolArguments(announced.arguments) : undefined),
+        call,
+        ours: Boolean(issued),
       };
     });
     const ruled = described.map(({ call }) => ruleFor(active.speech.rules, call));
@@ -681,6 +744,26 @@ export async function handleChatCompletions(
       await forwardUpstream(request, rawBody, response, override);
       return;
     }
+    // Which turn is this round answering? When the proxy issued the calls, the call knows
+    // the turn that issued it. When the *model* did — the forwarded case — the conversation
+    // remembers its newest turn, which is the sentence this round is answering. That is what
+    // makes a forwarded request and the reply that follows read as one row rather than two
+    // unrelated ones. A round with neither (a restart, an unrelated conversation) stays its
+    // own row instead of being attached to the wrong turn.
+    const ownerFromCalls = described
+      .map((item) => (item.message.tool_call_id ? issuedCalls.get(item.message.tool_call_id)?.turnId : undefined))
+      .find(Boolean);
+    // A request replays the conversation, so the sentence this round is answering is its
+    // last user message — the same link Home Assistant itself keeps.
+    const replayed = lastUserMessage(messages) ?? '';
+    const previousTurn = lastTurnFor(key, replayed);
+    const owner = ownerFromCalls ?? previousTurn?.id;
+    // A question is owed an answer. The quiet default is written for commands — nobody wants
+    // the house narrated — but applying it to a question is how "is the door locked?" came
+    // back as nothing at all. Only a round the proxy did not issue takes this path, so the
+    // existing behaviour for its own calls does not change.
+    const owedAnswer = !ownerFromCalls && previousTurn?.category === 'query';
+
     // null means "let Home Assistant, or the template, say it".
     const resolved = described.map((item, index) => {
       const rule = ruled[index];
@@ -697,7 +780,9 @@ export async function handleChatCompletions(
       // An explicit "speak" outranks the default, which is the point of the rule.
       if (rule?.mode === 'speak') return null;
       // No rule, so the default decides: "stay quiet" means quiet, anything else lets Home
-      // Assistant or the template speak.
+      // Assistant or the template speak. A question overrides the quiet default, because
+      // there is an answer to give and saying nothing is not one.
+      if (owedAnswer) return null;
       return active.speech.afterTool === 'empty' ? '' : null;
     });
     const parts: string[] = [];
@@ -715,6 +800,33 @@ export async function handleChatCompletions(
       if (said) parts.push(said);
     });
     const text = [...new Set(parts)].join(' ').trim();
+
+    // A question the model answered with a call of its own, for which no local sentence can
+    // be built: the model already holds the tool result, so hand the round to it rather than
+    // answering a plain question with silence.
+    if (!text && owedAnswer) {
+      rememberTrace({
+        id: uid('trace'),
+        at: Date.now(),
+        utterance: '',
+        route: 'forward',
+        reason: `the answer to a question was spoken by the model (${describeRules(
+          described.map((item) => item.call),
+        )})`,
+        gates: [],
+        backend: 'speech',
+        ...(owner ? { answersTurn: owner } : {}),
+        ...(toolMessages[0]?.tool_call_id ? { tool: toolMessages[0].tool_call_id } : {}),
+      });
+      const answeredAt = Date.now();
+      try {
+        await forwardUpstream(request, rawBody, response, override);
+      } finally {
+        const entry = trace[0];
+        if (entry) updateTrace(entry.id, { upstreamMs: Date.now() - answeredAt, totalMs: Date.now() - entry.at });
+      }
+      return;
+    }
     const reason = !text
       ? `silent by rule (${describeRules(described.map((item) => item.call))}, sent "${silence}")`
       : ruleTookOver
@@ -722,14 +834,6 @@ export async function handleChatCompletions(
             described.filter((_item, index) => resolved[index] !== null && resolved[index] !== '').map((item) => item.call),
           )}${silenced ? `, ${silenced} of ${toolMessages.length} silent` : ''})`
         : `answered from Home Assistant's tool result (speech.afterTool = "${active.speech.afterTool}")`;
-    // Which turn is this round answering? Every tool message in the request names a call we
-    // issued, and the call remembers the turn that issued it — so the speech round belongs
-    // under that turn rather than beside it. A round whose calls were never ours (a
-    // restart, a call made before this proxy saw the conversation) has no owner and is
-    // recorded as its own row.
-    const owner = described
-      .map((item) => (item.message.tool_call_id ? issuedCalls.get(item.message.tool_call_id)?.turnId : undefined))
-      .find(Boolean);
     rememberTrace({
       id: uid('trace'),
       at: Date.now(),

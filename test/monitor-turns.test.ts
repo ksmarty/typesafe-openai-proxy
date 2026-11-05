@@ -4,7 +4,7 @@ import test from 'node:test';
 import { clearCatalogCache } from '../src/catalog.js';
 import { defaultConfig, type Config } from '../src/config.js';
 import { handleChatCompletions } from '../src/pipeline.js';
-import { issuedCalls, trace } from '../src/state.js';
+import { issuedCalls, trace, turnBySession } from '../src/state.js';
 import type { OpenAITool } from '../src/types.js';
 
 /**
@@ -116,9 +116,11 @@ test('the speech round names the turn whose calls it answers', async () => {
   assert.ok(speech?.said, 'the reply that was sent is recorded, so a row can show it');
   assert.doesNotMatch(speech?.said ?? '', /^\[pause/);
 
-  // 3. A round whose call this proxy never issued has no owner and stays its own row.
+  // 3. A round this proxy can find no turn for — a restart, a conversation it never saw —
+  // has no owner and stays its own row.
   const orphan = fakeResponse();
   trace.length = 0;
+  turnBySession.clear();
   await handleChatCompletions(
     {
       model: 'm',
