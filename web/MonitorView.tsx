@@ -275,22 +275,44 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
   );
 }
 
-function TraceRow({ entry }: { entry: TraceEntry }) {
+function TraceRow({ entry, replies = [] }: { entry: TraceEntry; replies?: TraceEntry[] }) {
   const tool = entry.tool ? `${entry.tool} ${pretty(entry.args ?? {})}` : null;
   const callLines = (entry.calls ?? []).map((call, index) => `${index + 1}. ${call.tool} ${pretty(call.args ?? {})}`);
+  const headline = entry.route === 'refused' ? entry.reason : entry.utterance || '(empty)';
   return (
     <Accordion disableGutters elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, '&:before': { display: 'none' }, mb: 1 }}>
       <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ px: 2 }}>
-        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center',  width: '100%', minWidth: 0 }}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', width: '100%', minWidth: 0 }}>
           <RouteChip kind={entry.route} />
           {entry.httpStatus ? <Chip label={`HTTP ${entry.httpStatus}`} color="error" variant="outlined" size="small" /> : null}
-          <Typography variant="body2" sx={{ flex: 1, minWidth: 0 }} noWrap>
-            {entry.route === 'refused' ? entry.reason : entry.utterance || '(empty)'}
+          <Typography
+            variant="body2"
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              // One line on every width: a long spoken sentence must never widen the row.
+              // `noWrap` alone lets the flex item keep its content width, so the summary
+              // scrolls the whole card sideways on a phone.
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+            title={headline}
+          >
+            {headline}
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
+          {callLines.length ? (
+            <Chip
+              size="small"
+              variant="outlined"
+              label={`${callLines.length} call${callLines.length > 1 ? 's' : ''}`}
+              sx={{ flexShrink: 0, display: { xs: 'none', sm: 'inline-flex' } }}
+            />
+          ) : null}
+          <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, display: { xs: 'none', sm: 'block' } }}>
             {ms(entry.decisionMs)}
           </Typography>
-          <Typography variant="caption" color="text.disabled" sx={{ display: { xs: 'none', md: 'block' }, minWidth: 62, textAlign: 'right' }}>
+          <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0, display: { xs: 'none', md: 'block' }, minWidth: 62, textAlign: 'right' }}>
             {timeAgo(entry.at)}
           </Typography>
         </Stack>
@@ -377,6 +399,37 @@ function TraceRow({ entry }: { entry: TraceEntry }) {
           ) : null}
           {entry.clarification ? <Alert severity="info" variant="outlined">{entry.clarification}</Alert> : null}
           {entry.error ? <Alert severity="error" variant="outlined">{entry.error}</Alert> : null}
+          {replies.length ? (
+            <Box>
+              <Typography variant="overline" color="text.secondary">
+                {replies.length === 1 ? 'What was said back' : `What was said back (${replies.length} rounds)`}
+              </Typography>
+              <Stack spacing={1}>
+                {replies.map((reply) => (
+                  <Box
+                    key={reply.id}
+                    sx={{
+                      border: '1px dashed',
+                      borderColor: 'divider',
+                      borderRadius: 2,
+                      p: 1.25,
+                      minWidth: 0,
+                    }}
+                  >
+                    <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5, minWidth: 0 }}>
+                      <Chip size="small" variant="outlined" label={reply.backend ?? 'speech'} sx={{ flexShrink: 0 }} />
+                      <Typography variant="caption" color="text.disabled" sx={{ flexShrink: 0 }}>
+                        {timeAgo(reply.at)}
+                      </Typography>
+                    </Stack>
+                    <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>
+                      {reply.said || reply.reason}
+                    </Typography>
+                  </Box>
+                ))}
+              </Stack>
+            </Box>
+          ) : null}
           {entry.gates.length ? (
             <Box>
               <Typography variant="overline" color="text.secondary">Gates</Typography>
@@ -460,6 +513,30 @@ export function MonitorView({ status, onRefresh }: { status: Status | null; onRe
   }, [status]);
 
   const breaker = status?.decision.breaker;
+
+  /**
+   * One row per spoken turn.
+   *
+   * Home Assistant makes two HTTP requests for a command that gets spoken back — the
+   * decision, then a follow-up carrying the tool result — and they used to appear as two
+   * unrelated rows. A speech round now nests under the turn whose calls it answers.
+   */
+  const turns = useMemo(() => {
+    const byId = new Map(entries.map((entry) => [entry.id, entry]));
+    const replies = new Map<string, TraceEntry[]>();
+    for (const entry of entries) {
+      if (!entry.answersTurn || !byId.has(entry.answersTurn)) continue;
+      const list = replies.get(entry.answersTurn) ?? [];
+      list.push(entry);
+      replies.set(entry.answersTurn, list);
+    }
+    // Replies are recorded after their turn, so `entries` (newest first) holds them first;
+    // sort each group oldest-first so the round reads in the order it happened.
+    for (const list of replies.values()) list.sort((a, b) => a.at - b.at);
+    return entries
+      .filter((entry) => !entry.answersTurn || !byId.has(entry.answersTurn))
+      .map((entry) => ({ entry, replies: replies.get(entry.id) ?? [] }));
+  }, [entries]);
 
   return (
     <Stack spacing={2.5}>
@@ -689,7 +766,7 @@ export function MonitorView({ status, onRefresh }: { status: Status | null; onRe
               ) : null}
             </Stack>
           ) : (
-            entries.map((entry) => <TraceRow key={entry.id} entry={entry} />)
+            turns.map((turn) => <TraceRow key={turn.entry.id} entry={turn.entry} replies={turn.replies} />)
           )}
         </CardContent>
       </Card>

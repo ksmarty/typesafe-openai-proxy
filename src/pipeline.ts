@@ -722,6 +722,14 @@ export async function handleChatCompletions(
             described.filter((_item, index) => resolved[index] !== null && resolved[index] !== '').map((item) => item.call),
           )}${silenced ? `, ${silenced} of ${toolMessages.length} silent` : ''})`
         : `answered from Home Assistant's tool result (speech.afterTool = "${active.speech.afterTool}")`;
+    // Which turn is this round answering? Every tool message in the request names a call we
+    // issued, and the call remembers the turn that issued it — so the speech round belongs
+    // under that turn rather than beside it. A round whose calls were never ours (a
+    // restart, a call made before this proxy saw the conversation) has no owner and is
+    // recorded as its own row.
+    const owner = described
+      .map((item) => (item.message.tool_call_id ? issuedCalls.get(item.message.tool_call_id)?.turnId : undefined))
+      .find(Boolean);
     rememberTrace({
       id: uid('trace'),
       at: Date.now(),
@@ -730,6 +738,8 @@ export async function handleChatCompletions(
       reason,
       gates: [],
       backend: 'speech',
+      ...(owner ? { answersTurn: owner } : {}),
+      ...(text ? { said: text } : {}),
       ...(toolMessage.tool_call_id ? { tool: toolMessage.tool_call_id } : {}),
     });
     // An empty string still starts a TTS job in some pipelines; a pause marker is silence.
@@ -762,13 +772,14 @@ export async function handleChatCompletions(
       pendingConfirmations.delete(key);
     } else if (YES.test(utterance)) {
       pendingConfirmations.delete(key);
-      emitToolCall(response, options(), pending.plan);
+      const confirmedId = uid('trace');
+      emitToolCall(response, options(), pending.plan, confirmedId);
       rememberTrace({
-        id: uid('trace'),
+        id: confirmedId,
         at: Date.now(),
         utterance,
         route: 'tool',
-        reason: 'confirmed by the speaker',
+        reason: `confirmed by the speaker (${pending.utterance})`,
         ...(pending.plan.kind === 'tool'
           ? { tool: pending.plan.tool, args: pending.plan.args }
           : { calls: pending.plan.calls.map((call) => ({ tool: call.tool, args: call.args })) }),
@@ -834,7 +845,7 @@ export async function handleChatCompletions(
   switch (plan.kind) {
     case 'tool':
     case 'calls':
-      emitToolCall(response, options(), plan);
+      emitToolCall(response, options(), plan, result.entry.id);
       return;
     case 'clarify':
     case 'text':
@@ -880,6 +891,8 @@ function emitToolCall(
   response: ServerResponse,
   options: ChunkOptions,
   plan: Extract<Plan, { kind: 'tool' } | { kind: 'calls' }>,
+  /** The trace entry of the turn issuing these calls, so the speech round can nest under it. */
+  turnId?: string,
 ): void {
   const calls = plan.kind === 'calls' ? plan.calls : [plan];
   const prepared = calls.map((call) => {
@@ -890,6 +903,7 @@ function emitToolCall(
       ...(call.domain ? { domain: call.domain } : {}),
       tool: call.tool,
       args: call.args,
+      ...(turnId ? { turnId } : {}),
       at: Date.now(),
     });
     return { id, name: call.tool, args: JSON.stringify(call.args) };

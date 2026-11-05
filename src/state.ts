@@ -40,6 +40,12 @@ export const issuedCalls = new Map<
     tool?: string;
     /** The slots we sent, so a custom sentence can name the list item it added. */
     args?: Record<string, unknown>;
+    /**
+     * The trace entry of the turn that issued this call. The speech round that answers the
+     * call is nested under that turn in the dashboard, so one sentence is one row however
+     * many HTTP requests it took.
+     */
+    turnId?: string;
     at: number;
   }
 >();

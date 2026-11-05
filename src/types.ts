@@ -294,4 +294,15 @@ export interface TraceEntry {
   error?: string;
   clarification?: string;
   toolResult?: unknown;
+  /**
+   * The turn that issued the calls this round is answering.
+   *
+   * A speech round arrives as a separate request — Home Assistant replays the whole chat
+   * with the tool results appended — so without this the monitor shows one row per HTTP
+   * call and the calls look detached from the sentence that caused them. Set on a speech
+   * round, it names the `TraceEntry.id` of the decision that emitted the calls.
+   */
+  answersTurn?: string;
+  /** The reply the assistant actually sent for this turn, so the row shows what was said. */
+  said?: string;
 }
