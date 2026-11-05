@@ -15,6 +15,7 @@ points at. Each request is decided locally first:
 | clear state question | proxy returns `HassGetState` / `HassClimateGetTemperature` | one decision call |
 | ambiguous target | proxy asks which device you meant, in the tool-call-free reply | one decision call |
 | risky action (`unlock`, `open`, `disarm`) | proxy asks "do you want me to…" and waits | one decision call |
+| overheard remark, not aimed at it | proxy answers with the configured silence and forwards nothing | one decision call |
 | anything else | request is forwarded **verbatim** to your inference server | unchanged from today |
 
 That last row is the whole safety story: the fast path only ever takes a request it is confident
@@ -542,6 +543,9 @@ The backend-related variables are worth naming, because there is no default deci
 | `SYSTEMONE_BASE_URL` | *(empty)* | the decision server; `systemone` with an empty URL is still a pass-through |
 | `SYSTEMONE_MODEL` | *(empty)* | the model name that server serves — there is no assumed default |
 | `AUTO_START` | *(unset)* | `1` decides every request; otherwise only requests naming the `typesafe-router` model are decided |
+| `LISTENING` | `1` | `0` stops judging whether a sentence was addressed to the assistant, so every turn is forwarded again |
+| `LISTENING_LOCAL` | `1` | `0` keeps the decision model's judgement but drops the local pattern reader for turns no model saw |
+| `LISTENING_CONFIDENCE` | `0.75` | how sure the judgement has to be before a turn is answered with silence |
 
 ### One key for both servers
 
@@ -578,7 +582,8 @@ React and Material UI are dev dependencies on purpose: the browser loads the pre
 `public/app.js`, so the runtime image needs no `node_modules` at all.
 
 Layout: `src/questions.ts` builds the typed question set, `src/systemone.ts` and
-`src/heuristic.ts` answer it, `src/router.ts` turns answers into a plan under the gates,
+`src/heuristic.ts` answer it, `src/addressee.ts` reads whether a sentence was meant for the
+assistant at all, `src/router.ts` turns answers into a plan under the gates,
 `src/toolcall.ts` maps the plan onto the tool schemas Home Assistant actually offered,
 `src/schema.ts` describes every setting for both the API and the dashboard, `src/pipeline.ts` ties
 a chat request to a response, `src/server.ts` is the HTTP surface. The dashboard lives in `web/`
