@@ -464,6 +464,51 @@ forwarded to your model exactly as before. Neither is anything fetched without a
 of any kind — a bad key, an unreachable service, a timeout — answers nothing and forwards the
 question, so weather can never be the reason a turn breaks.
 
+### Music
+
+"play Taylor Swift" is a request with the speaker missing, the media type missing and the
+provider missing — and all three are worked out rather than asked about. The speaker is the one
+that was spoken to, the media type follows from the shape of the sentence, and
+[Music Assistant](https://music-assistant.io/) resolves the name against every provider you
+connected to it. No model call is involved, so the music starts in the time the round trip
+takes.
+
+| Said | Played |
+| --- | --- |
+| "play Taylor Swift" | the artist, which every provider plays as their top tracks |
+| "play Taylor Swift's greatest hits" | the same — the shelf has a different name per provider, the artist is the same |
+| "play Don't Tap The Glass by Tyler The Creator" | the album, with the artist sent alongside it so two albums of one name cannot be confused |
+| "play the album Don't Tap The Glass" | the album, because the sentence says so |
+| "play the song Bad Guy by Billie Eilish" | the track |
+| "play the playlist Deep Focus" | the playlist |
+| "play radio station BBC Radio 4" | the station |
+| "play some jazz" | the genre, which every provider keeps as a shelf |
+
+**Which speaker.** The device the sentence was spoken to — Home Assistant names it in the
+request — is found in the catalog through the speaker that belongs to it, so "play Taylor Swift"
+in the kitchen plays in the kitchen. A speaker or a room named in the sentence wins over that
+("play Taylor Swift on the living room speaker"), and a house with exactly one speaker needs no
+device id at all. When the house has several speakers and the request names no device, the
+sentence is left to your model rather than played in a room nobody asked for. The words that
+named the room are dropped from what is searched for — a sentence that says "in the kitchen" is
+not looking for a band called "in the kitchen".
+
+**Which service.** Music Assistant is used when Home Assistant offers its `play_media` service,
+because it searches every provider at once and knows the difference between an artist, an album
+and a track. Without it, Home Assistant's own media search (`HassMediaSearchAndPlay`) is called
+with the name and the artist as one search string. Settings → Music → *Which service plays*
+pins one or the other.
+
+**What happens to the queue** is a setting too: replace and play (the default), play next, queue
+after the current track, clear what is queued after this, or add to the end. An artist can be
+asked for as a radio station instead of their top tracks. Set `MUSIC=0` to hand every music
+request back to your model, or `MUSIC_PROVIDER`, `MUSIC_ENQUEUE` and `MUSIC_ARTIST` instead of
+using the form.
+
+What it deliberately does not do: **"play" with nothing to play** ("play some music", "play the
+next song") is a playback command, not a search, and goes to your model; and a request with no
+speaker to play on — several speakers, no device id — is forwarded rather than guessed at.
+
 ### Only what Assist can see
 
 The catalog asks Home Assistant which entities are exposed to the conversation agent

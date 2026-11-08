@@ -139,6 +139,36 @@ export interface Config {
     timeoutMs: number;
   };
   /**
+   * Music, played on the speaker that was spoken to.
+   *
+   * "Play Taylor Swift" names no speaker, no media type and no provider, and all three are
+   * worked out here: the speaker is where the sentence was heard, the media type follows from
+   * the shape of the phrase ("X by Y" is an album, a bare name is an artist), and the service
+   * is whichever one Home Assistant offers a tool for — Music Assistant when it is installed,
+   * Home Assistant's own media search otherwise. A name the reader does not understand is
+   * forwarded, so this changes nothing it cannot place.
+   */
+  music: {
+    /** Read "play …" as a music request instead of leaving the sentence to the model. */
+    enabled: boolean;
+    /**
+     * Which service plays: `auto` prefers Music Assistant when the request offers it,
+     * `assist` never uses it, `music_assistant` requires it.
+     */
+    provider: 'auto' | 'music_assistant' | 'assist';
+    /**
+     * What happens to whatever is already queued: `replace` clears the queue and plays,
+     * `play` plays next, `next` queues it after the current track, `replace_next` clears
+     * everything after the current track, `add` appends it.
+     */
+    enqueue: 'replace' | 'play' | 'next' | 'replace_next' | 'add';
+    /**
+     * What a bare artist name asks for: the artist (every provider plays an artist as their
+     * top tracks), or an endless radio station built from them.
+     */
+    artist: 'artist' | 'radio';
+  };
+  /**
    * Was that sentence meant for the assistant?
    *
    * A voice assistant hears the whole room, and anything the fast path declines is
@@ -286,6 +316,7 @@ export function defaultConfig(): Config {
       baseUrl: '',
       timeoutMs: 8000,
     },
+    music: { enabled: true, provider: 'auto', enqueue: 'replace', artist: 'artist' },
     // On by default: an overheard remark answered with an action is the failure this
     // exists to prevent, and the judge declines to speak unless it is sure.
     listening: { enabled: true, confidence: 0.75, local: true },
@@ -393,6 +424,22 @@ function applyEnv(config: Config): void {
   if (env.WEATHER_LANGUAGE) config.weather.language = env.WEATHER_LANGUAGE;
   if (env.WEATHER_STYLE) config.weather.style = env.WEATHER_STYLE;
   if (env.WEATHER_BASE_URL) config.weather.baseUrl = env.WEATHER_BASE_URL;
+  if (env.MUSIC !== undefined && env.MUSIC !== '') {
+    config.music.enabled = /^(1|true|yes|on)$/i.test(env.MUSIC);
+  }
+  if (env.MUSIC_PROVIDER === 'auto' || env.MUSIC_PROVIDER === 'music_assistant' || env.MUSIC_PROVIDER === 'assist') {
+    config.music.provider = env.MUSIC_PROVIDER;
+  }
+  if (
+    env.MUSIC_ENQUEUE === 'replace' ||
+    env.MUSIC_ENQUEUE === 'play' ||
+    env.MUSIC_ENQUEUE === 'next' ||
+    env.MUSIC_ENQUEUE === 'replace_next' ||
+    env.MUSIC_ENQUEUE === 'add'
+  ) {
+    config.music.enqueue = env.MUSIC_ENQUEUE;
+  }
+  if (env.MUSIC_ARTIST === 'artist' || env.MUSIC_ARTIST === 'radio') config.music.artist = env.MUSIC_ARTIST;
 }
 
 /** The dashboard shows secrets masked; a save that echoes the mask back means "leave it". */

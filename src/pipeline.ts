@@ -13,6 +13,7 @@ import { ACTION_VERBS } from './actions.js';
 
 import { getCatalog, homeSignature, homeZoneCoordinates } from './catalog.js';
 import { directStatePlan } from './answer.js';
+import { musicPlan } from './music.js';
 import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
 import { readWeatherQuestion, requestedSummaryLanguage, weatherAnswer, weatherFor } from './weather.js';
 import { looksLikeChatter } from './chatter.js';
@@ -100,6 +101,12 @@ function lastUserMessage(messages: OpenAIMessage[]): string | undefined {
     if (text) return text;
   }
   return undefined;
+}
+
+/** The device the sentence was spoken to, when the request names one. */
+function deviceOf(request: OpenAIChatRequest): string | undefined {
+  const candidate = (request as Record<string, unknown>).device_id;
+  return typeof candidate === 'string' && candidate ? candidate : undefined;
 }
 
 /** A stable identity per Home Assistant conversation. */
@@ -424,6 +431,61 @@ export async function runPipeline(
       stats.requests += 1;
       return {
         route: { plan: { kind: 'text', text: direct.text } as Plan, gates: [], reason, category: 'query' },
+        entry,
+      };
+    }
+  }
+
+  // "Play Taylor Swift", "play Don't Tap The Glass by Tyler The Creator": a music request
+  // names something to play and nothing else. The speaker is where the sentence was heard,
+  // the media type follows from the shape of the phrase, and Music Assistant (when Home
+  // Assistant offers its play service) resolves the name against every provider the user
+  // connected — an artist to their top tracks, an album to the album itself.
+  if (active.routing.enabled && active.music.enabled) {
+    const music = musicPlan({
+      utterance,
+      catalog,
+      inventory,
+      config: active,
+      ...(deviceOf(request) ? { deviceId: deviceOf(request)! } : {}),
+    });
+    // An error means the sentence is a music request this reader cannot place — no speaker,
+    // or a service with no slot for the name. Falling through gives the model its say
+    // instead of answering a request with a refusal.
+    if (music && !('error' in music)) {
+      const entry: TraceEntry = {
+        id: uid('trace'),
+        at: startedAt,
+        utterance,
+        route: 'tool',
+        reason: music.reason,
+        tool: music.plan.tool,
+        args: music.plan.args,
+        gates: [],
+        category: 'command',
+        action: music.plan.action,
+        ...(music.plan.targets[0] ? { target: music.plan.targets[0] } : {}),
+        backend: 'off',
+        catalogSource: catalog.source,
+        catalogExposure: catalog.exposure,
+        toolsOffered,
+        timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+        totalMs: Date.now() - startedAt,
+      };
+      rememberTrace(entry);
+      stats.requests += 1;
+      stats.toolCalls += 1;
+      stats.routable += 1;
+      recordTurn(request, systemPrompt, entry);
+      return {
+        route: {
+          plan: music.plan,
+          gates: [],
+          reason: music.reason,
+          category: 'command',
+          action: music.plan.action,
+          ...(music.plan.targets[0] ? { target: music.plan.targets[0] } : {}),
+        },
         entry,
       };
     }

@@ -580,6 +580,9 @@ export function catalogFromRegistries(input: {
       ...(aliases.length ? { aliases } : {}),
       state: state?.state ?? 'unknown',
       ...(areaId ? { areaId } : {}),
+      // The device is kept so a speaker can be found from the device the sentence was spoken
+      // to — the one piece of the request that names a place better than the catalog does.
+      ...(entity.device_id ? { deviceId: entity.device_id } : {}),
       ...(area ? { areaName: area.name, ...(area.floor ? { floor: area.floor } : {}) } : {}),
       ...(typeof state?.attributes?.device_class === 'string'
         ? { deviceClass: state.attributes.device_class }

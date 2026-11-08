@@ -20,6 +20,8 @@ export interface CatalogEntity {
   areaId?: string;
   areaName?: string;
   floor?: string;
+  /** The Home Assistant device this entity belongs to, so a spoken-to device can find its room. */
+  deviceId?: string;
   deviceClass?: string;
   /** Other names Home Assistant answers to for this entity (Assist aliases). */
   aliases?: string[];
