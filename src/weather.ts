@@ -46,10 +46,29 @@ export interface WeatherDay {
  */
 export type WeatherSubject = 'now' | 'next_hour' | 'today' | 'tonight' | 'tomorrow' | 'week' | 'rest_of_day';
 
+/**
+ * How much of the answer is said, and in which order.
+ *
+ * None of these reword the forecast: every one of them still speaks the sentence the service
+ * wrote, because that sentence is better than one assembled here and is correct in all fifty
+ * languages the service writes. What changes is only whether the temperature sentence is
+ * added, whether the day's range is added with it, and whether the number comes first.
+ */
+export type WeatherStyle = 'summary' | 'current' | 'full' | 'temperature_first';
+
+/** The style named by a setting, with anything unrecognised meaning `current`. */
+export function weatherStyle(value: string | undefined): WeatherStyle {
+  const wanted = (value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if (wanted === 'summary' || wanted === 'full' || wanted === 'temperature_first') return wanted;
+  return 'current';
+}
+
 export interface WeatherQuestion {
   subject: WeatherSubject;
   /** The language the question came in, so the summary comes back in the same one. */
   language?: string;
+  /** How much to say. Empty means `current`: the summary, then the temperature. */
+  style?: string;
 }
 
 /** The languages Pirate Weather writes summaries in. Anything else falls back to English. */
@@ -134,14 +153,23 @@ function join(...parts: string[]): string {
  */
 export function weatherAnswer(report: WeatherReport, question: WeatherQuestion): string | null {
   const language = summaryLanguage(question.language);
+  const style = weatherStyle(question.style);
   const template = TEMPERATURE_TEMPLATE[language];
   const currently = report.currently ?? {};
   const today = report.daily?.data?.[0] ?? {};
   const tomorrow = report.daily?.data?.[1] ?? {};
 
+  /** The day's range, when the report carries both ends of it. */
+  const rangeOf = (day: WeatherDay): string => {
+    const high = degrees(day.temperatureHigh ?? day.temperatureMax);
+    const low = degrees(day.temperatureLow ?? day.temperatureMin);
+    return template && high && low ? fill(template.range, { high, low }) : '';
+  };
+
   switch (question.subject) {
     case 'now': {
       const said = sentence(currently.summary);
+      if (style === 'summary') return said || null;
       const temperature =
         template && typeof currently.temperature === 'number'
           ? fill(template.now, {
@@ -149,8 +177,10 @@ export function weatherAnswer(report: WeatherReport, question: WeatherQuestion):
               feels: degrees(currently.apparentTemperature) || degrees(currently.temperature),
             })
           : '';
-      const answer = join(said, temperature);
-      return answer || null;
+      // `full` also gives the day either side of right now, which is what most people mean.
+      const range = style === 'full' ? rangeOf(today) : '';
+      const ordered = style === 'temperature_first' ? join(temperature, said) : join(said, temperature);
+      return join(ordered, range) || null;
     }
     case 'next_hour': {
       // The minutely block is the one that answers "is it going to rain in the next hour".
@@ -160,19 +190,18 @@ export function weatherAnswer(report: WeatherReport, question: WeatherQuestion):
     case 'today':
     case 'tonight': {
       const said = sentence(today.summary);
-      const high = degrees(today.temperatureHigh ?? today.temperatureMax);
-      const low = degrees(today.temperatureLow ?? today.temperatureMin);
-      const range = template && high && low ? fill(template.range, { high, low }) : '';
-      const answer = join(said, range);
-      return answer || null;
+      if (style === 'summary') return said || null;
+      const range = rangeOf(today);
+      const ordered = style === 'temperature_first' ? join(range, said) : join(said, range);
+      return ordered || null;
     }
     case 'tomorrow': {
       const said = sentence(tomorrow.summary);
       if (!said) return null;
-      const high = degrees(tomorrow.temperatureHigh ?? tomorrow.temperatureMax);
-      const low = degrees(tomorrow.temperatureLow ?? tomorrow.temperatureMin);
-      const range = template && high && low ? fill(template.range, { high, low }) : '';
-      return join(said, range) || null;
+      if (style === 'summary') return said;
+      const range = rangeOf(tomorrow);
+      const ordered = style === 'temperature_first' ? join(range, said) : join(said, range);
+      return ordered || null;
     }
     case 'week':
       return sentence(report.daily?.summary) || null;

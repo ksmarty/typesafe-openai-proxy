@@ -465,6 +465,18 @@ export function settingsGroups(): SettingsGroup[] {
           help: 'Empty sends the language of each request, so an English question gets an English summary. The reader that recognises a weather question is English, so pin a language here if you want the summaries in another one.',
         },
         {
+          key: 'weather.style',
+          label: 'What the answer says',
+          type: 'select',
+          options: [
+            { value: 'current', label: 'The summary, then the temperature' },
+            { value: 'summary', label: 'The summary only' },
+            { value: 'full', label: 'The summary, the temperature, and the day’s high and low' },
+            { value: 'temperature_first', label: 'The temperature first, then the summary' },
+          ],
+          help: 'Only the temperature sentence is written here. The summary is always the forecast service’s own wording, so the answer stays right in every language it writes.',
+        },
+        {
           key: 'weather.cacheMs',
           label: 'Forecast lifetime',
           type: 'number',

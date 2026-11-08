@@ -418,6 +418,20 @@ in fifty-odd languages), and the temperature sentence follows the same rule — 
 no phrase here gets the summary alone rather than a sentence in the wrong language. Units come
 from the locale Home Assistant sends, or from the pinned choice in Settings → Weather.
 
+**What the answer says** is yours to choose in Settings → Weather → *What the answer says*, and
+it only ever changes the temperature sentence, never the summary:
+
+| Style | "what's the weather like?" |
+| --- | --- |
+| *the summary, then the temperature* (default) | "Light Rain. Currently 7°, feeling like 4°." |
+| *the summary only* | "Light Rain." |
+| *the summary, the temperature, and the day's high and low* | "Light Rain. Currently 7°, feeling like 4°. A high of 9° and a low of 5°." |
+| *the temperature first, then the summary* | "Currently 7°, feeling like 4°. Light Rain." |
+
+Keeping the summary untouched is the point: it is correct in every language the service writes,
+so no style can produce a sentence that mixes two languages. Set `WEATHER_STYLE` to
+`current`, `summary`, `full` or `temperature_first` instead of using the form.
+
 The reader that recognises a weather question is English, so a non-English question is
 forwarded to your model unless **Settings → Weather → Language of the summaries** pins one, in
 which case every summary (and the sentence after it) comes back in that language.
@@ -632,6 +646,7 @@ The backend-related variables are worth naming, because there is no default deci
 | `WEATHER_LATITUDE` / `WEATHER_LONGITUDE` | *(empty)* | where the forecast is for; empty reads Home Assistant's `zone.home` |
 | `WEATHER_UNITS` | *(auto)* | `si`, `ca`, `uk` or `us`; `auto` follows the locale of each request |
 | `WEATHER_LANGUAGE` | *(empty)* | pin the language of the summaries; empty follows each request |
+| `WEATHER_STYLE` | `current` | what the answer says: `summary`, `current`, `full` or `temperature_first` |
 | `WEATHER_BASE_URL` | *(empty)* | only for a self-hosted or mirrored service |
 
 ### One key for both servers

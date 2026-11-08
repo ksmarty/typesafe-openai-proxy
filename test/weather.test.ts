@@ -191,6 +191,49 @@ test('a pinned summary language governs the temperature sentence too', () => {
   assert.equal(requestedSummaryLanguage({ ...base, language: 'xx' }, 'en'), 'en');
 });
 
+test('the style decides how much is said, and never rewords the summary', () => {
+  // The default: the service's sentence, then the temperature.
+  assert.equal(
+    weatherAnswer(REPORT, { subject: 'now', language: 'en', style: 'current' }),
+    'Light Rain. Currently 7°, feeling like 4°.',
+  );
+  // The service's sentence alone.
+  assert.equal(weatherAnswer(REPORT, { subject: 'now', language: 'en', style: 'summary' }), 'Light Rain.');
+  // Right now, with the day either side of it.
+  assert.equal(
+    weatherAnswer(REPORT, { subject: 'now', language: 'en', style: 'full' }),
+    'Light Rain. Currently 7°, feeling like 4°. A high of 9° and a low of 5°.',
+  );
+  // The number first, because that is what was really asked.
+  assert.equal(
+    weatherAnswer(REPORT, { subject: 'now', language: 'en', style: 'temperature_first' }),
+    'Currently 7°, feeling like 4°. Light Rain.',
+  );
+  // An unknown style reads as the default rather than answering with nothing.
+  assert.equal(
+    weatherAnswer(REPORT, { subject: 'now', language: 'en', style: 'shouty' }),
+    'Light Rain. Currently 7°, feeling like 4°.',
+  );
+});
+
+test('a style adds no half sentence in a language with no temperature template', () => {
+  assert.equal(weatherAnswer(REPORT, { subject: 'now', language: 'ja', style: 'full' }), 'Light Rain.');
+  assert.equal(weatherAnswer(REPORT, { subject: 'now', language: 'ja', style: 'temperature_first' }), 'Light Rain.');
+  assert.equal(weatherAnswer(REPORT, { subject: 'now', language: 'ja', style: 'summary' }), 'Light Rain.');
+});
+
+test('the other time frames follow the same style', () => {
+  assert.equal(
+    weatherAnswer(REPORT, { subject: 'today', language: 'en', style: 'summary' }),
+    'Possible light rain until night and foggy overnight.',
+  );
+  assert.equal(
+    weatherAnswer(REPORT, { subject: 'tomorrow', language: 'en', style: 'temperature_first' }),
+    'A high of 9° and a low of 3°. Misty until afternoon, returning overnight.',
+  );
+  assert.equal(weatherAnswer(REPORT, { subject: 'next_hour', language: 'en', style: 'full' }), 'Flurries for the hour.');
+});
+
 // --- the service ----------------------------------------------------------
 
 let stub: Server;
@@ -317,6 +360,14 @@ test('a question about the house is left to the decision model', async () => {
   const result = await ask('is the desk lamp on?');
   assert.notEqual(result.entry.reason, 'the time — spoken in words, no model call');
   assert.ok(!/\bforecast service\b/.test(result.entry.reason), 'the weather must not answer a device question');
+});
+
+test('the style setting reaches what is spoken', async () => {
+  responder = () => ({ status: 200, body: JSON.stringify(REPORT) });
+  const result = await ask('what is the weather like?', { style: 'summary' });
+  assert.equal(result.route.plan.kind, 'text');
+  if (result.route.plan.kind !== 'text') return;
+  assert.equal(result.route.plan.text, 'Light Rain.');
 });
 
 test('with no key configured nothing is fetched and the question is forwarded', async () => {

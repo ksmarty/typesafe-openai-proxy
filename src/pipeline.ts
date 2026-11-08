@@ -369,7 +369,9 @@ export async function runPipeline(
       // The summary's language, not the request's: a pinned language puts the summary in one
       // language, and the temperature sentence has to agree with the summary it follows.
       const spokenLanguage = requestedSummaryLanguage(active.weather, languageOf(request));
-      const text = report ? weatherAnswer(report, { subject: question.subject, language: spokenLanguage }) : null;
+      const text = report
+        ? weatherAnswer(report, { subject: question.subject, language: spokenLanguage, style: active.weather.style })
+        : null;
       if (text) {
         const reason = `weather: ${question.subject} — from the forecast service, no model call`;
         const entry: TraceEntry = {

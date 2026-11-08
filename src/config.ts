@@ -125,6 +125,12 @@ export interface Config {
     units: string;
     /** Language of the written summaries. Empty follows the language of each request. */
     language: string;
+    /**
+     * How much is said: `current` (the default) speaks the summary and the temperature,
+     * `summary` speaks only the service's own sentence, `full` adds the day's high and low,
+     * and `temperature_first` puts the number before the sky.
+     */
+    style: string;
     /** How long one forecast is reused. Two questions a minute apart cost one request. */
     cacheMs: number;
     /** The API host, overridable for a self-hosted or mirrored service. */
@@ -274,6 +280,7 @@ export function defaultConfig(): Config {
       haZoneCoordinates: true,
       units: 'auto',
       language: '',
+      style: 'current',
       cacheMs: 600000,
       baseUrl: '',
       timeoutMs: 8000,
@@ -383,6 +390,7 @@ function applyEnv(config: Config): void {
   }
   if (env.WEATHER_UNITS) config.weather.units = env.WEATHER_UNITS;
   if (env.WEATHER_LANGUAGE) config.weather.language = env.WEATHER_LANGUAGE;
+  if (env.WEATHER_STYLE) config.weather.style = env.WEATHER_STYLE;
   if (env.WEATHER_BASE_URL) config.weather.baseUrl = env.WEATHER_BASE_URL;
 }
 
