@@ -168,9 +168,60 @@ export function hasTool(inventory: ToolInventory, intent: string): boolean {
   return findTool(inventory, intent) !== undefined;
 }
 
-function propertiesOf(tool: OpenAIToolFunction): Record<string, { type?: string; enum?: unknown[] }> {
-  return (tool.parameters?.properties ?? {}) as Record<string, { type?: string; enum?: unknown[] }>;
+/**
+ * One slot as Home Assistant declared it.
+ *
+ * The bounds matter. Home Assistant builds its tool schemas from the intent's own validators,
+ * so the schema says what the slot will accept: `brightness` on `HassLightSet` is a percentage
+ * 0-100 (the intent maps it to `brightness_pct`), never the 0-255 attribute of the same name.
+ * Reading the range is the difference between sending 50 and sending 127.
+ */
+export interface SlotSchema {
+  type?: string;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  description?: string;
 }
+
+function propertiesOf(tool: OpenAIToolFunction): Record<string, SlotSchema> {
+  return (tool.parameters?.properties ?? {}) as Record<string, SlotSchema>;
+}
+
+/**
+ * The value a level slot will accept, given the percentage the plan resolved.
+ *
+ * The plan works in percent — that is what a person says and what the decision model reads —
+ * and every level slot Home Assistant exposes is a percentage too (`brightness` on
+ * `HassLightSet`, fan `percentage`, `humidity`, media player `volume_level`). A schema that
+ * declares something else is honoured rather than guessed at: a 0-1 fraction takes a fraction,
+ * and a wider range (an integration exposing the raw 0-255 attribute) is scaled into it.
+ */
+export function levelForSlot(value: number, slot: string, schema: SlotSchema | undefined): number {
+  const percent = clamp(value, 0, 100);
+  const maximum = schema?.maximum ?? 100;
+  const minimum = schema?.minimum ?? 0;
+  if (maximum <= 1) {
+    // A fraction slot: 0.5, not 50.
+    return Math.round(clamp(percent / 100, minimum, maximum) * 1000) / 1000;
+  }
+  if (maximum > 100) {
+    // A raw range (0-255 brightness): scale the percentage into it.
+    return Math.round(clamp((percent / 100) * maximum, minimum, maximum));
+  }
+  return Math.round(clamp(percent, minimum, maximum) * 10) / 10;
+}
+
+/** Slots that carry a level the plan expresses as a percentage. */
+const LEVEL_SLOTS = new Set([
+  'brightness',
+  'brightness_pct',
+  'position',
+  'percentage',
+  'current_position',
+  'humidity',
+  'volume_level',
+]);
 
 /** Slot aliases: the reference slot name -> names Home Assistant's schemas use. */
 const SLOT_ALIASES: Record<string, string[]> = {
@@ -269,12 +320,14 @@ export function buildToolCall(input: ToolCallInput): ToolCallResult | { error: s
   if (spec.valueSlot && input.value !== undefined && typeof input.value === 'number') {
     const slot = pickSlot(properties, SLOT_ALIASES[spec.valueSlot] ?? [spec.valueSlot]);
     if (!slot) return { error: `${intent} has no ${spec.valueSlot} slot` };
-    let value = input.value;
-    if (slot === 'brightness') value = Math.round(clamp(value, 0, 100) * 2.55);
-    if (slot === 'volume_level') value = clamp(value, 0, 100);
-    if (slot === 'position' || slot === 'current_position') value = clamp(value, 0, 100);
-    if (slot === 'temperature') value = Math.round(value * 10) / 10;
-    args[slot] = Math.round(value * 10) / 10;
+    if (LEVEL_SLOTS.has(slot)) {
+      args[slot] = levelForSlot(input.value, slot, properties[slot]);
+    } else if (slot === 'temperature') {
+      args[slot] = Math.round(input.value * 10) / 10;
+    } else {
+      // Volume *steps* are signed percentages and keep their sign and precision.
+      args[slot] = Math.round(input.value * 10) / 10;
+    }
   }
 
   // Free-text slot.
