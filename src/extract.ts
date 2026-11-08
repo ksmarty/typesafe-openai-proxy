@@ -239,6 +239,18 @@ export function extractMediaQuery(text: string, entityNames: string[]): string |
   }
   const match = rest.match(/\b(?:play|stream|put on)\s+(.+?)(?:\s+(?:on|in|at)\s+.*)?$/i);
   if (!match?.[1]) return undefined;
-  const query = match[1].replace(/\b(?:the|a|an|some|music|track|song|please|now)\b/gi, ' ').replace(/\s+/g, ' ').trim();
+  const query = match[1]
+    .replace(/\s+/g, ' ')
+    .trim()
+    // A leading article or "some" is the sentence's, not the title's: everything after it stays
+    // word for word, because "Don't Tap The Glass" and "Tyler The Creator" keep their "The".
+    .replace(/^(?:the|a|an|some|any)\s+/i, '')
+    .replace(/^(?:album|record|song|track|tune|artist|band|playlist|station)\s+/i, '')
+    .replace(/\s+(?:for me|please|now)$/i, '')
+    .trim();
+  // Nothing to search for: "play some music" is a playback command, not a query.
+  if (/^(?:music|song|track|tune|anything|something|it|that|this|more|the next song)$/i.test(query)) {
+    return undefined;
+  }
   return query.length > 1 ? query : undefined;
 }

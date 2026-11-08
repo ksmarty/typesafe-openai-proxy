@@ -38,6 +38,7 @@ import type { ToolInventory } from './toolcall.js';
 import { INTENTS } from './actions.js';
 import { mentionedTargets, uniqueAreaMention, uniqueEntityMention } from './catalog.js';
 import type { MentionedTarget } from './catalog.js';
+import { mediaSearchCall, roomSpeaker } from './music.js';
 import { marginOf } from './systemone.js';
 import { round, normalise } from './util.js';
 
@@ -436,11 +437,16 @@ function planMulti(ctx: RouteContext, gates: Gate[], mentioned: MentionedTarget[
   if (!spec) return forward(`${domain}:${action} has no Home Assistant intent`, gates, { category: 'command' });
   // A relative step needs a current level per device, and a mode or a colour is one
   // value for one thing: neither reads sensibly across several targets.
-  if (spec.relative || spec.needsText) {
+  const mediaSearch = spec.needsText === 'search_query';
+  if (spec.relative || (spec.needsText && !mediaSearch)) {
     return forward(`${action} across ${mentioned.length} targets is not handled by the fast path`, gates, {
       category: 'command',
     });
   }
+  // One search query can be played in several rooms at once: one call per room, aimed at the
+  // speaker that stands in it.
+  const mediaText = mediaSearch ? ctx.extraction.mediaQuery : undefined;
+  if (mediaSearch && !mediaText) return forward('no media query named', gates, { category: 'command' });
 
   let value: number | undefined;
   if (spec.valueSlot) {
@@ -450,19 +456,29 @@ function planMulti(ctx: RouteContext, gates: Gate[], mentioned: MentionedTarget[
 
   const calls: ToolCall[] = [];
   for (const target of mentioned) {
-    const entity = target.kind === 'entity' ? catalog.entities.find((candidate) => candidate.id === target.id) : undefined;
-    const call = buildToolCall({
-      intent: spec.intentType,
-      spec,
-      inventory,
-      target: {
-        ...(entity ? { entity } : {}),
-        ...(target.kind === 'area' ? { areaName: target.name } : {}),
-        ...(domain ? { domain } : {}),
-      },
-      action,
-      ...(value !== undefined ? { value } : {}),
-    });
+    let entity = target.kind === 'entity' ? catalog.entities.find((candidate) => candidate.id === target.id) : undefined;
+    if (!entity && target.kind === 'area' && mediaSearch) {
+      const area = catalog.areas.find((row) => row.id === target.id || row.name === target.name);
+      if (!area) return forward(`no room called ${target.name}`, gates, { category: 'command' });
+      const speaker = roomSpeaker(catalog, area);
+      if ('error' in speaker) return forward(speaker.error, gates, { category: 'command' });
+      entity = speaker.player;
+    }
+    const call =
+      mediaSearch && entity
+        ? mediaSearchCall({ text: mediaText!, player: entity, inventory, config })
+        : buildToolCall({
+            intent: spec.intentType,
+            spec,
+            inventory,
+            target: {
+              ...(entity ? { entity } : {}),
+              ...(!entity && target.kind === 'area' ? { areaName: target.name } : {}),
+              ...(domain ? { domain } : {}),
+            },
+            action,
+            ...(value !== undefined ? { value } : {}),
+          });
     if ('error' in call) return forward(call.error, gates, { category: 'command' });
     calls.push({ tool: call.tool, args: call.args, targets: [target.id], action, domain });
   }
@@ -686,7 +702,15 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
     return forward(`${action} needs one specific device`, gates, { category: 'command' });
   }
   if (spec.singleTarget && !targetEntity) {
-    return forward(`${action} acts on one device only`, gates, { category: 'command' });
+    // A media search can be aimed at a room: the sentence says where the music belongs, and the
+    // answer is the one speaker in that room (a television standing in it is not where music goes).
+    if (spec.needsText === 'search_query' && targetRoom) {
+      const speaker = roomSpeaker(catalog, targetRoom);
+      if ('error' in speaker) return forward(speaker.error, gates, { category: 'command' });
+      targetEntity = speaker.player;
+    } else {
+      return forward(`${action} acts on one device only`, gates, { category: 'command' });
+    }
   }
 
   // Values.
@@ -736,19 +760,24 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
     }
   }
 
-  const call = buildToolCall({
-    intent: spec.intentType,
-    spec,
-    inventory,
-    target: {
-      ...(targetEntity ? { entity: targetEntity } : {}),
-      ...(targetRoom ? { areaName: targetRoom.name } : {}),
-      ...(domain ? { domain } : {}),
-    },
-    action,
-    ...(value !== undefined ? { value } : {}),
-    ...(text !== undefined ? { text } : {}),
-  });
+  // A media search goes through whichever play service the install really offers, so a room
+  // ends up on the speaker in it rather than on a refusal.
+  const call =
+    spec.needsText === 'search_query' && targetEntity
+      ? mediaSearchCall({ text: text!, player: targetEntity, inventory, config })
+      : buildToolCall({
+          intent: spec.intentType,
+          spec,
+          inventory,
+          target: {
+            ...(targetEntity ? { entity: targetEntity } : {}),
+            ...(targetRoom ? { areaName: targetRoom.name } : {}),
+            ...(domain ? { domain } : {}),
+          },
+          action,
+          ...(value !== undefined ? { value } : {}),
+          ...(text !== undefined ? { text } : {}),
+        });
   if ('error' in call) return forward(call.error, gates, { category: 'command' });
 
   const targets = targetEntity ? [targetEntity.id] : targetRoom ? [targetRoom.name] : [domain];

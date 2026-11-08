@@ -489,11 +489,15 @@ request — is found in the catalog through the speaker that belongs to it, so "
 in the kitchen plays in the kitchen. A speaker or a room named in the sentence wins over that
 ("play Taylor Swift on the living room speaker"), and a house with exactly one speaker needs no
 device id at all. In a room with a television in it, the television is passed over for a
-speaker: music does not start on the TV because the TV happened to be exposed. When the house
-has several speakers and the request names no device, the
-sentence is left to your model rather than played in a room nobody asked for. The words that
-named the room are dropped from what is searched for — a sentence that says "in the kitchen" is
-not looking for a band called "in the kitchen".
+speaker: music does not start on the TV because the TV happened to be exposed. A room named in
+the sentence is a room, not a television that happens to carry its name — "play Taylor Swift in
+the living room" plays on the speaker in the living room even when the TV there is called "Living
+Room TV". Two speakers in that room with nothing to choose between them stay a question instead
+of a guess, and music for two rooms becomes one call per room. When the house has several
+speakers and the request names neither a speaker nor a room, the sentence is left to your model
+rather than played in a room nobody asked for. The words that named the room are dropped from
+what is searched for — a sentence that says "in the kitchen" is not looking for a band called
+"in the kitchen".
 
 **Which service.** Three, in this order. Music Assistant's own `play_media` service first,
 because it searches every provider at once and knows the difference between an artist, an album

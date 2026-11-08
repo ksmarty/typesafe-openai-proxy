@@ -423,6 +423,34 @@ function speakersIn(players: CatalogEntity[]): CatalogEntity[] {
   return withoutTv.length ? withoutTv : players;
 }
 
+function inAreaOf(catalog: Catalog, area: CatalogArea): CatalogEntity[] {
+  return catalog.entities.filter(
+    (entity) =>
+      entity.domain === 'media_player' && (entity.areaId === area.id || entity.areaName === area.name),
+  );
+}
+
+/**
+ * The one speaker in a room.
+ *
+ * A room with a television and a speaker answers with the speaker, because a television is not
+ * where music belongs. Two speakers with nothing to choose between them is an error rather than
+ * a guess: playing in the wrong room is worse than handing the sentence on.
+ */
+export function roomSpeaker(catalog: Catalog, area: CatalogArea, on?: string): MusicTargetResult {
+  const players = inAreaOf(catalog, area);
+  if (!players.length) return { error: `no speaker in ${area.name}` };
+  const speakers = speakersIn(players);
+  if (speakers.length === 1) return { player: speakers[0]!, reason: `the only speaker in ${area.name}` };
+  // A room with several speakers: "the kitchen speaker" still names one of them.
+  const named = on ? playersNamed(speakers, on) : [];
+  if (named.length === 1) return { player: named[0]!, reason: `the speaker the sentence named in ${area.name}` };
+  // Otherwise the one already awake is what "play it here" means.
+  const awake = speakers.filter((player) => !OFF_STATES.test(player.state));
+  if (awake.length === 1) return { player: awake[0]!, reason: `the speaker already on in ${area.name}` };
+  return { error: `${speakers.length} speakers in ${area.name}` };
+}
+
 /**
  * Which speaker should play.
  *
@@ -440,23 +468,7 @@ export function musicTarget(
   if (!players.length) return { error: 'no media player is exposed to Assist' };
 
   const namedArea = areaOfName(catalog, options.on);
-  if (namedArea) {
-    const inArea = players.filter(
-      (player) => player.areaId === namedArea.id || player.areaName === namedArea.name,
-    );
-    const speakers = speakersIn(inArea);
-    const where = namedArea.name;
-    if (speakers.length === 1) return { player: speakers[0]!, reason: `the speaker in ${where}` };
-    if (speakers.length > 1) {
-      // A room with several speakers: "the kitchen speaker" still names one of them.
-      const named = options.on ? playersNamed(speakers, options.on) : [];
-      if (named.length === 1) return { player: named[0]!, reason: `the speaker the sentence named in ${where}` };
-      // Otherwise the one already awake is what "play it here" means.
-      const awake = speakers.filter((player) => !OFF_STATES.test(player.state));
-      if (awake.length === 1) return { player: awake[0]!, reason: `the speaker already on in ${where}` };
-      return { error: `${speakers.length} speakers in ${where}` };
-    }
-  }
+  if (namedArea && inAreaOf(catalog, namedArea).length) return roomSpeaker(catalog, namedArea, options.on);
 
   const named = options.on ? playersNamed(players, options.on) : [];
   if (named.length === 1) return { player: named[0]!, reason: 'the speaker the sentence named' };
@@ -476,17 +488,9 @@ export function musicTarget(
     (spoken ? catalog.areas.find((row) => row.id === spoken) : undefined) ??
     areaOfName(catalog, options.defaultArea);
 
-  if (area) {
-    const inArea = players.filter((player) => player.areaId === area.id || player.areaName === area.name);
-    const speakers = speakersIn(inArea);
-    if (speakers.length === 1) {
-      return { player: speakers[0]!, reason: `the only speaker in ${area.name}, where it was asked` };
-    }
-    if (speakers.length > 1) {
-      const awake = speakers.filter((player) => !OFF_STATES.test(player.state));
-      if (awake.length === 1) return { player: awake[0]!, reason: `the speaker already on in ${area.name}` };
-      return { error: `${speakers.length} speakers in ${area.name}` };
-    }
+  if (area && inAreaOf(catalog, area).length) {
+    const room = roomSpeaker(catalog, area, options.on);
+    return 'error' in room ? room : { player: room.player, reason: `${room.reason}, where it was asked` };
   }
 
   if (players.length === 1) return { player: players[0]!, reason: 'the only speaker in the house' };
@@ -600,6 +604,84 @@ export interface MusicCall {
   provider: 'music_assistant' | 'media_player' | 'assist';
 }
 
+/**
+ * The arguments a play service wants, from a name and where it should go.
+ *
+ * Returns nothing when the service has no slot for a media id, because there is then nothing to
+ * tell it what to play.
+ */
+function serviceArgs(input: {
+  service: MusicToolMatch;
+  player: CatalogEntity;
+  config: Config;
+  mediaId: string;
+  mediaType?: string;
+  artist?: string;
+}): Record<string, unknown> | undefined {
+  const { service, player, config } = input;
+  const properties = propertiesOf(service.fn);
+  const idSlot = slotName(properties, MEDIA_ID_SLOTS);
+  if (!idSlot) return undefined;
+
+  const args: Record<string, unknown> = { [idSlot]: input.mediaId };
+  const entitySlot = slotName(properties, ENTITY_SLOTS);
+  if (entitySlot) {
+    args[entitySlot] = player.id;
+  } else {
+    // With no slot for one entity, the room is the narrowest thing the service takes.
+    const areaSlot = slotName(properties, AREA_SLOTS);
+    if (areaSlot && player.areaName) args[areaSlot] = player.areaName;
+  }
+
+  const typeSlot = slotName(properties, MEDIA_TYPE_SLOTS);
+  // Only send a media type the service declares: an unknown one is a failed call.
+  // Home Assistant's generic play service accepts any content type, so a name and the Music
+  // Assistant media type go to it unchanged — that is what makes "play Taylor Swift" the
+  // artist's top tracks rather than a search for a song called Taylor Swift.
+  if (typeSlot) {
+    const declared = input.mediaType && allows(properties[typeSlot], input.mediaType) ? input.mediaType : undefined;
+    // A service that insists on a content type still gets one when the sentence was vague.
+    const required = (service.fn.parameters?.required ?? []).includes(typeSlot);
+    const fallback = required && allows(properties[typeSlot], 'music') ? 'music' : undefined;
+    const content = declared ?? fallback;
+    if (content) args[typeSlot] = content;
+  }
+
+  // The album title goes alone unless the service has a slot for the artist, so a provider can
+  // still tell two albums with one name apart.
+  const artistSlot = slotName(properties, ARTIST_SLOTS);
+  if (artistSlot && input.artist) args[artistSlot] = input.artist;
+
+  const enqueueSlot = slotName(properties, ENQUEUE_SLOTS);
+  if (enqueueSlot && allows(properties[enqueueSlot], config.music.enqueue)) {
+    args[enqueueSlot] = config.music.enqueue;
+  }
+  return args;
+}
+
+/**
+ * A media search the router decided, played the same way as one this module read itself.
+ *
+ * The pipeline's fast path reads the sentence, but a phrasing it misses arrives at the router as
+ * `search_and_play` with a free-text query. Sending that through the play service means a room
+ * still plays on the speaker in it — and an install with no Music Assistant still works through
+ * Home Assistant's own search intent.
+ */
+export function mediaSearchCall(input: {
+  text: string;
+  player: CatalogEntity;
+  inventory: ToolInventory;
+  config: Config;
+}): MusicCall | { error: string } {
+  const text = input.text.trim();
+  const split = /\s+by\s+(.+)$/i.exec(text);
+  const title = split ? text.slice(0, split.index).trim() : text;
+  const request: MusicRequest = split
+    ? { query: title, kind: 'album', artist: split[1]!.trim(), bare: false }
+    : { query: title, kind: 'artist', bare: false };
+  return musicCall({ request, player: input.player, inventory: input.inventory, config: input.config });
+}
+
 export function musicCall(input: {
   request: MusicRequest;
   player: CatalogEntity;
@@ -609,38 +691,15 @@ export function musicCall(input: {
   const { request, player, inventory, config } = input;
   const service = musicTool(inventory, config.music.provider);
   if (service) {
-    const properties = propertiesOf(service.fn);
-    const idSlot = slotName(properties, MEDIA_ID_SLOTS);
-    if (idSlot) {
-      const args: Record<string, unknown> = { [idSlot]: request.query };
-      const entitySlot = slotName(properties, ENTITY_SLOTS);
-      if (entitySlot) {
-        args[entitySlot] = player.id;
-      } else {
-        // With no slot for one entity, the room is the narrowest thing the service takes.
-        const areaSlot = slotName(properties, AREA_SLOTS);
-        if (areaSlot && player.areaName) args[areaSlot] = player.areaName;
-      }
-
-      const typeSlot = slotName(properties, MEDIA_TYPE_SLOTS);
-      const mediaType = mediaTypeFor(request.kind, config.music.artist);
-      // Only send a media type the service declares: an unknown one is a failed call.
-      // Home Assistant's generic play service accepts any content type, so a name and the
-      // Music Assistant media type go to it unchanged — that is what makes "play Taylor
-      // Swift" the artist's top tracks rather than a search for a song called Taylor Swift.
-      if (typeSlot && allows(properties[typeSlot], mediaType)) args[typeSlot] = mediaType;
-
-      // The album title goes alone unless the service has a slot for the artist, so a
-      // provider can still tell two albums with one name apart.
-      const artistSlot = slotName(properties, ARTIST_SLOTS);
-      if (artistSlot && request.artist) args[artistSlot] = request.artist;
-
-      const enqueueSlot = slotName(properties, ENQUEUE_SLOTS);
-      if (enqueueSlot && allows(properties[enqueueSlot], config.music.enqueue)) {
-        args[enqueueSlot] = config.music.enqueue;
-      }
-      return { tool: service.name, args, provider: service.provider };
-    }
+    const args = serviceArgs({
+      service,
+      player,
+      config,
+      mediaId: request.query,
+      ...(request.kind ? { mediaType: mediaTypeFor(request.kind, config.music.artist) } : {}),
+      ...(request.artist ? { artist: request.artist } : {}),
+    });
+    if (args) return { tool: service.name, args, provider: service.provider };
   }
 
   // Home Assistant's own search intent: one string, no media type, no queue control.
