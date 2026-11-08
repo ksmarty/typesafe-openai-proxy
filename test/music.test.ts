@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { catalogFromPrompt, clearCatalogCache } from '../src/catalog.js';
+import { catalogFromPrompt, catalogFromRegistries, clearCatalogCache } from '../src/catalog.js';
 import { defaultConfig, type Config } from '../src/config.js';
 import { mediaTypeFor, musicCall, musicPlan, musicTarget, musicTool, readMusicRequest } from '../src/music.js';
 import { runPipeline } from '../src/pipeline.js';
@@ -354,4 +354,246 @@ test('the catalog from a prompt still finds the only speaker in the house', () =
   const catalog = catalogFromPrompt(PROMPT);
   const target = musicTarget(catalog);
   assert.equal('player' in target && target.player.id, 'media_player.kitchen_speaker');
+});
+
+// ---------------------------------------------------------------------------
+// The shape a real house has: Home Assistant's own play service, televisions in the room
+// ---------------------------------------------------------------------------
+
+/** Home Assistant's generic play service, as service tools are named: domain__service. */
+function playerPlayService(): OpenAITool {
+  return tool(
+    'media_player__play_media',
+    {
+      entity_id: { type: 'string', description: 'The player to play on.' },
+      media_content_id: { type: 'string', description: 'Name or URI of the media.' },
+      media_content_type: { type: 'string', description: 'artist, album, track, playlist, radio.' },
+      enqueue: { type: 'string', enum: ['play', 'replace', 'next', 'replace_next', 'add'] },
+    },
+    ['media_content_id'],
+  );
+}
+
+/** A living room with two televisions and the Music Assistant speaker, as in the user's house. */
+function tvRoom(): Catalog {
+  return {
+    areas: [{ id: 'living', name: 'Living Room' }],
+    entities: [
+      {
+        id: 'media_player.apple_tv',
+        name: 'Apple TV',
+        domain: 'media_player',
+        state: 'off',
+        areaId: 'living',
+        areaName: 'Living Room',
+        deviceClass: 'tv',
+      },
+      {
+        id: 'media_player.living_room',
+        name: 'Living Room TV',
+        domain: 'media_player',
+        state: 'playing',
+        areaId: 'living',
+        areaName: 'Living Room',
+        deviceClass: 'tv',
+      },
+      {
+        id: 'media_player.voice_assistant_1_media_player_2',
+        name: '(MA) Voice Assistant 1',
+        domain: 'media_player',
+        state: 'idle',
+        areaId: 'living',
+        areaName: 'Living Room',
+        deviceId: 'dev-satellite',
+      },
+    ],
+    domains: ['media_player'],
+    source: 'manual',
+    builtAt: Date.now(),
+  };
+}
+
+test('the player service Home Assistant really offers is found, and takes content id and type', () => {
+  const inventory = inventoryFor([playerPlayService()]);
+  assert.equal(musicTool(inventory)?.provider, 'media_player');
+  const call = musicCall({
+    request: readMusicRequest('play Taylor Swift')!,
+    player: tvRoom().entities[2]!,
+    inventory,
+    config: config(),
+  });
+  if ('error' in call) throw new Error(call.error);
+  assert.equal(call.provider, 'media_player');
+  assert.equal(call.args.media_content_id, 'Taylor Swift');
+  assert.equal(call.args.media_content_type, 'artist');
+  assert.equal(call.args.enqueue, 'replace');
+  assert.equal(call.args.entity_id, 'media_player.voice_assistant_1_media_player_2');
+});
+
+test("Music Assistant's own service is preferred over the player's play service", () => {
+  const inventory = inventoryFor([playerPlayService(), musicAssistant()]);
+  assert.equal(musicTool(inventory)?.provider, 'music_assistant');
+  assert.equal(musicTool(inventory, 'music_assistant')?.name, 'music_assistant__play_media');
+});
+
+test('a room in the sentence is a room, not the television named after it', () => {
+  const target = musicTarget(tvRoom(), { on: 'living room' });
+  if ('error' in target) throw new Error(target.error);
+  assert.equal(target.player.id, 'media_player.voice_assistant_1_media_player_2');
+});
+
+test('a television is passed over for a speaker in the same room', () => {
+  const target = musicTarget(tvRoom(), { deviceId: 'dev-satellite' });
+  if ('error' in target) throw new Error(target.error);
+  assert.equal(target.player.id, 'media_player.voice_assistant_1_media_player_2');
+});
+
+test('the player on the device spoken to wins over the room it stands in', () => {
+  const target = musicTarget(tvRoom(), { on: 'living room', deviceId: 'dev-satellite' });
+  if ('error' in target) throw new Error(target.error);
+  assert.equal(target.player.deviceId, 'dev-satellite');
+});
+
+test('"play Taylor Swift in the living room" becomes one player-service call', async () => {
+  const result = await decide(
+    'play Taylor Swift in the living room',
+    config(),
+    [playerPlayService(), musicAssistant()].slice(0, 1),
+  );
+  // The fast path reads the sentence with the catalog it built from the prompt, which has one
+  // speaker; the room in the sentence is not in it, so the only speaker plays.
+  const plan = result.route.plan;
+  assert.equal(plan.kind, 'tool');
+  if (plan.kind !== 'tool') return;
+  assert.equal(plan.tool, 'media_player__play_media');
+  assert.equal(plan.args.media_content_type, 'artist');
+  assert.equal(result.entry.backend, 'off');
+});
+
+/** The user's house, as Home Assistant describes it in the system prompt. */
+const TV_ROOM_PROMPT = [
+  'Available Devices:',
+  '## Living Room',
+  'Apple TV (media_player.apple_tv): off',
+  'Living Room TV (media_player.living_room): playing',
+  '(MA) Voice Assistant 1 (media_player.voice_assistant_1_media_player_2): idle',
+  'Living Room Lamp (light.living_room_lamp): on',
+].join('\n');
+
+test('in a room with two televisions, "play Taylor Swift" starts on the speaker', async () => {
+  clearCatalogCache();
+  const active = config();
+  const withArea: Config = { ...active, catalog: { ...active.catalog, defaultArea: 'Living Room' } };
+  const result = await runPipeline(
+    { model: 'test', messages: [{ role: 'user', content: 'Play Taylor Swift.' }], tools: [playerPlayService()] },
+    'Play Taylor Swift.',
+    TV_ROOM_PROMPT,
+    withArea,
+  );
+  const plan = result.route.plan;
+  if (plan.kind !== 'tool') throw new Error(`expected a tool plan, got ${plan.kind} (${result.entry.reason})`);
+  assert.equal(plan.tool, 'media_player__play_media');
+  assert.deepEqual(plan.targets, ['media_player.voice_assistant_1_media_player_2']);
+  assert.equal(plan.args.media_content_id, 'Taylor Swift');
+  assert.equal(plan.args.media_content_type, 'artist');
+  assert.equal(result.entry.backend, 'off');
+});
+
+test('the album example reaches the player service with the album type', async () => {
+  clearCatalogCache();
+  const active = config();
+  const withArea: Config = { ...active, catalog: { ...active.catalog, defaultArea: 'Living Room' } };
+  const result = await runPipeline(
+    { model: 'test', messages: [{ role: 'user', content: 'x' }], tools: [playerPlayService()] },
+    'play Don’t Tap The Glass by Tyler The Creator',
+    TV_ROOM_PROMPT,
+    withArea,
+  );
+  const plan = result.route.plan;
+  if (plan.kind !== 'tool') throw new Error(`expected a tool plan, got ${plan.kind} (${result.entry.reason})`);
+  assert.equal(plan.args.media_content_id, "Don't Tap The Glass");
+  assert.equal(plan.args.media_content_type, 'album');
+});
+
+/** The house as the diagnostic bundle showed it: registry rows, device classes, a satellite device. */
+function realHouse(): Catalog {
+  return catalogFromRegistries({
+    areas: [{ area_id: 'living', name: 'Living Room' }],
+    floors: [],
+    devices: [
+      { device_id: 'dev-satellite', name: 'Voice Assistant 1', area_id: 'living' },
+      { device_id: 'dev-apple', name: 'Apple TV', area_id: 'living' },
+      { device_id: 'dev-tv', name: 'Living Room TV', area_id: 'living' },
+    ],
+    entities: [
+      { entity_id: 'media_player.apple_tv', name: 'Apple TV', device_id: 'dev-apple' },
+      { entity_id: 'media_player.living_room', name: 'Living Room TV', device_id: 'dev-tv' },
+      {
+        entity_id: 'media_player.voice_assistant_1_media_player_2',
+        name: '(MA) Voice Assistant 1',
+        device_id: 'dev-satellite',
+      },
+      { entity_id: 'light.living_room_lamp', name: 'Living Room Lamp', area_id: 'living' },
+    ],
+    states: [
+      { entity_id: 'media_player.apple_tv', state: 'off', attributes: { device_class: 'tv' } },
+      { entity_id: 'media_player.living_room', state: 'playing', attributes: { device_class: 'tv' } },
+      { entity_id: 'media_player.voice_assistant_1_media_player_2', state: 'idle', attributes: {} },
+      { entity_id: 'light.living_room_lamp', state: 'on', attributes: {} },
+    ],
+  });
+}
+
+test('the user\'s own house plays "Taylor Swift" on the speaker in the room it was asked', () => {
+  const catalog = realHouse();
+  const plan = musicPlan({
+    utterance: 'Play Taylor Swift.',
+    catalog,
+    inventory: inventoryFor([playerPlayService()]),
+    config: config(),
+    deviceId: 'dev-satellite',
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.tool, 'media_player__play_media');
+  assert.deepEqual(plan.plan.targets, ['media_player.voice_assistant_1_media_player_2']);
+  assert.equal(plan.plan.args.media_content_id, 'Taylor Swift');
+  assert.equal(plan.plan.args.media_content_type, 'artist');
+  assert.match(plan.reason, /the player's own play service/);
+});
+
+test('the same house plays the album on Music Assistant when its service is exposed', () => {
+  const catalog = realHouse();
+  const plan = musicPlan({
+    utterance: 'play Don’t Tap The Glass by Tyler The Creator',
+    catalog,
+    inventory: inventoryFor([musicAssistant(), playerPlayService()]),
+    config: config(),
+    deviceId: 'dev-satellite',
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.tool, 'music_assistant__play_media');
+  assert.equal(plan.plan.args.media_id, "Don't Tap The Glass");
+  assert.equal(plan.plan.args.media_type, 'album');
+  assert.equal(plan.plan.args.artist, 'Tyler The Creator');
+  assert.equal(plan.plan.args.entity_id, 'media_player.voice_assistant_1_media_player_2');
+});
+
+test('a play service that targets by name, the way Assist intents do, still gets the speaker', () => {
+  const byName = tool(
+    'media_player__play_media',
+    {
+      name: { type: 'string', description: 'The player to play on.' },
+      media_content_id: { type: 'string' },
+      media_content_type: { type: 'string' },
+    },
+    ['media_content_id'],
+  );
+  const call = musicCall({
+    request: readMusicRequest('play Taylor Swift')!,
+    player: tvRoom().entities[2]!,
+    inventory: inventoryFor([byName]),
+    config: config(),
+  });
+  if ('error' in call) throw new Error(call.error);
+  assert.equal(call.args.name, 'media_player.voice_assistant_1_media_player_2');
 });

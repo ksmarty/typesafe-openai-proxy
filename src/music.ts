@@ -407,12 +407,30 @@ function spokenAreaId(catalog: Catalog, deviceId?: string): string | undefined {
 }
 
 /**
+ * Speakers only: a television is not where music starts when the room also has a speaker, and
+ * every room with a TV in it has one, so a TV only wins when it is all there is.
+ */
+/** A name that ends in "TV" is a television even when the catalog carries no device class. */
+const TV_NAME = /(?:^|\s)(?:tv|television)$/i;
+
+function isTelevision(player: CatalogEntity): boolean {
+  if ((player.deviceClass ?? '').toLowerCase() === 'tv') return true;
+  return TV_NAME.test(player.name.trim());
+}
+
+function speakersIn(players: CatalogEntity[]): CatalogEntity[] {
+  const withoutTv = players.filter((player) => !isTelevision(player));
+  return withoutTv.length ? withoutTv : players;
+}
+
+/**
  * Which speaker should play.
  *
- * A name in the sentence wins, then the room it named, then the very device that was spoken
- * to, then a speaker in the room the sentence was heard in, then the only speaker in the
- * house. Anything still ambiguous is an error rather than a guess: playing in the wrong room
- * is worse than handing the sentence on.
+ * A room in the sentence wins over a name, because "the living room" is a room even when a
+ * television in it is called "Living Room TV". Then a speaker named outright, then the very
+ * device that was spoken to, then a speaker in the room the sentence was heard in, then the
+ * only speaker in the house. Anything still ambiguous is an error rather than a guess: playing
+ * in the wrong room is worse than handing the sentence on.
  */
 export function musicTarget(
   catalog: Catalog,
@@ -421,34 +439,54 @@ export function musicTarget(
   const players = catalog.entities.filter((entity) => entity.domain === 'media_player');
   if (!players.length) return { error: 'no media player is exposed to Assist' };
 
+  const namedArea = areaOfName(catalog, options.on);
+  if (namedArea) {
+    const inArea = players.filter(
+      (player) => player.areaId === namedArea.id || player.areaName === namedArea.name,
+    );
+    const speakers = speakersIn(inArea);
+    const where = namedArea.name;
+    if (speakers.length === 1) return { player: speakers[0]!, reason: `the speaker in ${where}` };
+    if (speakers.length > 1) {
+      // A room with several speakers: "the kitchen speaker" still names one of them.
+      const named = options.on ? playersNamed(speakers, options.on) : [];
+      if (named.length === 1) return { player: named[0]!, reason: `the speaker the sentence named in ${where}` };
+      // Otherwise the one already awake is what "play it here" means.
+      const awake = speakers.filter((player) => !OFF_STATES.test(player.state));
+      if (awake.length === 1) return { player: awake[0]!, reason: `the speaker already on in ${where}` };
+      return { error: `${speakers.length} speakers in ${where}` };
+    }
+  }
+
   const named = options.on ? playersNamed(players, options.on) : [];
   if (named.length === 1) return { player: named[0]!, reason: 'the speaker the sentence named' };
   if (named.length > 1) return { error: `${named.length} speakers match "${options.on}"` };
 
-  const namedArea = areaOfName(catalog, options.on);
-  const spoken = spokenAreaId(catalog, options.deviceId);
-  const area = namedArea ?? (spoken ? catalog.areas.find((row) => row.id === spoken) : undefined);
-
-  if (area) {
-    const inArea = players.filter((player) => player.areaId === area.id || player.areaName === area.name);
-    const where = area.name;
-    if (inArea.length === 1) {
-      return {
-        player: inArea[0]!,
-        reason: namedArea ? `the speaker in ${where}` : `the only speaker in ${where}, where it was asked`,
-      };
-    }
-    if (inArea.length > 1) {
-      // Several speakers in one room: the one already awake is what "play it here" means.
-      const awake = inArea.filter((player) => !OFF_STATES.test(player.state));
-      if (awake.length === 1) return { player: awake[0]!, reason: `the speaker already on in ${where}` };
-      return { error: `${inArea.length} speakers in ${where}` };
-    }
-  }
-
+  // The device a satellite runs on owns the media player in the same room, so this is the
+  // exact answer to "play it here" and it comes before any room-wide guess.
   if (options.deviceId) {
     const onDevice = players.filter((player) => player.deviceId === options.deviceId);
     if (onDevice.length === 1) return { player: onDevice[0]!, reason: 'the device that was spoken to' };
+  }
+
+  const spoken = spokenAreaId(catalog, options.deviceId);
+  // The room the sentence was heard in: the room of the device that sent it, or the room the
+  // dashboard says this assistant is in when the request does not name a device.
+  const area =
+    (spoken ? catalog.areas.find((row) => row.id === spoken) : undefined) ??
+    areaOfName(catalog, options.defaultArea);
+
+  if (area) {
+    const inArea = players.filter((player) => player.areaId === area.id || player.areaName === area.name);
+    const speakers = speakersIn(inArea);
+    if (speakers.length === 1) {
+      return { player: speakers[0]!, reason: `the only speaker in ${area.name}, where it was asked` };
+    }
+    if (speakers.length > 1) {
+      const awake = speakers.filter((player) => !OFF_STATES.test(player.state));
+      if (awake.length === 1) return { player: awake[0]!, reason: `the speaker already on in ${area.name}` };
+      return { error: `${speakers.length} speakers in ${area.name}` };
+    }
   }
 
   if (players.length === 1) return { player: players[0]!, reason: 'the only speaker in the house' };
@@ -459,18 +497,27 @@ export function musicTarget(
 // Building the call
 // ---------------------------------------------------------------------------
 
-/** Slots a play service uses for the thing to play, in the order we prefer them. */
-const MEDIA_ID_SLOTS = ['media_id', 'media_ids', 'media', 'uri', 'content_id'];
+/**
+ * Slots a play service uses for the thing to play, in the order we prefer them.
+ *
+ * Music Assistant's own service asks for `media_id`; Home Assistant's generic
+ * `media_player.play_media` asks for `media_content_id` and a `media_content_type` to go with
+ * it, which is the pair every Music Assistant player also answers.
+ */
+const MEDIA_ID_SLOTS = ['media_id', 'media_ids', 'media_content_id', 'media', 'uri', 'content_id'];
 
-const MEDIA_TYPE_SLOTS = ['media_type'];
+const MEDIA_TYPE_SLOTS = ['media_type', 'media_content_type'];
 const ARTIST_SLOTS = ['artist'];
 const ENQUEUE_SLOTS = ['enqueue'];
-const ENTITY_SLOTS = ['entity_id', 'entity', 'target'];
+// A service tool may name its target `entity_id`, `entity`, `target`, or — the way the Assist
+// intent tools do — `name`, which takes an entity id just the same.
+const ENTITY_SLOTS = ['entity_id', 'entity', 'target', 'name'];
+const AREA_SLOTS = ['area', 'area_id'];
 
 export interface MusicToolMatch {
   name: string;
   fn: OpenAIToolFunction;
-  provider: 'music_assistant';
+  provider: 'music_assistant' | 'media_player';
 }
 
 function propertiesOf(fn: OpenAIToolFunction): Record<string, unknown> {
@@ -499,12 +546,18 @@ function looksLikePlayMedia(name: string): boolean {
 }
 
 /**
- * The Music Assistant play service, when Home Assistant offers it.
+ * The play service Home Assistant offers, when it offers one.
  *
  * Matched on the shape of the tool rather than a fixed name: Home Assistant names service
  * tools after the domain and the service, so `music_assistant__play_media`,
- * `music_assistant.play_media` and `assist__music_assistant__play_media` are all the same
- * thing. A tool that cannot take a media id is not this service, whatever it is called.
+ * `media_player__play_media`, `music_assistant.play_media` and
+ * `assist__music_assistant__play_media` are all the same thing. A tool that cannot take a
+ * media id is not this service, whatever it is called.
+ *
+ * Music Assistant's own service is preferred, because it takes a media type and an artist and
+ * so resolves a bare name to the artist's top tracks. Falling back to the media player's own
+ * `play_media` keeps working on a house where Music Assistant is reached through its players,
+ * which is how Home Assistant exposed it before the integration had a service of its own.
  */
 export function musicTool(
   inventory: ToolInventory,
@@ -520,7 +573,13 @@ export function musicTool(
     candidates.push({ name, fn, preferred });
   }
   const best = candidates.sort((a, b) => Number(b.preferred) - Number(a.preferred))[0];
-  return best ? { name: best.name, fn: best.fn, provider: 'music_assistant' } : undefined;
+  return best
+    ? {
+        name: best.name,
+        fn: best.fn,
+        provider: best.preferred ? 'music_assistant' : 'media_player',
+      }
+    : undefined;
 }
 
 /** The media type a kind asks the provider for. */
@@ -538,7 +597,7 @@ export interface MusicCall {
   tool: string;
   args: Record<string, unknown>;
   /** Which service took the request; the trace says so. */
-  provider: 'music_assistant' | 'assist';
+  provider: 'music_assistant' | 'media_player' | 'assist';
 }
 
 export function musicCall(input: {
@@ -555,11 +614,20 @@ export function musicCall(input: {
     if (idSlot) {
       const args: Record<string, unknown> = { [idSlot]: request.query };
       const entitySlot = slotName(properties, ENTITY_SLOTS);
-      if (entitySlot) args[entitySlot] = player.id;
+      if (entitySlot) {
+        args[entitySlot] = player.id;
+      } else {
+        // With no slot for one entity, the room is the narrowest thing the service takes.
+        const areaSlot = slotName(properties, AREA_SLOTS);
+        if (areaSlot && player.areaName) args[areaSlot] = player.areaName;
+      }
 
       const typeSlot = slotName(properties, MEDIA_TYPE_SLOTS);
       const mediaType = mediaTypeFor(request.kind, config.music.artist);
       // Only send a media type the service declares: an unknown one is a failed call.
+      // Home Assistant's generic play service accepts any content type, so a name and the
+      // Music Assistant media type go to it unchanged — that is what makes "play Taylor
+      // Swift" the artist's top tracks rather than a search for a song called Taylor Swift.
       if (typeSlot && allows(properties[typeSlot], mediaType)) args[typeSlot] = mediaType;
 
       // The album title goes alone unless the service has a slot for the artist, so a
@@ -571,7 +639,7 @@ export function musicCall(input: {
       if (enqueueSlot && allows(properties[enqueueSlot], config.music.enqueue)) {
         args[enqueueSlot] = config.music.enqueue;
       }
-      return { tool: service.name, args, provider: 'music_assistant' };
+      return { tool: service.name, args, provider: service.provider };
     }
   }
 
@@ -622,7 +690,12 @@ export function musicPlan(input: {
   const call = musicCall({ request, player: target.player, inventory: input.inventory, config: input.config });
   if ('error' in call) return { error: call.error };
 
-  const service = call.provider === 'music_assistant' ? 'Music Assistant' : "Home Assistant's media search";
+  const service =
+    call.provider === 'music_assistant'
+      ? 'Music Assistant'
+      : call.provider === 'media_player'
+        ? "the player's own play service"
+        : "Home Assistant's media search";
   const what = request.artist ? `${request.query} by ${request.artist}` : request.query;
   return {
     plan: {
@@ -631,7 +704,7 @@ export function musicPlan(input: {
       args: call.args,
       targets: [target.player.id],
       action: 'search_and_play',
-      domain: call.provider === 'music_assistant' ? 'music_assistant' : 'media_player',
+      domain: call.provider === 'assist' ? 'media_player' : call.provider,
     },
     reason: `music: "${what}" as ${ARTICLE[request.kind]} on ${target.player.name} (${target.reason}) via ${service}, no model call`,
   };

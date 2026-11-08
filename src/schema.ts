@@ -353,7 +353,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'music',
       title: 'Music',
       description:
-        '“Play Taylor Swift” names no speaker and no media type, and both are worked out here: it plays on the speaker that was spoken to (or the one the sentence names), and a bare name is an artist, which every provider plays as their top tracks. “Play Don’t Tap The Glass by Tyler The Creator” is an album. Music Assistant is used when Home Assistant offers its play service, because it resolves a name against every provider you connected; Home Assistant’s own media search is the fallback.',
+        '“Play Taylor Swift” names no speaker and no media type, and both are worked out here: it plays on the speaker that was spoken to (or the one the sentence names), and a bare name is an artist, which every provider plays as their top tracks. “Play Don’t Tap The Glass by Tyler The Creator” is an album. Music Assistant is asked first when Home Assistant offers its play service, because it resolves a name against every provider you connected; otherwise the player’s own play service takes the same name and media type, and Home Assistant’s media search is the last resort.',
       fields: [
         {
           key: 'music.enabled',
@@ -366,10 +366,11 @@ export function settingsGroups(): SettingsGroup[] {
           label: 'Which service plays',
           type: 'select',
           options: [
-            { value: 'auto', label: 'Music Assistant when offered (recommended)' },
-            { value: 'music_assistant', label: 'Music Assistant only' },
+            { value: 'auto', label: 'Whatever Assist offers (recommended)' },
+            { value: 'music_assistant', label: 'Music Assistant’s own service only' },
             { value: 'assist', label: 'Home Assistant’s own media search only' },
           ],
+          help: 'In order: Music Assistant’s play service, then the player’s own play_media (which Music Assistant also answers), then Home Assistant’s media search. Only the first two can queue or play an artist rather than a search.',
         },
         {
           key: 'music.enqueue',

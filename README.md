@@ -488,16 +488,20 @@ takes.
 request — is found in the catalog through the speaker that belongs to it, so "play Taylor Swift"
 in the kitchen plays in the kitchen. A speaker or a room named in the sentence wins over that
 ("play Taylor Swift on the living room speaker"), and a house with exactly one speaker needs no
-device id at all. When the house has several speakers and the request names no device, the
+device id at all. In a room with a television in it, the television is passed over for a
+speaker: music does not start on the TV because the TV happened to be exposed. When the house
+has several speakers and the request names no device, the
 sentence is left to your model rather than played in a room nobody asked for. The words that
 named the room are dropped from what is searched for — a sentence that says "in the kitchen" is
 not looking for a band called "in the kitchen".
 
-**Which service.** Music Assistant is used when Home Assistant offers its `play_media` service,
+**Which service.** Three, in this order. Music Assistant's own `play_media` service first,
 because it searches every provider at once and knows the difference between an artist, an album
-and a track. Without it, Home Assistant's own media search (`HassMediaSearchAndPlay`) is called
-with the name and the artist as one search string. Settings → Music → *Which service plays*
-pins one or the other.
+and a track. Then the player's own play service (`media_player.play_media`), which every Music
+Assistant player answers as well — this is what a house where Music Assistant is reached only
+through its players offers, and it takes the same name and media type. Last, Home Assistant's
+own media search (`HassMediaSearchAndPlay`), which takes the name and the artist as one search
+string. Settings → Music → *Which service plays* pins one of the three.
 
 **What happens to the queue** is a setting too: replace and play (the default), play next, queue
 after the current track, clear what is queued after this, or add to the end. An artist can be
