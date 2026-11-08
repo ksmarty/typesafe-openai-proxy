@@ -22,6 +22,7 @@ import {
   coordinatesFor,
   readWeatherQuestion,
   requestedSummaryLanguage,
+  resetWeatherAnswerRotation,
   summaryLanguage,
   unitsFor,
   weatherAnswer,
@@ -234,6 +235,56 @@ test('the other time frames follow the same style', () => {
   assert.equal(weatherAnswer(REPORT, { subject: 'next_hour', language: 'en', style: 'full' }), 'Flurries for the hour.');
 });
 
+test('the natural style says it the way a person would, and rotates the wording', () => {
+  const natural = (variant: number) =>
+    weatherAnswer(REPORT, { subject: 'now', language: 'en', style: 'natural', variant });
+  assert.equal(natural(0), "Right now it's light rain, and it's 7° out — though it feels more like 4°.");
+  assert.equal(natural(1), 'Light Rain at the moment. 7° outside, feeling closer to 4°.');
+  assert.equal(natural(2), "Outside right now: Light Rain. It's 7°, and it feels like 4°.");
+  // Three wordings, then it starts again rather than repeating the last one forever.
+  assert.equal(natural(3), natural(0));
+});
+
+test('the natural style carries the day, tomorrow and the week in the same sentence', () => {
+  const natural = (subject: 'today' | 'tonight' | 'tomorrow' | 'week' | 'next_hour' | 'rest_of_day', variant: number) =>
+    weatherAnswer(REPORT, { subject, language: 'en', style: 'natural', variant });
+  assert.equal(
+    natural('today', 0),
+    "Today it's possible light rain until night and foggy overnight, with a high of 9° and a low of 5°.",
+  );
+  assert.equal(
+    natural('tomorrow', 1),
+    'For tomorrow: Misty until afternoon, returning overnight. High of 9°, low of 3°.',
+  );
+  assert.equal(
+    natural('week', 0),
+    'Looking ahead: Light rain on Wednesday and Thursday, with highs dipping to 6°C on Tuesday.',
+  );
+  assert.equal(natural('rest_of_day', 1), 'Later today, possible light rain until tonight and foggy starting tonight.');
+  assert.equal(natural('next_hour', 1), 'In the next hour, flurries for the hour.');
+});
+
+test('a natural answer never becomes a different language', () => {
+  // Dutch has its own wording, and the temperature is part of the sentence.
+  assert.equal(
+    weatherAnswer(REPORT, { subject: 'now', language: 'nl', style: 'natural', variant: 1 }),
+    'Light Rain op dit moment. 7° buiten, gevoelstemperatuur 4°.',
+  );
+  // Japanese has no natural templates, so it says the plain answer instead of nothing.
+  assert.equal(weatherAnswer(REPORT, { subject: 'now', language: 'ja', style: 'natural' }), 'Light Rain.');
+});
+
+test('an unpinned natural answer moves on from one question to the next', () => {
+  resetWeatherAnswerRotation();
+  const first = weatherAnswer(REPORT, { subject: 'now', language: 'en', style: 'natural' });
+  const second = weatherAnswer(REPORT, { subject: 'now', language: 'en', style: 'natural' });
+  assert.ok(first && second);
+  assert.notEqual(first, second, 'two questions in a row should not be answered identically');
+  // And the rotation is resettable, so a test can pin it again.
+  resetWeatherAnswerRotation();
+  assert.equal(weatherAnswer(REPORT, { subject: 'now', language: 'en', style: 'natural' }), first);
+});
+
 // --- the service ----------------------------------------------------------
 
 let stub: Server;
@@ -368,6 +419,17 @@ test('the style setting reaches what is spoken', async () => {
   assert.equal(result.route.plan.kind, 'text');
   if (result.route.plan.kind !== 'text') return;
   assert.equal(result.route.plan.text, 'Light Rain.');
+});
+
+test('the natural style setting reaches what is spoken, as a sentence', async () => {
+  responder = () => ({ status: 200, body: JSON.stringify(REPORT) });
+  resetWeatherAnswerRotation();
+  const result = await ask('what is the weather like?', { style: 'natural' });
+  assert.equal(result.route.plan.kind, 'text');
+  if (result.route.plan.kind !== 'text') return;
+  assert.match(result.route.plan.text, /4°/);
+  assert.match(result.route.plan.text, /light rain|Light Rain/);
+  assert.doesNotMatch(result.route.plan.text, /Currently 7°/, 'the natural style never says it the flat way');
 });
 
 test('with no key configured nothing is fetched and the question is forwarded', async () => {

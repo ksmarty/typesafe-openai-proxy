@@ -473,8 +473,9 @@ export function settingsGroups(): SettingsGroup[] {
             { value: 'summary', label: 'The summary only' },
             { value: 'full', label: 'The summary, the temperature, and the day’s high and low' },
             { value: 'temperature_first', label: 'The temperature first, then the summary' },
+            { value: 'natural', label: 'Said the way a person would' },
           ],
-          help: 'Only the temperature sentence is written here. The summary is always the forecast service’s own wording, so the answer stays right in every language it writes.',
+          help: 'Only the wording around the summary is written here. The summary is always the forecast service’s own words, so the answer stays right in every language it writes. “Said the way a person would” frames it in a spoken sentence and varies the phrasing between answers; it has wordings for English, Dutch, German, French, Spanish, Italian, Portuguese, Swedish and Danish, and falls back to the summary and the temperature in any other language.',
         },
         {
           key: 'weather.cacheMs',

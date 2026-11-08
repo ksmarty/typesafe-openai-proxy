@@ -427,10 +427,25 @@ it only ever changes the temperature sentence, never the summary:
 | *the summary only* | "Light Rain." |
 | *the summary, the temperature, and the day's high and low* | "Light Rain. Currently 7°, feeling like 4°. A high of 9° and a low of 5°." |
 | *the temperature first, then the summary* | "Currently 7°, feeling like 4°. Light Rain." |
+| *said the way a person would* | "Right now it's light rain, and it's 7° out — though it feels more like 4°." |
+
+*Said the way a person would* keeps the same forecast and turns it into speech: the summary
+becomes part of a sentence instead of being quoted after one, and the phrasing varies from one
+answer to the next, so asking twice does not read like a machine:
+
+| Asked | One of the answers |
+| --- | --- |
+| "what's the weather like?" | "Light Rain at the moment. 7° outside, feeling closer to 4°." |
+| "what's the forecast today" | "Today it's possible light rain until night and foggy overnight, with a high of 9° and a low of 5°." |
+| "what's the forecast for tomorrow" | "For tomorrow: Misty until afternoon, returning overnight. High of 9°, low of 3°." |
+| "what's the weather this week" | "Looking ahead: Light rain on Wednesday and Thursday, with highs dipping to 6°C on Tuesday." |
 
 Keeping the summary untouched is the point: it is correct in every language the service writes,
-so no style can produce a sentence that mixes two languages. Set `WEATHER_STYLE` to
-`current`, `summary`, `full` or `temperature_first` instead of using the form.
+so no style can produce a sentence that mixes two languages. That holds for *said the way a
+person would* too — it has wordings for English, Dutch, German, French, Spanish, Italian,
+Portuguese, Swedish and Danish, and any other language falls back to the summary with the
+temperature rather than a half-translated sentence. Set `WEATHER_STYLE` to
+`current`, `summary`, `full`, `temperature_first` or `natural` instead of using the form.
 
 The reader that recognises a weather question is English, so a non-English question is
 forwarded to your model unless **Settings → Weather → Language of the summaries** pins one, in
@@ -646,7 +661,7 @@ The backend-related variables are worth naming, because there is no default deci
 | `WEATHER_LATITUDE` / `WEATHER_LONGITUDE` | *(empty)* | where the forecast is for; empty reads Home Assistant's `zone.home` |
 | `WEATHER_UNITS` | *(auto)* | `si`, `ca`, `uk` or `us`; `auto` follows the locale of each request |
 | `WEATHER_LANGUAGE` | *(empty)* | pin the language of the summaries; empty follows each request |
-| `WEATHER_STYLE` | `current` | what the answer says: `summary`, `current`, `full` or `temperature_first` |
+| `WEATHER_STYLE` | `current` | what the answer says: `summary`, `current`, `full`, `temperature_first` or `natural` |
 | `WEATHER_BASE_URL` | *(empty)* | only for a self-hosted or mirrored service |
 
 ### One key for both servers

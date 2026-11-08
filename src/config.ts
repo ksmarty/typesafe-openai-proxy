@@ -128,7 +128,8 @@ export interface Config {
     /**
      * How much is said: `current` (the default) speaks the summary and the temperature,
      * `summary` speaks only the service's own sentence, `full` adds the day's high and low,
-     * and `temperature_first` puts the number before the sky.
+     * `temperature_first` puts the number before the sky, and `natural` frames the same
+     * forecast inside a spoken sentence and rotates the wording from one answer to the next.
      */
     style: string;
     /** How long one forecast is reused. Two questions a minute apart cost one request. */

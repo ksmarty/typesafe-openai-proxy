@@ -13,6 +13,13 @@
  * change between two questions), and hands back the summary that matches what was asked —
  * now, the next hour, today, tonight, tomorrow, the rest of the day or the week ahead.
  *
+ * The summary can also be said the way a person would: the `natural` style keeps the same
+ * sentence and frames it inside a spoken one ("Right now it's light rain, and it's 7° out"),
+ * rotating the wording between answers so two questions in a row do not sound identical. That
+ * framing is the only thing written here — the forecast is always the service's own words, and
+ * a language with no phrasing of its own gets the plain answer rather than a half-translated
+ * sentence.
+ *
  * Everything here fails soft. A missing key, an unreachable service, a bad reply: the module
  * answers `null` and the caller forwards the request exactly as it did before the feature
  * existed. The weather must never be the reason a turn breaks.
@@ -49,17 +56,20 @@ export type WeatherSubject = 'now' | 'next_hour' | 'today' | 'tonight' | 'tomorr
 /**
  * How much of the answer is said, and in which order.
  *
- * None of these reword the forecast: every one of them still speaks the sentence the service
- * wrote, because that sentence is better than one assembled here and is correct in all fifty
- * languages the service writes. What changes is only whether the temperature sentence is
- * added, whether the day's range is added with it, and whether the number comes first.
+ * The first four keep the forecast as its own sentence: they differ only in whether the
+ * temperature is added, whether the day's range comes with it, and whether the number comes
+ * first. `natural` is the conversational one — it frames the summary inside a spoken sentence
+ * and rotates between a few wordings, so two questions in a row do not sound like a machine.
+ * The words are still the service's; only the frame around them is written here.
  */
-export type WeatherStyle = 'summary' | 'current' | 'full' | 'temperature_first';
+export type WeatherStyle = 'summary' | 'current' | 'full' | 'temperature_first' | 'natural';
 
 /** The style named by a setting, with anything unrecognised meaning `current`. */
 export function weatherStyle(value: string | undefined): WeatherStyle {
   const wanted = (value ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
-  if (wanted === 'summary' || wanted === 'full' || wanted === 'temperature_first') return wanted;
+  if (wanted === 'summary' || wanted === 'full' || wanted === 'temperature_first' || wanted === 'natural') {
+    return wanted;
+  }
   return 'current';
 }
 
@@ -69,6 +79,8 @@ export interface WeatherQuestion {
   language?: string;
   /** How much to say. Empty means `current`: the summary, then the temperature. */
   style?: string;
+  /** Pin the wording a natural answer uses. Tests use it; a real answer rotates. */
+  variant?: number;
 }
 
 /** The languages Pirate Weather writes summaries in. Anything else falls back to English. */
@@ -119,6 +131,224 @@ const TEMPERATURE_TEMPLATE: Record<string, { now: string; range: string }> = {
 };
 
 /**
+ * The conversational answer, in the languages that have a frame for it.
+ *
+ * `lead` introduces the time frame and `moment`, `span` and `bare` are the sentence shapes:
+ * right now with a temperature, a day with its high and low, and a stretch of time that only
+ * has a summary. Every pattern keeps the service's summary intact; the placeholders only
+ * decide whether its first letter is lowered, whether it stands alone, and what is said around
+ * it. A language without an entry here falls back to the `current` composition, so this table
+ * can grow one language at a time without breaking the others.
+ */
+interface NaturalTemplates {
+  lead: Record<WeatherSubject, string[]>;
+  moment: string[];
+  span: string[];
+  bare: string[];
+}
+
+const NATURAL_TEMPLATES: Record<string, NaturalTemplates> = {
+  en: {
+    lead: {
+      now: ['Right now', 'At the moment', 'Outside right now'],
+      next_hour: ['For the next hour', 'In the next hour'],
+      today: ['Today', 'For today'],
+      tonight: ['Tonight', 'For tonight'],
+      tomorrow: ['Tomorrow', 'For tomorrow'],
+      week: ['Looking ahead', 'This week'],
+      rest_of_day: ['For the rest of the day', 'Later today'],
+    },
+    moment: [
+      "{lead} it's {summary}, and it's {temp} out — though it feels more like {feels}.",
+      '{Summary} {leadLower}. {temp} outside, feeling closer to {feels}.',
+      "{lead}: {SummarySentence} It's {temp}, and it feels like {feels}.",
+    ],
+    span: [
+      "{lead} it's {summary}, with a high of {high} and a low of {low}.",
+      '{lead}: {SummarySentence} High of {high}, low of {low}.',
+      'For {leadLower}, {summary} — a high of {high} and a low of {low}.',
+    ],
+    bare: ['{lead}: {SummarySentence}', '{lead}, {summary}.'],
+  },
+  nl: {
+    lead: {
+      now: ['Nu', 'Op dit moment', 'Momenteel'],
+      next_hour: ['Het komende uur', 'Voor het komende uur'],
+      today: ['Vandaag', 'Voor vandaag'],
+      tonight: ['Vanavond', 'Voor vanavond'],
+      tomorrow: ['Morgen', 'Voor morgen'],
+      week: ['Deze week', 'Vooruitkijkend'],
+      rest_of_day: ['Voor de rest van de dag', 'Later vandaag'],
+    },
+    moment: [
+      '{lead} is het {summary}, {temp} buiten, maar het voelt als {feels}.',
+      '{Summary} {leadLower}. {temp} buiten, gevoelstemperatuur {feels}.',
+      '{lead}: {SummarySentence} Het is {temp} buiten, en het voelt als {feels}.',
+    ],
+    span: [
+      '{lead} is het {summary}, met een maximum van {high} en een minimum van {low}.',
+      '{lead}: {SummarySentence} Maximum {high}, minimum {low}.',
+      'Voor {leadLower} wordt het {summary}, met een maximum van {high} en een minimum van {low}.',
+    ],
+    bare: ['{lead}: {SummarySentence}', '{lead} is het {summary}.'],
+  },
+  de: {
+    lead: {
+      now: ['Gerade', 'Im Moment', 'Momentan'],
+      next_hour: ['In der nächsten Stunde', 'Für die nächste Stunde'],
+      today: ['Heute', 'Für heute'],
+      tonight: ['Heute Abend', 'Für heute Abend'],
+      tomorrow: ['Morgen', 'Für morgen'],
+      week: ['Diese Woche', 'Vorausschauend'],
+      rest_of_day: ['Für den Rest des Tages', 'Später heute'],
+    },
+    moment: [
+      '{lead} ist es {summary}, {temp} draußen, es fühlt sich wie {feels} an.',
+      '{Summary} {leadLower}. {temp} draußen, gefühlt {feels}.',
+      '{lead}: {SummarySentence} {temp} draußen, es fühlt sich wie {feels} an.',
+    ],
+    span: [
+      '{lead} ist es {summary}, mit einem Höchstwert von {high} und einem Tiefstwert von {low}.',
+      '{lead}: {SummarySentence} Höchstwert {high}, Tiefstwert {low}.',
+      'Für {leadLower} wird es {summary}, mit einem Höchstwert von {high} und einem Tiefstwert von {low}.',
+    ],
+    bare: ['{lead}: {SummarySentence}', '{lead} ist es {summary}.'],
+  },
+  fr: {
+    lead: {
+      now: ['Maintenant', 'En ce moment', 'Dehors'],
+      next_hour: ['Pour la prochaine heure', "Dans l'heure à venir"],
+      today: ["Aujourd'hui", "Pour aujourd'hui"],
+      tonight: ['Ce soir', 'Pour ce soir'],
+      tomorrow: ['Demain', 'Pour demain'],
+      week: ['Cette semaine', 'Pour la semaine à venir'],
+      rest_of_day: ['Pour le reste de la journée', "Plus tard aujourd'hui"],
+    },
+    moment: [
+      '{lead}, {summary}. Il fait {temp} dehors, mais le ressenti est de {feels}.',
+      '{Summary} {leadLower}. {temp} dehors, ressenti {feels}.',
+      '{lead} : {SummarySentence} Il fait {temp} dehors, et le ressenti est de {feels}.',
+    ],
+    span: [
+      '{lead}, {summary}, avec un maximum de {high} et un minimum de {low}.',
+      '{lead} : {SummarySentence} Maximum {high}, minimum {low}.',
+      'Pour {leadLower}, {summary}, avec un maximum de {high} et un minimum de {low}.',
+    ],
+    bare: ['{lead} : {SummarySentence}', '{lead}, {summary}.'],
+  },
+  es: {
+    lead: {
+      now: ['Ahora', 'En este momento', 'Fuera'],
+      next_hour: ['Para la próxima hora', 'En la próxima hora'],
+      today: ['Hoy', 'Para hoy'],
+      tonight: ['Esta noche', 'Para esta noche'],
+      tomorrow: ['Mañana', 'Para mañana'],
+      week: ['Esta semana', 'Con vistas a la semana'],
+      rest_of_day: ['Para el resto del día', 'Más tarde hoy'],
+    },
+    moment: [
+      '{lead}, hay {summary}, {temp} fuera, aunque se siente como {feels}.',
+      '{Summary} {leadLower}. {temp} fuera, sensación de {feels}.',
+      '{lead}: {SummarySentence} Hace {temp} fuera, y se siente como {feels}.',
+    ],
+    span: [
+      '{lead}, hay {summary}, con una máxima de {high} y una mínima de {low}.',
+      '{lead}: {SummarySentence} Máxima {high}, mínima {low}.',
+      'Para {leadLower}, hay {summary}, con una máxima de {high} y una mínima de {low}.',
+    ],
+    bare: ['{lead}: {SummarySentence}', '{lead}, hay {summary}.'],
+  },
+  it: {
+    lead: {
+      now: ['Adesso', 'In questo momento', 'Fuori'],
+      next_hour: ['Per la prossima ora', "Nell'ora successiva"],
+      today: ['Oggi', 'Per oggi'],
+      tonight: ['Stasera', 'Per stasera'],
+      tomorrow: ['Domani', 'Per domani'],
+      week: ['Questa settimana', 'Guardando avanti'],
+      rest_of_day: ['Per il resto della giornata', 'Più tardi oggi'],
+    },
+    moment: [
+      "{lead}, c'è {summary}, {temp} fuori, ma sembrano {feels}.",
+      '{Summary} {leadLower}. {temp} fuori, percepiti {feels}.',
+      "{lead}: {SummarySentence} Ci sono {temp} fuori, e sembrano {feels}.",
+    ],
+    span: [
+      "{lead}, c'è {summary}, con una massima di {high} e una minima di {low}.",
+      '{lead}: {SummarySentence} Massima {high}, minima {low}.',
+      "Per {leadLower}, c'è {summary}, con una massima di {high} e una minima di {low}.",
+    ],
+    bare: ['{lead}: {SummarySentence}', "{lead}, c'è {summary}."],
+  },
+  pt: {
+    lead: {
+      now: ['Agora', 'Neste momento', 'Lá fora'],
+      next_hour: ['Para a próxima hora', 'Na próxima hora'],
+      today: ['Hoje', 'Para hoje'],
+      tonight: ['Esta noite', 'Para esta noite'],
+      tomorrow: ['Amanhã', 'Para amanhã'],
+      week: ['Esta semana', 'Olhando em frente'],
+      rest_of_day: ['Para o resto do dia', 'Mais tarde hoje'],
+    },
+    moment: [
+      '{lead}, há {summary}, {temp} lá fora, mas parece {feels}.',
+      '{Summary} {leadLower}. {temp} lá fora, sensação de {feels}.',
+      '{lead}: {SummarySentence} Estão {temp} lá fora, e parece {feels}.',
+    ],
+    span: [
+      '{lead}, há {summary}, com uma máxima de {high} e uma mínima de {low}.',
+      '{lead}: {SummarySentence} Máxima {high}, mínima {low}.',
+      'Para {leadLower}, há {summary}, com uma máxima de {high} e uma mínima de {low}.',
+    ],
+    bare: ['{lead}: {SummarySentence}', '{lead}, há {summary}.'],
+  },
+  sv: {
+    lead: {
+      now: ['Just nu', 'För tillfället', 'Ute'],
+      next_hour: ['Den närmaste timmen', 'För den närmaste timmen'],
+      today: ['I dag', 'För i dag'],
+      tonight: ['I kväll', 'För i kväll'],
+      tomorrow: ['I morgon', 'För i morgon'],
+      week: ['Den här veckan', 'Framåt'],
+      rest_of_day: ['För resten av dagen', 'Senare i dag'],
+    },
+    moment: [
+      '{lead} är det {summary}, {temp} ute, men det känns som {feels}.',
+      '{Summary} {leadLower}. {temp} ute, känns som {feels}.',
+      '{lead}: {SummarySentence} Det är {temp} ute, och det känns som {feels}.',
+    ],
+    span: [
+      '{lead} är det {summary}, med en högsta på {high} och en lägsta på {low}.',
+      '{lead}: {SummarySentence} Högst {high}, lägst {low}.',
+      'För {leadLower} blir det {summary}, med en högsta på {high} och en lägsta på {low}.',
+    ],
+    bare: ['{lead}: {SummarySentence}', '{lead} är det {summary}.'],
+  },
+  da: {
+    lead: {
+      now: ['Lige nu', 'I øjeblikket', 'Udenfor'],
+      next_hour: ['Den næste time', 'For den næste time'],
+      today: ['I dag', 'For i dag'],
+      tonight: ['I aften', 'For i aften'],
+      tomorrow: ['I morgen', 'For i morgen'],
+      week: ['Denne uge', 'Fremadrettet'],
+      rest_of_day: ['For resten af dagen', 'Senere i dag'],
+    },
+    moment: [
+      '{lead} er det {summary}, {temp} udenfor, men det føles som {feels}.',
+      '{Summary} {leadLower}. {temp} udenfor, føles som {feels}.',
+      '{lead}: {SummarySentence} Det er {temp} udenfor, og det føles som {feels}.',
+    ],
+    span: [
+      '{lead} er det {summary}, med en højeste på {high} og en laveste på {low}.',
+      '{lead}: {SummarySentence} Højst {high}, lavest {low}.',
+      'For {leadLower} bliver det {summary}, med en højeste på {high} og en laveste på {low}.',
+    ],
+    bare: ['{lead}: {SummarySentence}', '{lead} er det {summary}.'],
+  },
+};
+
+/**
  * A temperature, written the way it reads in every language: `7°`.
  *
  * Not "7 degrees": the word would be English inside a Dutch or French sentence. The degree
@@ -144,6 +374,136 @@ function join(...parts: string[]): string {
   return parts.filter(Boolean).join(' ').replace(/\s+/g, ' ').trim();
 }
 
+/** The summary in the three shapes a natural pattern can need. */
+interface SummaryParts {
+  /** Mid-sentence: first letter lowered, no final punctuation. */
+  flow: string;
+  /** Sentence-initial: as written, no final punctuation. */
+  head: string;
+  /** Standing alone: as written, with a final punctuation mark. */
+  quote: string;
+}
+
+function summaryParts(summary: string | undefined, language: string): SummaryParts | null {
+  const text = (summary ?? '').trim().replace(/\s+/g, ' ');
+  if (!text) return null;
+  const quote = /[.!?…]$/.test(text) ? text : `${text}.`;
+  const head = text.replace(/[.!?…]+$/, '').trim();
+  if (!head) return null;
+  // A short summary is often title case ("Light Rain"), and lowering only its first letter
+  // would leave "light Rain". Lower the whole short title, but never in German, where the
+  // nouns are capitalised on purpose. Longer summaries are sentence case, so their weekdays
+  // and places keep their capitals.
+  const words = head.split(' ');
+  const title = words.length > 1 && words.length <= 3 && words.every((word) => /^[A-ZÀ-Þ]/.test(word));
+  const flow = title && language !== 'de' ? head.toLowerCase() : head.charAt(0).toLowerCase() + head.slice(1);
+  return { flow, head, quote };
+}
+
+function lowerFirst(text: string): string {
+  return text ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+}
+
+/**
+ * Which wording is used next.
+ *
+ * Rotated rather than picked at random: the same question asked twice should not come back
+ * with the same sentence, and a counter guarantees that where a random pick can repeat. Tests
+ * pin a wording with `variant` and reset the counter; a real answer takes the next one.
+ */
+let naturalAnswers = 0;
+
+export function resetWeatherAnswerRotation(): void {
+  naturalAnswers = 0;
+}
+
+/**
+ * The conversational answer: the service's summary inside a spoken frame.
+ *
+ * Returns null when this language has no frame, or when the report does not carry the summary
+ * the question needs. The caller then uses the default composition, so a language without
+ * templates still answers as it did before rather than forwarding.
+ */
+function naturalAnswer(report: WeatherReport, question: WeatherQuestion): string | null {
+  const templates = NATURAL_TEMPLATES[summaryLanguage(question.language)];
+  if (!templates) return null;
+  const variant = question.variant ?? naturalAnswers++;
+
+  const leadFor = (subject: WeatherSubject): string => {
+    const leads = templates.lead[subject];
+    return leads[variant % leads.length] ?? leads[0] ?? '';
+  };
+  const speak = (
+    family: 'moment' | 'span' | 'bare',
+    lead: string,
+    values: Record<string, string>,
+  ): string | null => {
+    const patterns = templates[family];
+    // The lead and the pattern turn on separate wheels, so the pairings vary and the same
+    // question asked twice does not come back with the same sentence.
+    const pattern = patterns[variant % patterns.length] ?? patterns[0] ?? '';
+    const text = fill(pattern, { lead, leadLower: lowerFirst(lead), ...values })
+      .replace(/\s+/g, ' ')
+      .trim();
+    return text || null;
+  };
+  const said = (summary: string | undefined): Record<string, string> | null => {
+    const parts = summaryParts(summary, summaryLanguage(question.language));
+    return parts ? { summary: parts.flow, Summary: parts.head, SummarySentence: parts.quote } : null;
+  };
+  const dayAnswer = (
+    words: Record<string, string>,
+    day: WeatherDay,
+    lead: string,
+  ): string | null => {
+    const high = degrees(day.temperatureHigh ?? day.temperatureMax);
+    const low = degrees(day.temperatureLow ?? day.temperatureMin);
+    return high && low ? speak('span', lead, { ...words, high, low }) : speak('bare', lead, words);
+  };
+
+  const currently = report.currently ?? {};
+  const today = report.daily?.data?.[0] ?? {};
+  const tomorrow = report.daily?.data?.[1] ?? {};
+
+  switch (question.subject) {
+    case 'now': {
+      const words = said(currently.summary);
+      if (!words) return null;
+      const lead = leadFor('now');
+      const temp = degrees(currently.temperature);
+      if (!temp) return speak('bare', lead, words);
+      return speak('moment', lead, {
+        ...words,
+        temp,
+        feels: degrees(currently.apparentTemperature) || temp,
+      });
+    }
+    case 'next_hour': {
+      const words = said(report.minutely?.summary) ?? said(report.hourly?.data?.[0]?.summary);
+      return words ? speak('bare', leadFor('next_hour'), words) : null;
+    }
+    case 'today':
+    case 'tonight': {
+      const words = said(today.summary);
+      return words ? dayAnswer(words, today, leadFor(question.subject)) : null;
+    }
+    case 'tomorrow': {
+      const words = said(tomorrow.summary);
+      return words ? dayAnswer(words, tomorrow, leadFor('tomorrow')) : null;
+    }
+    case 'week': {
+      const words = said(report.daily?.summary);
+      return words ? speak('bare', leadFor('week'), words) : null;
+    }
+    case 'rest_of_day': {
+      const words = said(report.hourly?.summary);
+      return words ? speak('bare', leadFor('rest_of_day'), words) : null;
+    }
+    default:
+      return null;
+  }
+}
+
 /**
  * The spoken answer to one question, from one report.
  *
@@ -153,7 +513,15 @@ function join(...parts: string[]): string {
  */
 export function weatherAnswer(report: WeatherReport, question: WeatherQuestion): string | null {
   const language = summaryLanguage(question.language);
-  const style = weatherStyle(question.style);
+  const requested = weatherStyle(question.style);
+  // The natural style is written per language. Where there is no frame for it — or where the
+  // report does not carry what it needs — the default composition answers instead, so this
+  // can only ever say more, never fall silent.
+  if (requested === 'natural') {
+    const natural = naturalAnswer(report, question);
+    if (natural) return natural;
+  }
+  const style = requested === 'natural' ? 'current' : requested;
   const template = TEMPERATURE_TEMPLATE[language];
   const currently = report.currently ?? {};
   const today = report.daily?.data?.[0] ?? {};
