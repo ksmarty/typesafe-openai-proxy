@@ -16,6 +16,7 @@ import {
   specFor,
 } from './actions.js';
 import { answerCount, answerDeviceState } from './answer.js';
+import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
 import type { Config, DecisionThresholds } from './config.js';
 import type { Extraction } from './extract.js';
 import { Q, NO_AREA, NO_DOMAIN, NO_SINGLE_ENTITY, NOT_TARGETED, actionQuestion } from './questions.js';
@@ -49,6 +50,11 @@ export interface RouteContext {
   extraction: Extraction;
   config: Config;
   inventory: ToolInventory;
+  /**
+   * The system prompt this request carried, when there was one. Home Assistant puts the
+   * current time in it, which is the clock an answer about the time should be read from.
+   */
+  systemPrompt?: string;
 }
 
 export function choiceOf(answers: Record<string, Answer>, id: string): ChoiceAnswer | undefined {
@@ -222,9 +228,33 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
   const kind = queryKind!.choice;
 
   if (kind === 'time_or_date') {
-    const intent = kind === 'time_or_date' && /date|day|today|month|year/i.test(ctx.utterance)
-      ? INTENTS.getCurrentDate
-      : INTENTS.getCurrentTime;
+    // The date is Home Assistant's to answer: only it knows the home's date, locale and
+    // calendar, and its reply needs no particular wording.
+    if (/date|day|today|month|year/i.test(ctx.utterance)) {
+      const intent = INTENTS.getCurrentDate;
+      if (hasTool(inventory, intent)) {
+        return {
+          plan: { kind: 'tool', tool: offeredName(inventory, intent), args: {}, targets: [], action: 'query' },
+          gates,
+          reason: `query:${kind}`,
+          category: 'query',
+          action: 'query',
+        };
+      }
+      return forward('no time/date intent offered', gates, { category: 'query' });
+    }
+    // The time is answered here, in words, because the wording is the point: a clock in a
+    // room should say "five twenty two", not read out a timestamp.
+    if (isTimeQuestion(ctx.utterance)) {
+      return {
+        plan: { kind: 'text', text: spokenTime(clockNow(ctx.config.clock, ctx.systemPrompt)) },
+        gates,
+        reason: `query:${kind} (the time, spoken in words)`,
+        category: 'query',
+        action: 'query',
+      };
+    }
+    const intent = INTENTS.getCurrentTime;
     if (hasTool(inventory, intent)) {
       return {
         plan: { kind: 'tool', tool: offeredName(inventory, intent), args: {}, targets: [], action: 'query' },

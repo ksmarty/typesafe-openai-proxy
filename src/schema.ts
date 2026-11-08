@@ -397,6 +397,21 @@ export function settingsGroups(): SettingsGroup[] {
       ],
     },
     {
+      id: 'clock',
+      title: 'Clock',
+      description:
+        'The proxy answers “what time is it?” itself, in the words a person would use — “five twenty two”, and “five o’clock” on the hour — with no model call. It never says a.m. or p.m.: the reply is spoken aloud, and the part of the day is obvious from the moment you hear it.',
+      fields: [
+        {
+          key: 'clock.timezone',
+          label: 'Timezone',
+          type: 'text',
+          placeholder: 'Europe/Amsterdam',
+          help: 'An IANA timezone name. Leave it empty to use the time Home Assistant reports in each request’s system prompt — already in your home’s timezone — and fall back to the container clock.',
+        },
+      ],
+    },
+    {
       id: 'server',
       title: 'Server',
       description: 'The endpoint hass_local_openai_llm points at.',

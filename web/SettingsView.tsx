@@ -100,7 +100,11 @@ export function SettingsView({
   const [draft, setDraft] = useState<Config | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [active, setActive] = useState('decision');
+  const [active, setActive] = useState(() => {
+    // Deep link to one group, so a link or a reload can land on Settings → Clock.
+    const wanted = window.location.hash.replace('#', '');
+    return wanted.startsWith('settings/') ? wanted.slice('settings/'.length) : 'decision';
+  });
   const [adjusted, setAdjusted] = useState<AdjustedValue[]>([]);
   const [restartRequired, setRestartRequired] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
@@ -166,6 +170,19 @@ export function SettingsView({
       return false;
     } finally {
       setSaving(false);
+    }
+  };
+
+  // The group a click lands on is written to the URL too, so Settings → Clock can be linked
+  // to and survives a reload. Inside the app preview the hash write throws (cross-origin
+  // iframe), and the view still works without it, so a failure is ignored.
+  const selectGroup = (id: string) => {
+    setActive(id);
+    setTestResult(null);
+    try {
+      window.history.replaceState(null, '', `#settings/${id}`);
+    } catch {
+      /* hash routing is a convenience, not a requirement */
     }
   };
 
@@ -295,10 +312,7 @@ export function SettingsView({
         <ListItemButton
           key={entry.id}
           selected={entry.id === active}
-          onClick={() => {
-            setActive(entry.id);
-            setTestResult(null);
-          }}
+          onClick={() => selectGroup(entry.id)}
           sx={{ borderRadius: 2, mb: 0.5 }}
         >
           <Box sx={{ mr: 1.25, display: 'flex', color: entry.id === active ? 'primary.main' : 'text.secondary' }}>
@@ -355,10 +369,7 @@ export function SettingsView({
             fullWidth
             label="Section"
             value={active}
-            onChange={(event) => {
-              setActive(event.target.value);
-              setTestResult(null);
-            }}
+            onChange={(event) => selectGroup(event.target.value)}
           >
             {groups.map((entry) => (
               <MenuItem key={entry.id} value={entry.id}>

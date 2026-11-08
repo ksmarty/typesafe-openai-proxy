@@ -367,6 +367,32 @@ being answered was a question it lets your model's own answer through instead of
 quiet default. In the Monitor it appears nested under the question it answers, tagged *spoken by the
 model*, with the round trip shown.
 
+### The time, in words
+
+"what time is it?" is answered by the proxy itself, and spoken the way a person says it:
+**"five twenty two"**, **"five o'clock"** on the hour, "nine oh five" below ten past. Never
+a.m. or p.m. — the reply is heard, not read, and which half of the day it is is obvious from
+the moment it is heard. The reply is the bare time, with no "It is" in front of it.
+
+Home Assistant can answer this itself with `HassGetCurrentTime`, but what comes back is
+either digits read out one by one or a sentence the conversation agent phrased ("The current
+time is 5:22 PM"), and neither is what a clock in a room should say. So the wording is owned
+here, which also means no model call and no intent round trip: the answer takes about as long
+as the catalog lookup.
+
+The clock it reads, in order:
+
+1. `clock.timezone` (Settings → Clock, or `CLOCK_TIMEZONE`) — an IANA zone such as
+   `Europe/Amsterdam`, when you want to name one;
+2. otherwise the time Home Assistant already put in this request's system prompt
+   ("Current time is 9:41 AM."), which is in the home's own timezone and costs no request;
+3. otherwise the process clock, i.e. the container's `TZ`.
+
+A question about the date ("what's the date?") is not answered this way — only Home Assistant
+knows the home's date, locale and calendar, so `HassGetCurrentDate` is still called. Neither
+is "what time is it in Tokyo", which is forwarded, or a command that merely contains the word
+("set a timer for five minutes"), which takes the normal path.
+
 ### Only what Assist can see
 
 The catalog asks Home Assistant which entities are exposed to the conversation agent
@@ -559,6 +585,7 @@ The backend-related variables are worth naming, because there is no default deci
 | `LISTENING` | `1` | `0` stops judging whether a sentence was addressed to the assistant, so every turn is forwarded again |
 | `LISTENING_LOCAL` | `1` | `0` keeps the decision model's judgement but drops the local pattern reader for turns no model saw |
 | `LISTENING_CONFIDENCE` | `0.75` | how sure the judgement has to be before a turn is answered with silence |
+| `CLOCK_TIMEZONE` | *(empty)* | the IANA zone "what time is it?" is answered in; empty uses Home Assistant's own prompt clock, then the container's |
 
 ### One key for both servers
 
@@ -578,6 +605,8 @@ different provider is used for prose. Nothing changes when the flag is off.
 - **Floor-wide commands** — detected and forwarded.
 - **Script/template field filling**, `set_mode`, and MQTT-specific actions — forwarded.
 - **Media search grammar** beyond a simple "play X on Y" query slot.
+- **The time in another timezone** — "what time is it in Tokyo" is forwarded, since the proxy
+  only knows the time in this house.
 - Anything where a gate fails. That is the point.
 
 ## Development

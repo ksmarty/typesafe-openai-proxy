@@ -90,6 +90,21 @@ export interface Config {
     traceLimit: number;
   };
   /**
+   * Telling the time.
+   *
+   * The proxy answers "what time is it?" itself, in words ("five twenty two", "five
+   * o'clock" on the hour, never a.m. or p.m.), because that is the only way to own the
+   * wording and it needs no model call at all.
+   */
+  clock: {
+    /**
+     * The timezone to read the clock in, as an IANA name (`Europe/Amsterdam`). Empty means:
+     * use the time Home Assistant reported in this request's system prompt — which is
+     * already the home's own timezone — and fall back to the container's clock.
+     */
+    timezone: string;
+  };
+  /**
    * Was that sentence meant for the assistant?
    *
    * A voice assistant hears the whole room, and anything the fast path declines is
@@ -224,6 +239,7 @@ export function defaultConfig(): Config {
       maxEntities: 400,
     },
     routing: { enabled: true, thresholds: { ...DEFAULT_THRESHOLDS }, traceLimit: 50 },
+    clock: { timezone: '' },
     // On by default: an overheard remark answered with an action is the failure this
     // exists to prevent, and the judge declines to speak unless it is sure.
     listening: { enabled: true, confidence: 0.75, local: true },
@@ -317,6 +333,7 @@ function applyEnv(config: Config): void {
   }
   if (env.HA_URL) config.catalog.haUrl = env.HA_URL;
   if (env.HA_TOKEN) config.catalog.haToken = env.HA_TOKEN;
+  if (env.CLOCK_TIMEZONE) config.clock.timezone = env.CLOCK_TIMEZONE;
 }
 
 /** The dashboard shows secrets masked; a save that echoes the mask back means "leave it". */

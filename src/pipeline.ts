@@ -13,6 +13,7 @@ import { ACTION_VERBS } from './actions.js';
 
 import { getCatalog, homeSignature } from './catalog.js';
 import { directStatePlan } from './answer.js';
+import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
 import { looksLikeChatter } from './chatter.js';
 import { judgeAddressee } from './addressee.js';
 import { actionPhrase, humanTarget, interpolateSpeech, ruleFor } from './speech.js';
@@ -304,6 +305,35 @@ export async function runPipeline(
       : undefined,
   });
   catalogMs = Date.now() - catalogStarted;
+  // "What time is it?" is answered here, in words ("five twenty two", "five o'clock" on the
+  // hour, never a.m. or p.m.): the wording is the whole point, and owning it costs no model
+  // call and no intent round trip. A question about the date is left to Home Assistant.
+  if (active.routing.enabled && isTimeQuestion(utterance)) {
+    const text = spokenTime(clockNow(active.clock, systemPrompt));
+    const reason = 'the time — spoken in words, no model call';
+    const entry: TraceEntry = {
+      id: uid('trace'),
+      at: startedAt,
+      utterance,
+      route: 'text',
+      reason,
+      gates: [],
+      category: 'query',
+      action: 'query',
+      backend: 'off',
+      catalogSource: catalog.source,
+      catalogExposure: catalog.exposure,
+      toolsOffered,
+      timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+      totalMs: Date.now() - startedAt,
+    };
+    rememberTrace(entry);
+    stats.requests += 1;
+    return {
+      route: { plan: { kind: 'text', text } as Plan, gates: [], reason, category: 'query', action: 'query' },
+      entry,
+    };
+  }
   // "Is the desk lamp on?" is a catalogue lookup, not a decision: the state is already here,
   // so answering locally turns the most common query into a couple of milliseconds.
   if (active.routing.enabled) {
@@ -446,6 +476,7 @@ export async function runPipeline(
       extraction,
       config: active,
       inventory,
+      systemPrompt,
     });
     return { extraction, built, decision, routed };
   };

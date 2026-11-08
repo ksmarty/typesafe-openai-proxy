@@ -24,8 +24,11 @@ type View = 'monitor' | 'settings';
 const VIEWS: View[] = ['monitor', 'settings'];
 
 function initialView(): View {
-  const hash = window.location.hash.replace('#', '') as View;
-  return VIEWS.includes(hash) ? hash : 'monitor';
+  const hash = window.location.hash.replace('#', '');
+  // `settings/<group>` is a deep link into one settings group; the group id is read where the
+  // settings form picks its own section up.
+  if (hash === 'settings' || hash.startsWith('settings/')) return 'settings';
+  return VIEWS.includes(hash as View) ? (hash as View) : 'monitor';
 }
 
 function HealthDot({ ok }: { ok: boolean | null }) {
@@ -75,7 +78,9 @@ export function App() {
     // SecurityError, and an uncaught throw here would blank the whole tree. The view still works
     // without the hash, so a failed write is ignored.
     try {
-      if (window.location.hash.replace('#', '') !== view) {
+      const current = window.location.hash.replace('#', '');
+      const keepGroup = view === 'settings' && current.startsWith('settings/');
+      if (current !== view && !keepGroup) {
         window.history.replaceState(null, '', `#${view}`);
       }
     } catch {
