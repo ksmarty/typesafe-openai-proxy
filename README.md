@@ -508,6 +508,9 @@ using the form.
 What it deliberately does not do: **"play" with nothing to play** ("play some music", "play the
 next song") is a playback command, not a search, and goes to your model; and a request with no
 speaker to play on — several speakers, no device id — is forwarded rather than guessed at.
+Nothing is said after the call either: the music starting is the answer, so `music_assistant`
+sits in the default silent speech rules next to `media_player`. Settings → Speech → *Rules*
+changes that if you would rather hear what is playing.
 
 ### Only what Assist can see
 

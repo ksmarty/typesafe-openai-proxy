@@ -5,6 +5,7 @@ import { catalogFromPrompt, clearCatalogCache } from '../src/catalog.js';
 import { defaultConfig, type Config } from '../src/config.js';
 import { mediaTypeFor, musicCall, musicPlan, musicTarget, musicTool, readMusicRequest } from '../src/music.js';
 import { runPipeline } from '../src/pipeline.js';
+import { ruleFor } from '../src/speech.js';
 import { inventoryFor } from '../src/toolcall.js';
 import type { Catalog, OpenAITool } from '../src/types.js';
 
@@ -337,6 +338,16 @@ test('a sentence that is not about music is untouched', async () => {
   assert.equal(result.route.plan.kind, 'tool');
   if (result.route.plan.kind !== 'tool') return;
   assert.equal(result.route.plan.tool, 'HassTurnOn');
+});
+
+test('nothing is said after the music starts, by default', () => {
+  const rules = defaultConfig().speech.rules;
+  const rule = ruleFor(rules, {
+    tool: 'music_assistant__play_media',
+    domain: 'music_assistant',
+    action: 'search_and_play',
+  });
+  assert.equal(rule?.mode, 'silent');
 });
 
 test('the catalog from a prompt still finds the only speaker in the house', () => {

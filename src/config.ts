@@ -333,6 +333,9 @@ export function defaultConfig(): Config {
         { match: 'cover', mode: 'silent' },
         { match: 'climate', mode: 'silent' },
         { match: 'media_player', mode: 'silent' },
+        // Music Assistant's own play service is the same kind of turn: the music starting is
+        // the answer, and a sentence over the first bar of it is not.
+        { match: 'music_assistant', mode: 'silent' },
       ],
       templates: structuredClone(DEFAULT_TEMPLATES),
     },
