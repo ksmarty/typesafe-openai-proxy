@@ -11,9 +11,10 @@ import type { ServerResponse } from 'node:http';
 
 import { ACTION_VERBS } from './actions.js';
 
-import { getCatalog, homeSignature } from './catalog.js';
+import { getCatalog, homeSignature, homeZoneCoordinates } from './catalog.js';
 import { directStatePlan } from './answer.js';
 import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
+import { readWeatherQuestion, requestedSummaryLanguage, weatherAnswer, weatherFor } from './weather.js';
 import { looksLikeChatter } from './chatter.js';
 import { judgeAddressee } from './addressee.js';
 import { actionPhrase, humanTarget, interpolateSpeech, ruleFor } from './speech.js';
@@ -62,6 +63,25 @@ import { sha1, textOf, uid } from './util.js';
 function languageOf(request: OpenAIChatRequest): string | undefined {
   const candidate = (request as Record<string, unknown>).language;
   return typeof candidate === 'string' && candidate.length < 12 ? candidate : undefined;
+}
+
+/**
+ * Every name the house goes by: entity names, their aliases and the room names.
+ *
+ * Used only to keep a weather question away from a sentence that names something in the
+ * house — "is the bedroom warm" is about the bedroom, not about the sky.
+ */
+function houseNamesOf(catalog: Catalog): string[] {
+  const names: string[] = [];
+  for (const entity of catalog.entities) {
+    names.push(entity.name);
+    for (const alias of entity.aliases ?? []) names.push(alias);
+  }
+  for (const area of catalog.areas) {
+    names.push(area.name);
+    for (const alias of area.aliases ?? []) names.push(alias);
+  }
+  return names.filter(Boolean);
 }
 
 function systemPromptOf(messages: OpenAIMessage[]): string {
@@ -333,6 +353,49 @@ export async function runPipeline(
       route: { plan: { kind: 'text', text } as Plan, gates: [], reason, category: 'query', action: 'query' },
       entry,
     };
+  }
+  // The weather is not in the house and not in the catalog, so it comes from the forecast
+  // service the user configured (Pirate Weather by default). The answer is that service's own
+  // written summary — "light rain on Wednesday, with highs dipping to 6 °C" — in the language
+  // of the request, because a sentence assembled from condition codes reads worse than the one
+  // a forecast service already wrote. One request is shared by every question for ten minutes.
+  if (active.routing.enabled && active.weather.apiKey) {
+    const question = readWeatherQuestion(utterance, houseNamesOf(catalog));
+    if (question) {
+      const report = await weatherFor(active, {
+        language: languageOf(request),
+        zoneHome: await homeZoneCoordinates(active),
+      });
+      // The summary's language, not the request's: a pinned language puts the summary in one
+      // language, and the temperature sentence has to agree with the summary it follows.
+      const spokenLanguage = requestedSummaryLanguage(active.weather, languageOf(request));
+      const text = report ? weatherAnswer(report, { subject: question.subject, language: spokenLanguage }) : null;
+      if (text) {
+        const reason = `weather: ${question.subject} — from the forecast service, no model call`;
+        const entry: TraceEntry = {
+          id: uid('trace'),
+          at: startedAt,
+          utterance,
+          route: 'text',
+          reason,
+          gates: [],
+          category: 'query',
+          action: 'query',
+          backend: 'off',
+          catalogSource: catalog.source,
+          catalogExposure: catalog.exposure,
+          toolsOffered,
+          timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+          totalMs: Date.now() - startedAt,
+        };
+        rememberTrace(entry);
+        stats.requests += 1;
+        return {
+          route: { plan: { kind: 'text', text } as Plan, gates: [], reason, category: 'query', action: 'query' },
+          entry,
+        };
+      }
+    }
   }
   // "Is the desk lamp on?" is a catalogue lookup, not a decision: the state is already here,
   // so answering locally turns the most common query into a couple of milliseconds.

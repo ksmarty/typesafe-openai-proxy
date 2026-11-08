@@ -105,6 +105,33 @@ export interface Config {
     timezone: string;
   };
   /**
+   * The weather, answered from a forecast service.
+   *
+   * Pirate Weather is Dark Sky–compatible, so its reply carries written summaries — "Light
+   * rain on Wednesday, with highs dipping to 6 °C" — and those sentences are what is spoken.
+   * That is the whole reason for the service: the wording is already good, and owning it by
+   * assembling condition codes would produce a worse sentence. Nothing is fetched until an
+   * API key is here, and a question the reader does not understand is forwarded as before.
+   */
+  weather: {
+    /** The Pirate Weather key. Empty switches the whole feature off. */
+    apiKey: string;
+    /** Where the forecast is for. Both empty means Home Assistant's own `zone.home`, when a token is set. */
+    latitude: number;
+    longitude: number;
+    /** Read the coordinates from Home Assistant's `zone.home`; on by default. */
+    haZoneCoordinates: boolean;
+    /** `auto` follows the locale Home Assistant sends, else `si`; or pin one of si/us/uk/ca. */
+    units: string;
+    /** Language of the written summaries. Empty follows the language of each request. */
+    language: string;
+    /** How long one forecast is reused. Two questions a minute apart cost one request. */
+    cacheMs: number;
+    /** The API host, overridable for a self-hosted or mirrored service. */
+    baseUrl: string;
+    timeoutMs: number;
+  };
+  /**
    * Was that sentence meant for the assistant?
    *
    * A voice assistant hears the whole room, and anything the fast path declines is
@@ -240,6 +267,17 @@ export function defaultConfig(): Config {
     },
     routing: { enabled: true, thresholds: { ...DEFAULT_THRESHOLDS }, traceLimit: 50 },
     clock: { timezone: '' },
+    weather: {
+      apiKey: '',
+      latitude: 0,
+      longitude: 0,
+      haZoneCoordinates: true,
+      units: 'auto',
+      language: '',
+      cacheMs: 600000,
+      baseUrl: '',
+      timeoutMs: 8000,
+    },
     // On by default: an overheard remark answered with an action is the failure this
     // exists to prevent, and the judge declines to speak unless it is sure.
     listening: { enabled: true, confidence: 0.75, local: true },
@@ -334,6 +372,18 @@ function applyEnv(config: Config): void {
   if (env.HA_URL) config.catalog.haUrl = env.HA_URL;
   if (env.HA_TOKEN) config.catalog.haToken = env.HA_TOKEN;
   if (env.CLOCK_TIMEZONE) config.clock.timezone = env.CLOCK_TIMEZONE;
+  if (env.WEATHER_API_KEY) config.weather.apiKey = env.WEATHER_API_KEY;
+  if (env.WEATHER_LATITUDE !== undefined && env.WEATHER_LATITUDE !== '') {
+    const latitude = Number(env.WEATHER_LATITUDE);
+    if (Number.isFinite(latitude)) config.weather.latitude = latitude;
+  }
+  if (env.WEATHER_LONGITUDE !== undefined && env.WEATHER_LONGITUDE !== '') {
+    const longitude = Number(env.WEATHER_LONGITUDE);
+    if (Number.isFinite(longitude)) config.weather.longitude = longitude;
+  }
+  if (env.WEATHER_UNITS) config.weather.units = env.WEATHER_UNITS;
+  if (env.WEATHER_LANGUAGE) config.weather.language = env.WEATHER_LANGUAGE;
+  if (env.WEATHER_BASE_URL) config.weather.baseUrl = env.WEATHER_BASE_URL;
 }
 
 /** The dashboard shows secrets masked; a save that echoes the mask back means "leave it". */

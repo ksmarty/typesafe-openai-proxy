@@ -393,6 +393,48 @@ knows the home's date, locale and calendar, so `HassGetCurrentDate` is still cal
 is "what time is it in Tokyo", which is forwarded, or a command that merely contains the word
 ("set a timer for five minutes"), which takes the normal path.
 
+### The weather
+
+"what's the weather like?" is answered by the forecast service itself, in the sentence it
+wrote: *"Light rain on Wednesday and Thursday, with highs dipping to 6 °C"*. The wording is
+the reason for the service — [Pirate Weather](https://pirateweather.net/) is Dark Sky–compatible
+and returns written summaries for every timescale — because a sentence assembled here from
+condition codes would read worse than the one the forecast service already wrote.
+
+Which summary is spoken depends on what was asked:
+
+| Asked | Spoken |
+| --- | --- |
+| "what's the weather like?", "is it raining?" | the current conditions plus the temperature |
+| "is it going to rain?" | the next hour, since the question is about rain that has not started |
+| "what's the forecast today" | today's summary with its high and low |
+| "will it snow tonight" | today's summary (the overnight part is in it) |
+| "what's the forecast for tomorrow" | tomorrow's own summary with its range |
+| "what about the rest of the day" | the rest of the day |
+| "what's the weather this week" | the week ahead |
+
+The summaries come back in the language the question was asked in (Pirate Weather writes them
+in fifty-odd languages), and the temperature sentence follows the same rule — a language with
+no phrase here gets the summary alone rather than a sentence in the wrong language. Units come
+from the locale Home Assistant sends, or from the pinned choice in Settings → Weather.
+
+The reader that recognises a weather question is English, so a non-English question is
+forwarded to your model unless **Settings → Weather → Language of the summaries** pins one, in
+which case every summary (and the sentence after it) comes back in that language.
+
+Set it up in **Settings → Weather**: paste the API key from
+[pirateweather.net](https://pirateweather.net/) (the free tier is 10,000 calls a month) and
+leave the coordinates empty — Home Assistant's own `zone.home` is used, so the forecast is for
+the right house without anyone typing a latitude. One forecast is reused for ten minutes, so
+two questions in a row cost one call. Or set `WEATHER_API_KEY` and skip the form.
+
+What it deliberately does not do: **a question about another city** ("what's the weather in
+Amsterdam?"), **a question about a room or a device** ("is the bedroom warm?" — that is your
+thermostat), and **anything phrased as a command** ("set the thermostat to 21"). Those are
+forwarded to your model exactly as before. Neither is anything fetched without a key. A failure
+of any kind — a bad key, an unreachable service, a timeout — answers nothing and forwards the
+question, so weather can never be the reason a turn breaks.
+
 ### Only what Assist can see
 
 The catalog asks Home Assistant which entities are exposed to the conversation agent
@@ -586,6 +628,11 @@ The backend-related variables are worth naming, because there is no default deci
 | `LISTENING_LOCAL` | `1` | `0` keeps the decision model's judgement but drops the local pattern reader for turns no model saw |
 | `LISTENING_CONFIDENCE` | `0.75` | how sure the judgement has to be before a turn is answered with silence |
 | `CLOCK_TIMEZONE` | *(empty)* | the IANA zone "what time is it?" is answered in; empty uses Home Assistant's own prompt clock, then the container's |
+| `WEATHER_API_KEY` | *(empty)* | a Pirate Weather key; empty switches the weather feature off entirely |
+| `WEATHER_LATITUDE` / `WEATHER_LONGITUDE` | *(empty)* | where the forecast is for; empty reads Home Assistant's `zone.home` |
+| `WEATHER_UNITS` | *(auto)* | `si`, `ca`, `uk` or `us`; `auto` follows the locale of each request |
+| `WEATHER_LANGUAGE` | *(empty)* | pin the language of the summaries; empty follows each request |
+| `WEATHER_BASE_URL` | *(empty)* | only for a self-hosted or mirrored service |
 
 ### One key for both servers
 

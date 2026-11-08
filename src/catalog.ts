@@ -847,6 +847,47 @@ export async function getCatalog(
   return emptyCatalog();
 }
 
+/**
+ * Where the house is, as Home Assistant knows it: the latitude and longitude of `zone.home`.
+ *
+ * The weather service needs coordinates and Home Assistant already holds the right ones, so
+ * a working install can ask about the weather without anyone typing a latitude. Read once and
+ * kept for the session — a house does not move, and this would otherwise cost a websocket call
+ * per weather question.
+ */
+let homeZone: { latitude: number; longitude: number } | null | undefined;
+
+export async function homeZoneCoordinates(
+  config: Config,
+): Promise<{ latitude: number; longitude: number } | null> {
+  if (homeZone !== undefined) return homeZone;
+  const base = config.catalog.haUrl.replace(/\/+$/, '');
+  if (!base || !config.catalog.haToken) {
+    homeZone = null;
+    return null;
+  }
+  const wsUrl = `${base.replace(/^http/, 'ws')}/api/websocket`;
+  try {
+    const [states] = await wsQuery<StateRow[]>(wsUrl, config.catalog.haToken, [{ type: 'get_states' }], 8000);
+    const home = (states ?? []).find((state) => state.entity_id === 'zone.home');
+    const attributes = (home?.attributes ?? {}) as Record<string, unknown>;
+    const latitude = Number(attributes.latitude);
+    const longitude = Number(attributes.longitude);
+    homeZone =
+      Number.isFinite(latitude) && Number.isFinite(longitude) && (latitude || longitude)
+        ? { latitude, longitude }
+        : null;
+  } catch {
+    homeZone = null;
+  }
+  return homeZone ?? null;
+}
+
+/** Forget the remembered home coordinates (used by the tests, and after a config change). */
+export function clearHomeZone(): void {
+  homeZone = undefined;
+}
+
 export function emptyCatalog(): Catalog {
   return {
     areas: [],
@@ -880,6 +921,7 @@ export function cachedCatalog(): Catalog | null {
 export function clearCatalogCache(): void {
   cache = null;
   snapshotUsed = false;
+  clearHomeZone();
 }
 
 /** Remember a catalog that was built outside getCatalog (the Refresh button). */
