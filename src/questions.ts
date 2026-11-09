@@ -79,7 +79,7 @@ export const STATIC_QUESTIONS: QuestionSet = {
       'How wide is the target of `request.text`? Use `request.spoken_from_area` for "here" only when no room is named.',
     criteria: {
       whole_house: "Everything of some kind, everywhere in the home: 'all the lights', 'turn everything off', 'lock up the house'.",
-      floor: "Everything of some kind on one floor or level: 'the lights upstairs', 'close the blinds downstairs'.",
+      floor: "Everything of some kind on one floor or level: 'the lights upstairs', 'close the blinds downstairs', 'the first floor lights'. A floor is one target of its own, not a room on it.",
       area: "Everything of some kind in one room or area: 'the kitchen lights', 'turn off the bedroom'.",
       single: 'One specific device, either named outright or made obvious by the context.',
       not_a_target: 'Nothing in the home is being targeted at all.',

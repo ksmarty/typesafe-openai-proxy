@@ -253,7 +253,9 @@ export function heuristicDecide(input: HeuristicInput): DecisionResponse {
 
   if (questions[Q.scope]) {
     const allWords = countMatches(text, ['all', 'every', 'everything', 'everywhere', 'whole house', 'entire house']);
-    const floorWords = catalog.areas.some((candidate) => candidate.floor && text.includes(` ${normalise(candidate.floor)} `));
+    const floorWords =
+      catalog.areas.some((candidate) => candidate.floor && text.includes(` ${normalise(candidate.floor)} `)) ||
+      /\b(?:upstairs|downstairs|top floor|bottom floor|ground floor|upper floor|lower floor)\b/.test(text);
     answers[Q.scope] = choose({
       whole_house: allWords > 0 ? Math.min(1, 0.5 + allWords * 0.3) : 0,
       floor: floorWords ? 0.7 : 0,

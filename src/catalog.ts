@@ -213,6 +213,8 @@ interface RegistryDevice {
 interface RegistryFloor {
   floor_id?: string;
   name?: string;
+  /** 0 is the ground floor, 1 the one above it. Null when Home Assistant does not say. */
+  level?: number | null;
 }
 
 interface StateRow {
@@ -523,8 +525,13 @@ export function catalogFromRegistries(input: {
   } = input;
 
   const floorName = new Map<string, string>();
+  const floorLevel = new Map<string, number>();
   for (const floor of floorList) {
-    if (floor.floor_id && floor.name) floorName.set(floor.floor_id, floor.name);
+    if (!floor.floor_id || !floor.name) continue;
+    floorName.set(floor.floor_id, floor.name);
+    if (typeof floor.level === 'number' && Number.isFinite(floor.level)) {
+      floorLevel.set(floor.floor_id, floor.level);
+    }
   }
   const areaById = new Map<string, CatalogArea>();
   for (const area of areaList) {
@@ -534,6 +541,7 @@ export function catalogFromRegistries(input: {
       id: area.area_id,
       name: area.name,
       ...(area.floor_id && floorName.has(area.floor_id) ? { floor: floorName.get(area.floor_id)! } : {}),
+      ...(area.floor_id && floorLevel.has(area.floor_id) ? { floorLevel: floorLevel.get(area.floor_id)! } : {}),
       ...(areaAliases.length ? { aliases: areaAliases } : {}),
     });
   }
@@ -957,8 +965,72 @@ export function uniqueAreaMention(catalog: Catalog, utterance: string): CatalogA
   return best.area;
 }
 
-/** Domains the fast path can actually act on, for spotting a second target. */
-const ACTIONABLE_DOMAINS = new Set([
+export interface CatalogFloor {
+  name: string;
+  /** 0 is the ground floor, when Home Assistant says. */
+  level?: number;
+}
+
+/**
+ * The floors the house has, from the rooms that sit on them: an area is the only place
+ * the catalog records a floor, so a floor with no rooms on it is not a floor anyone can
+ * ask about by name.
+ */
+export function floorsOf(catalog: Catalog): CatalogFloor[] {
+  const seen = new Map<string, CatalogFloor>();
+  for (const area of catalog.areas) {
+    if (!area.floor) continue;
+    const key = normalise(area.floor);
+    if (!key || seen.has(key)) continue;
+    seen.set(key, { name: area.floor, ...(area.floorLevel !== undefined ? { level: area.floorLevel } : {}) });
+  }
+  return [...seen.values()].sort((a, b) => (a.level ?? 0) - (b.level ?? 0));
+}
+
+/** "Upstairs" and "downstairs" are where a floor sits, not what it is called. */
+const UPSTAIRS = /\b(?:upstairs|upstair|top floor|upper floor|up most)\b/g;
+const DOWNSTAIRS = /\b(?:downstairs|downstair|ground floor|bottom floor|lower floor|basement)\b/g;
+
+/**
+ * The one floor the sentence names, by its own name ("the first floor") or by where it
+ * sits ("upstairs"). Two floors answering equally well is no answer: the caller asks.
+ */
+export function uniqueFloorMention(catalog: Catalog, utterance: string): CatalogFloor | undefined {
+  const floors = floorsOf(catalog);
+  if (!floors.length) return undefined;
+  const text = ` ${normalise(utterance).replace(UPSTAIRS, ' up__here ').replace(DOWNSTAIRS, ' down__here ')} `;
+  const hits = floors
+    .map((floor) => ({ floor, key: normalise(floor.name) }))
+    .filter(({ key }) => key.length > 1)
+    .filter(
+      ({ key }) =>
+        text.includes(` ${key} `) || text.includes(` ${key} floor `) || text.includes(` ${key} level `) ||
+        text.includes(` the ${key} lights `),
+    )
+    .sort((a, b) => b.key.length - a.key.length);
+  if (hits.length) {
+    const best = hits[0]!;
+    if (hits[1] && hits[1].key.length === best.key.length) return undefined;
+    return best.floor;
+  }
+  // A floor with no level is one Home Assistant never placed, so "upstairs" cannot mean it.
+  if (text.includes(' up__here ')) return byLevel(floors, 'highest');
+  if (text.includes(' down__here ')) return byLevel(floors, 'lowest');
+  return undefined;
+}
+
+function byLevel(floors: CatalogFloor[], end: 'highest' | 'lowest'): CatalogFloor | undefined {
+  const placed = floors.filter((floor) => floor.level !== undefined);
+  if (!placed.length) return floors.length === 1 ? floors[0] : undefined;
+  const sorted = [...placed].sort((a, b) =>
+    end === 'highest' ? b.level! - a.level! : a.level! - b.level!,
+  );
+  // Two floors on the same level is a guess, and a guess is worse than a question.
+  if (sorted[1] && sorted[1].level === sorted[0]!.level) return undefined;
+  return sorted[0];
+}
+
+/** Domains the fast path can actually act on, for spotting a second target. */const ACTIONABLE_DOMAINS = new Set([
   'light', 'switch', 'fan', 'cover', 'climate', 'media_player', 'scene', 'script',
   'button', 'input_boolean', 'humidifier', 'water_heater', 'vacuum', 'todo', 'lock',
 ]);

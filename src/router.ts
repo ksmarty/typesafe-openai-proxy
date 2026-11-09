@@ -36,7 +36,7 @@ import type {
 import { buildToolCall, describeInventory, findTool, hasTool, magnitudeStep, relativeTarget } from './toolcall.js';
 import type { ToolInventory } from './toolcall.js';
 import { INTENTS } from './actions.js';
-import { mentionedTargets, uniqueAreaMention, uniqueEntityMention } from './catalog.js';
+import { mentionedTargets, uniqueAreaMention, uniqueEntityMention, uniqueFloorMention } from './catalog.js';
 import type { MentionedTarget } from './catalog.js';
 import { mediaSearchCall, roomSpeaker } from './music.js';
 import { marginOf } from './systemone.js';
@@ -525,6 +525,9 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
   // cannot decide how wide the request is should not veto a room the sentence names.
   const namedRoom = uniqueAreaMention(catalog, utterance);
   const namedEntity = uniqueEntityMention(catalog, utterance);
+  // "The lights upstairs" names a floor, which Home Assistant takes as one target of its own:
+  // a floor is not a room, and picking one room on it would be a guess.
+  const namedFloor = uniqueFloorMention(catalog, utterance);
   // "The kitchen and the living room lights" is one action on two targets. The model
   // answers the action question for the sentence as a whole, so each target only needs
   // its own call: doing half of it, or handing the whole sentence back, is worse.
@@ -540,12 +543,32 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
       scope = 'area';
       const gate = gates.find((entry) => entry.question === Q.scope);
       if (gate) gate.note = `room \"${namedRoom.name}\" named in the sentence`;
+    } else if (namedFloor) {
+      scope = 'floor';
+      const gate = gates.find((entry) => entry.question === Q.scope);
+      if (gate) gate.note = `floor \"${namedFloor.name}\" named in the sentence`;
     } else {
       return forward('no confident reading of how wide the request is', gates, { category: 'command' });
     }
   }
   if (scope === 'not_a_target') return forward('nothing in the home is targeted', gates, { category: 'command' });
-  if (scope === 'floor') return forward('floor-wide requests are not handled by the fast path', gates, { category: 'command' });
+  // "Upstairs" read as a room - or as the whole house - would act on the wrong set: the
+  // sentence named a floor, and Home Assistant takes a floor as one target of its own.
+  if ((scope === 'area' || scope === 'whole_house') && namedFloor && !namedRoom) {
+    scope = 'floor';
+    const gate = gates.find((entry) => entry.question === Q.scope);
+    if (gate) gate.note = `floor \"${namedFloor.name}\" named in the sentence`;
+  }
+  if (scope === 'floor' && !namedFloor) {
+    // The model read a room as a floor: the room is still a target it named itself.
+    if (namedRoom) {
+      scope = 'area';
+      const gate = gates.find((entry) => entry.question === Q.scope);
+      if (gate) gate.note = `room \"${namedRoom.name}\" named in the sentence`;
+    } else {
+      return forward('no floor named', gates, { category: 'command' });
+    }
+  }
 
   // Where does the request land?
   const hereRelative = noulOf(answers, Q.hereRelative) ?? 0;
@@ -557,9 +580,14 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
 
   let targetEntity: CatalogEntity | undefined;
   let targetRoom: { id: string; name: string } | undefined;
+  let targetFloor: { name: string } | undefined;
   let reduceHint = false;
 
-  if (scope === 'single') {
+  if (scope === 'floor') {
+    targetFloor = { name: namedFloor!.name };
+    const gate = gates.find((entry) => entry.question === Q.targetArea);
+    if (gate) gate.note = `floor \"${namedFloor!.name}\" named in the sentence`;
+  } else if (scope === 'single') {
     const answer = choiceOf(answers, Q.targetEntity);
     const chosen = answer ? built.entityOptions.get(answer.choice) : undefined;
     const gateOk = gateChoice(gates, Q.targetEntity, answer, t.entity, t.minMargin);
@@ -772,6 +800,7 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
           target: {
             ...(targetEntity ? { entity: targetEntity } : {}),
             ...(targetRoom ? { areaName: targetRoom.name } : {}),
+            ...(targetFloor ? { floorName: targetFloor.name } : {}),
             ...(domain ? { domain } : {}),
           },
           action,
@@ -780,7 +809,13 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
         });
   if ('error' in call) return forward(call.error, gates, { category: 'command' });
 
-  const targets = targetEntity ? [targetEntity.id] : targetRoom ? [targetRoom.name] : [domain];
+  const targets = targetEntity
+    ? [targetEntity.id]
+    : targetRoom
+      ? [targetRoom.name]
+      : targetFloor
+        ? [targetFloor.name]
+        : [domain];
   const plan: ToolCallPlan = {
     kind: 'tool',
     tool: call.tool,
@@ -796,7 +831,7 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
     return {
       plan: {
         kind: 'confirm',
-        text: fill(said.confirm, { action: verb, entity: entityLabel(targetEntity ?? { name: targetRoom?.name ?? domain } as CatalogEntity) }),
+        text: fill(said.confirm, { action: verb, entity: entityLabel(targetEntity ?? { name: targetRoom?.name ?? targetFloor?.name ?? domain } as CatalogEntity) }),
         pending: plan,
       },
       gates,
@@ -811,7 +846,7 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
   return {
     plan,
     gates,
-    reason: `${action}${targetEntity ? ` ${targetEntity.id}` : targetRoom ? ` in ${targetRoom.name}` : ` all ${domain}`}`,
+    reason: `${action}${targetEntity ? ` ${targetEntity.id}` : targetRoom ? ` in ${targetRoom.name}` : targetFloor ? ` on floor ${targetFloor.name}` : ` all ${domain}`}`,
     category: 'command',
     action,
     target: targets[0],

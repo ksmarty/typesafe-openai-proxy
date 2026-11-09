@@ -6,6 +6,8 @@ export interface CatalogArea {
   id: string;
   name: string;
   floor?: string;
+  /** Where that floor sits, when Home Assistant says: 0 is the ground floor. */
+  floorLevel?: number;
   /** Other names Home Assistant answers to for this area. */
   aliases?: string[];
 }

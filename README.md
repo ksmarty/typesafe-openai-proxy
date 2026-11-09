@@ -254,6 +254,18 @@ friendly name resolves. Values are converted to the slot's own unit — `brightn
 `brightness` is 0–255. Relative requests ("brighter", "a bit louder") are computed against the
 entity's current level from the catalog, so the proxy never guesses a position.
 
+A **floor** is one target of its own. "Turn off the upstairs lights" becomes a single
+`HassTurnOff` with `{"floor": "First Floor", "domain": "light"}`, because Home Assistant's
+intent filters take a floor the same way they take a room; picking one room on the floor
+would be a guess wearing a room's name. Floors come from the websocket catalog, where the
+floor registry gives each floor a name and a level: "upstairs" is the highest level,
+"downstairs" the lowest, and a floor named outright ("the first floor lights") needs no
+level. Two floors sharing the highest level is a question, and an intent with no `floor`
+slot is a refusal, not a room-sized action.
+
+The system prompt catalog carries no floors, so floor-wide phrasing there goes to the model
+rather than being guessed at.
+
 ## Catalog
 
 Two sources, used automatically:
@@ -735,9 +747,8 @@ different provider is used for prose. Nothing changes when the flag is off.
 
 - **Compound requests** are split when each clause names its own target ("turn off the kitchen
   lights and lock the door"); a clause that needs a slot the fast path cannot fill is forwarded whole.
-- **Floor-wide commands** — detected and forwarded.
-- **Script/template field filling**, `set_mode`, and MQTT-specific actions — forwarded.
 - **Media search grammar** beyond a simple "play X on Y" query slot.
+- **Script/template field filling**, `set_mode`, and MQTT-specific actions — forwarded.
 - **The time in another timezone** — "what time is it in Tokyo" is forwarded, since the proxy
   only knows the time in this house.
 - Anything where a gate fails. That is the point.
