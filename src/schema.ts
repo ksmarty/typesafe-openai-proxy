@@ -353,7 +353,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'music',
       title: 'Music',
       description:
-        '“Play Taylor Swift” names no speaker and no media type, and both are worked out here: it plays on the speaker that was spoken to (or the one the sentence names), and a bare name is an artist, which every provider plays as their top tracks. “Play Don’t Tap The Glass by Tyler The Creator” is an album. Music Assistant is asked first when Home Assistant offers its play service, because it resolves a name against every provider you connected; otherwise the player’s own play service takes the same name and media type, and Home Assistant’s media search is the last resort. A room whose only players are televisions plays on the television that is already on.',
+        '“Play Taylor Swift” names no speaker and no media type, and both are worked out here: it plays on the speaker that was spoken to (or the one the sentence names), and a bare name is an artist, which every provider plays as their top tracks. “Play Don’t Tap The Glass by Tyler The Creator” is an album. Music Assistant is asked first when Home Assistant offers its play service, because it resolves a name against every provider you connected; then a script of yours that takes a media id and type, which is what people write when the generic service will not start music on their speakers; then the player’s own play service, which takes the same name and media type; and Home Assistant’s media search last. A room whose only players are televisions plays on the television that is already on, and a service that takes the room can play in a room where nothing is exposed.',
       fields: [
         {
           key: 'music.enabled',
@@ -368,9 +368,10 @@ export function settingsGroups(): SettingsGroup[] {
           options: [
             { value: 'auto', label: 'Whatever Assist offers (recommended)' },
             { value: 'music_assistant', label: 'Music Assistant’s own service only' },
+            { value: 'script', label: 'Your own play script only' },
             { value: 'assist', label: 'Home Assistant’s own media search only' },
           ],
-          help: 'In order: Music Assistant’s play service, then the player’s own play_media (which Music Assistant also answers), then Home Assistant’s media search. Only the first two can queue or play an artist rather than a search.',
+          help: 'In order: Music Assistant’s play service, then a script of yours that takes a media id and type (a “Play Music” script is what plays when the generic service will not), then the player’s own play_media, then Home Assistant’s media search. Only the first three can play an artist rather than a search.',
         },
         {
           key: 'music.enqueue',

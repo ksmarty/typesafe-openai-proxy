@@ -660,3 +660,106 @@ test('a music sentence that is forwarded says on the trace why it was not played
   assert.equal(result.route.plan.kind, 'forward');
   assert.match(result.entry.reason, /music: no room to play in/);
 });
+
+// ---------------------------------------------------------------------------
+// A house script that plays music — `script__play_music`, as people write it
+// ---------------------------------------------------------------------------
+
+/** The user's own "Play Music" script: Music Assistant's service is not exposed, this is. */
+function playMusicScript(): OpenAITool {
+  return tool(
+    'script__play_music',
+    {
+      media_type: { type: 'string', enum: ['track', 'album', 'artist', 'playlist', 'radio'] },
+      media_id: { type: 'string' },
+      artist: { type: 'string' },
+      album: { type: 'string' },
+      shuffle: { type: 'boolean' },
+      area: { type: 'string' },
+      action: { type: 'string', enum: ['play', 'stop'] },
+    },
+    ['area'],
+  );
+}
+
+/** An exposed script that is not music at all: no media id, no media type. */
+function movieRequester(): OpenAITool {
+  return tool('script__movie_requester', {});
+}
+
+/** A house with a Bedroom nothing is exposed in, the way a voice satellite's room is. */
+function bedroomOnly(): Catalog {
+  return {
+    ...televisionsOnly(),
+    areas: [...televisionsOnly().areas, { id: 'bedroom', name: 'Bedroom' }],
+  };
+}
+
+test('a house script that plays music is the play service, ahead of the generic one', () => {
+  const inventory = inventoryFor([movieRequester(), playerPlayService(), playMusicScript()]);
+  const match = musicTool(inventory);
+  assert.equal(match?.name, 'script__play_music');
+  assert.equal(match?.provider, 'script');
+  // A script with no media id in it is not a way to play anything.
+  assert.equal(musicTool(inventoryFor([movieRequester()])), undefined);
+  // Pinned to Music Assistant's own service, the script is not used, and there is no such service.
+  assert.equal(musicTool(inventory, 'music_assistant'), undefined);
+  assert.equal(musicTool(inventory, 'script')?.name, 'script__play_music');
+});
+
+test('"play Taylor Swift" goes to the house script, which plays in the room asked for', () => {
+  const base = config();
+  const plan = musicPlan({
+    utterance: 'Play Taylor Swift.',
+    catalog: televisionsOnly(),
+    inventory: inventoryFor([movieRequester(), playerPlayService(), playMusicScript()]),
+    config: { ...base, catalog: { ...base.catalog, defaultArea: 'Living Room' } },
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.tool, 'script__play_music');
+  assert.equal(plan.plan.args.media_id, 'Taylor Swift');
+  assert.equal(plan.plan.args.media_type, 'artist');
+  assert.equal(plan.plan.args.area, 'Living Room');
+  assert.equal(plan.plan.args.action, 'play');
+  assert.match(plan.reason, /via your own play script/);
+});
+
+test('an album keeps its artist in the script call', () => {
+  const base = config();
+  const plan = musicPlan({
+    utterance: "Play Don't Tap The Glass by Tyler The Creator.",
+    catalog: televisionsOnly(),
+    inventory: inventoryFor([playMusicScript()]),
+    config: { ...base, catalog: { ...base.catalog, defaultArea: 'Living Room' } },
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.args.media_id, "Don't Tap The Glass");
+  assert.equal(plan.plan.args.media_type, 'album');
+  assert.equal(plan.plan.args.artist, 'Tyler The Creator');
+});
+
+test('a room with nothing exposed in it still plays, because the script takes the room', () => {
+  const plan = musicPlan({
+    utterance: 'Play Taylor Swift in the bedroom.',
+    catalog: bedroomOnly(),
+    inventory: inventoryFor([playMusicScript()]),
+    config: config(),
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.tool, 'script__play_music');
+  assert.equal(plan.plan.args.area, 'Bedroom');
+  assert.deepEqual(plan.plan.targets, []);
+  assert.match(plan.reason, /in Bedroom via your own play script/);
+});
+
+test('with no script and no room, the sentence is still forwarded rather than guessed', () => {
+  const base = config();
+  const plan = musicPlan({
+    utterance: 'Play Taylor Swift in the bedroom.',
+    catalog: bedroomOnly(),
+    inventory: inventoryFor([playerPlayService()]),
+    config: config(),
+  });
+  if (!plan || !('error' in plan)) throw new Error('expected an error, not a call');
+  assert.match(plan.error, /no speaker in Bedroom/);
+});

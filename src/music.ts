@@ -486,8 +486,11 @@ export function musicTarget(
   const players = catalog.entities.filter((entity) => entity.domain === 'media_player');
   if (!players.length) return { error: 'no media player is exposed to Assist' };
 
+  // A room the sentence names is the room, even when it has nothing exposed in it: falling
+  // through here would play in the default area, which is a different room than the one asked
+  // for. An empty room is an error the caller can still place by area.
   const namedArea = areaOfName(catalog, options.on);
-  if (namedArea && inAreaOf(catalog, namedArea).length) return roomSpeaker(catalog, namedArea, options.on);
+  if (namedArea) return roomSpeaker(catalog, namedArea, options.on);
 
   const named = options.on ? playersNamed(players, options.on) : [];
   if (named.length === 1) return { player: named[0]!, reason: 'the speaker the sentence named' };
@@ -546,11 +549,13 @@ const AREA_SLOTS = ['area', 'area_id'];
 // Home Assistant's search tool takes the words to look for; it is not a way to play, but
 // knowing it is there turns "no play service" into advice.
 const SEARCH_SLOTS = ['search_query', 'query', 'search', 'text', 'media_content_id'];
+// A house script says what to do in a slot of its own: `action: play` or `action: stop`.
+const ACTION_SLOTS = ['action'];
 
 export interface MusicToolMatch {
   name: string;
   fn: OpenAIToolFunction;
-  provider: 'music_assistant' | 'media_player';
+  provider: 'music_assistant' | 'script' | 'media_player';
 }
 
 function propertiesOf(fn: OpenAIToolFunction): Record<string, unknown> {
@@ -592,27 +597,44 @@ function looksLikePlayMedia(name: string): boolean {
  * `play_media` keeps working on a house where Music Assistant is reached through its players,
  * which is how Home Assistant exposed it before the integration had a service of its own.
  */
+/**
+ * A house script that plays music, as `script__play_music` is.
+ *
+ * Home Assistant cannot tell a script that plays music from one that does anything else — they
+ * are all `script__<alias>` — so the shape decides: a script tool that takes a media id and a
+ * media type is playing media, and one that takes neither (`script__movie_requester`) is not.
+ */
+function isPlayScript(name: string, properties: Record<string, unknown>): boolean {
+  if (!/(^|__)script(__|\.)/i.test(name)) return false;
+  return Boolean(slotName(properties, MEDIA_ID_SLOTS) && slotName(properties, MEDIA_TYPE_SLOTS));
+}
+
 export function musicTool(
   inventory: ToolInventory,
   provider: Config['music']['provider'] = 'auto',
 ): MusicToolMatch | undefined {
   if (provider === 'assist') return undefined;
-  const candidates: { name: string; fn: OpenAIToolFunction; preferred: boolean }[] = [];
+  const candidates: { name: string; fn: OpenAIToolFunction; rank: number; provider: MusicToolMatch['provider'] }[] = [];
   for (const [name, fn] of inventory) {
-    if (!looksLikePlayMedia(name)) continue;
-    const preferred = /music[_-]?assistant|(^|[_.])mass([_.]|$)/i.test(name);
-    if (provider === 'music_assistant' && !preferred) continue;
-    if (!slotName(propertiesOf(fn), MEDIA_ID_SLOTS)) continue;
-    candidates.push({ name, fn, preferred });
+    const properties = propertiesOf(fn);
+    // Music Assistant's own service first: it resolves a name against every provider at once.
+    // Then a house script, because a script that plays music is what someone wrote when the
+    // generic service would not start it on their speakers. The player's own service last.
+    const rank = /music[_-]?assistant|(^|[_.])mass([_.]|$)/i.test(name)
+      ? 0
+      : isPlayScript(name, properties)
+        ? 1
+        : 2;
+    if (rank === 2 && !looksLikePlayMedia(name)) continue;
+    if (!slotName(properties, MEDIA_ID_SLOTS)) continue;
+    const matched: MusicToolMatch['provider'] =
+      rank === 0 ? 'music_assistant' : rank === 1 ? 'script' : 'media_player';
+    if (provider === 'music_assistant' && matched !== 'music_assistant') continue;
+    if (provider === 'script' && matched !== 'script') continue;
+    candidates.push({ name, fn, rank, provider: matched });
   }
-  const best = candidates.sort((a, b) => Number(b.preferred) - Number(a.preferred))[0];
-  return best
-    ? {
-        name: best.name,
-        fn: best.fn,
-        provider: best.preferred ? 'music_assistant' : 'media_player',
-      }
-    : undefined;
+  const best = candidates.sort((a, b) => a.rank - b.rank)[0];
+  return best ? { name: best.name, fn: best.fn, provider: best.provider } : undefined;
 }
 
 /** The media search tool Home Assistant offers, when it offers one: it finds, it does not play. */
@@ -641,7 +663,7 @@ export interface MusicCall {
   tool: string;
   args: Record<string, unknown>;
   /** Which service took the request; the trace says so. */
-  provider: 'music_assistant' | 'media_player' | 'assist';
+  provider: 'music_assistant' | 'script' | 'media_player' | 'assist';
 }
 
 /**
@@ -665,7 +687,7 @@ function serviceArgs(input: {
 
   const args: Record<string, unknown> = { [idSlot]: input.mediaId };
   const entitySlot = slotName(properties, ENTITY_SLOTS);
-  if (entitySlot) {
+  if (entitySlot && player.id) {
     args[entitySlot] = player.id;
   } else {
     // With no slot for one entity, the room is the narrowest thing the service takes.
@@ -695,6 +717,12 @@ function serviceArgs(input: {
   const enqueueSlot = slotName(properties, ENQUEUE_SLOTS);
   if (enqueueSlot && allows(properties[enqueueSlot], config.music.enqueue)) {
     args[enqueueSlot] = config.music.enqueue;
+  }
+
+  // A house script is told what to do as well as what to play: `action: play`, never `stop`.
+  if (service.provider === 'script') {
+    const actionSlot = slotName(properties, ACTION_SLOTS);
+    if (actionSlot && allows(properties[actionSlot], 'play')) args[actionSlot] = 'play';
   }
   return args;
 }
@@ -772,6 +800,29 @@ export interface MusicPlan {
   reason: string;
 }
 
+/** The service a call went through, in the words the trace shows. */
+function describeService(provider: MusicCall['provider']): string {
+  if (provider === 'music_assistant') return 'Music Assistant';
+  if (provider === 'script') return 'your own play script';
+  if (provider === 'media_player') return "the player's own play service";
+  return "Home Assistant's media search";
+}
+
+/**
+ * A service that plays into a room instead of onto a named player.
+ *
+ * A house script takes the room and finds the players in it, and Music Assistant's own service
+ * does the same when it is asked by area. Such a call needs no exposed media player, which is
+ * what makes "play Taylor Swift in the bedroom" work in a room where nothing of the sort is
+ * exposed to Assist.
+ */
+function areaPlayService(inventory: ToolInventory, config: Config): boolean {
+  const service = musicTool(inventory, config.music.provider);
+  if (!service) return false;
+  const properties = propertiesOf(service.fn);
+  return Boolean(slotName(properties, AREA_SLOTS)) && !slotName(properties, ENTITY_SLOTS);
+}
+
 /**
  * The whole feature, from one sentence to one tool call.
  *
@@ -794,17 +845,38 @@ export function musicPlan(input: {
     ...(input.deviceId ? { deviceId: input.deviceId } : {}),
     defaultArea: input.config.catalog.defaultArea,
   });
+
+  // A room with nothing exposed in it still has music in it when the service takes the room
+  // rather than a player: a house script (or Music Assistant asked by area) finds the players
+  // itself, including the ones Assist was never given. Only then is the room enough.
+  const byArea = areaPlayService(input.inventory, input.config);
+  const room = 'error' in target && byArea ? areaOfName(input.catalog, request.on) : undefined;
+  if (room) {
+    const call = musicCall({
+      request,
+      player: { id: '', name: room.name, domain: 'media_player', state: 'unknown', areaId: room.id, areaName: room.name },
+      inventory: input.inventory,
+      config: input.config,
+    });
+    if ('error' in call) return { error: call.error };
+    return {
+      plan: {
+        kind: 'tool',
+        tool: call.tool,
+        args: call.args,
+        targets: [],
+        action: 'search_and_play',
+        domain: call.provider === 'music_assistant' ? 'music_assistant' : 'media_player',
+      },
+      reason: `music: "${request.artist ? `${request.query} by ${request.artist}` : request.query}" as ${ARTICLE[request.kind]} in ${room.name} via ${describeService(call.provider)}, no model call`,
+    };
+  }
   if ('error' in target) return { error: target.error };
 
   const call = musicCall({ request, player: target.player, inventory: input.inventory, config: input.config });
   if ('error' in call) return { error: call.error };
 
-  const service =
-    call.provider === 'music_assistant'
-      ? 'Music Assistant'
-      : call.provider === 'media_player'
-        ? "the player's own play service"
-        : "Home Assistant's media search";
+  const service = describeService(call.provider);
   const what = request.artist ? `${request.query} by ${request.artist}` : request.query;
   return {
     plan: {
@@ -813,7 +885,9 @@ export function musicPlan(input: {
       args: call.args,
       targets: [target.player.id],
       action: 'search_and_play',
-      domain: call.provider === 'assist' ? 'media_player' : call.provider,
+      // Music plays like the player it plays through, whatever service carried the call, so the
+      // speech rules that silence `media_player` silence it too.
+      domain: call.provider === 'music_assistant' ? 'music_assistant' : 'media_player',
     },
     reason: `music: "${what}" as ${ARTICLE[request.kind]} on ${target.player.name} (${target.reason}) via ${service}, no model call`,
   };

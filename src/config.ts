@@ -152,10 +152,11 @@ export interface Config {
     /** Read "play …" as a music request instead of leaving the sentence to the model. */
     enabled: boolean;
     /**
-     * Which service plays: `auto` prefers Music Assistant when the request offers it,
-     * `assist` never uses it, `music_assistant` requires it.
+     * Which service plays: `auto` prefers Music Assistant, then a house script that plays
+     * music, then the player's own play service; `music_assistant` and `script` require that
+     * one; `assist` never uses either, leaving Home Assistant's own media search.
      */
-    provider: 'auto' | 'music_assistant' | 'assist';
+    provider: 'auto' | 'music_assistant' | 'script' | 'assist';
     /**
      * What happens to whatever is already queued: `replace` clears the queue and plays,
      * `play` plays next, `next` queues it after the current track, `replace_next` clears
@@ -449,7 +450,12 @@ function applyEnv(config: Config): void {
   if (env.MUSIC !== undefined && env.MUSIC !== '') {
     config.music.enabled = /^(1|true|yes|on)$/i.test(env.MUSIC);
   }
-  if (env.MUSIC_PROVIDER === 'auto' || env.MUSIC_PROVIDER === 'music_assistant' || env.MUSIC_PROVIDER === 'assist') {
+  if (
+    env.MUSIC_PROVIDER === 'auto' ||
+    env.MUSIC_PROVIDER === 'music_assistant' ||
+    env.MUSIC_PROVIDER === 'script' ||
+    env.MUSIC_PROVIDER === 'assist'
+  ) {
     config.music.provider = env.MUSIC_PROVIDER;
   }
   if (
