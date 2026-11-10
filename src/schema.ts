@@ -345,7 +345,7 @@ export function settingsGroups(): SettingsGroup[] {
           key: 'speech.templates',
           label: 'Templates',
           type: 'templates',
-          help: 'Per language: {entity} and {action} are substituted.',
+          help: 'Per language, with {entity}, {action}, {state} and {options} substituted. Done, clarify and confirm surround an action; yes, no, state and unknown are how a state question is answered — “is the door locked?” is told “Yes, it\u2019s locked.”',
         },
       ],
     },
@@ -660,14 +660,21 @@ function coerce(field: SettingsField, value: unknown): unknown {
   }
   if (field.type === 'templates') {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-    const out: Record<string, { done: string; clarify: string; confirm: string }> = {};
+    const out: Record<string, Record<'done' | 'clarify' | 'confirm' | 'yes' | 'no' | 'state' | 'unknown', string>> = {};
     for (const [language, template] of Object.entries(value as Record<string, unknown>)) {
       if (!template || typeof template !== 'object') continue;
       const candidate = template as Record<string, unknown>;
+      const slot = (key: string): string => (typeof candidate[key] === 'string' ? candidate[key] as string : '');
+      // `done`, `clarify` and `confirm` surround an action; `yes`, `no`, `state` and
+      // `unknown` are how a state question is answered.
       out[language] = {
-        done: typeof candidate.done === 'string' ? candidate.done : '',
-        clarify: typeof candidate.clarify === 'string' ? candidate.clarify : '',
-        confirm: typeof candidate.confirm === 'string' ? candidate.confirm : '',
+        done: slot('done'),
+        clarify: slot('clarify'),
+        confirm: slot('confirm'),
+        yes: slot('yes'),
+        no: slot('no'),
+        state: slot('state'),
+        unknown: slot('unknown'),
       };
     }
     return out;

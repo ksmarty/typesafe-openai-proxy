@@ -15,9 +15,9 @@ import {
   RISKY_DOMAINS,
   specFor,
 } from './actions.js';
-import { answerCount, answerDeviceState } from './answer.js';
+import { answerCount, answerStateQuestion } from './answer.js';
 import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
-import type { Config, DecisionThresholds } from './config.js';
+import { DEFAULT_TEMPLATES, type Config, type DecisionThresholds, type SpeechTemplates } from './config.js';
 import type { Extraction } from './extract.js';
 import { Q, NO_AREA, NO_DOMAIN, NO_SINGLE_ENTITY, NOT_TARGETED, actionQuestion } from './questions.js';
 import type { BuiltQuestions } from './questions.js';
@@ -103,13 +103,9 @@ function forward(reason: string, gates: Gate[], extra: Partial<RouteResult> = {}
   return { plan: { kind: 'forward', reason }, gates, reason, ...extra };
 }
 
-function templates(config: Config, language: string | undefined) {
+function templates(config: Config, language: string | undefined): SpeechTemplates {
   const key = (language ?? 'en').split('-')[0] ?? 'en';
-  return config.speech.templates[key] ?? config.speech.templates.en ?? {
-    done: '{action} {entity}.',
-    clarify: 'Which one did you mean: {options}?',
-    confirm: 'Do you want me to {action} the {entity}?',
-  };
+  return config.speech.templates[key] ?? config.speech.templates.en ?? DEFAULT_TEMPLATES.en!;
 }
 
 function fill(template: string, values: Record<string, string>): string {
@@ -220,7 +216,7 @@ function offeredName(inventory: ToolInventory, intent: string): string {
 // --- queries ----------------------------------------------------------------
 
 function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
-  const { answers, config, inventory, extraction, built, catalog } = ctx;
+  const { answers, config, inventory, extraction, built, catalog, utterance } = ctx;
   const t = config.routing.thresholds;
   const queryKind = choiceOf(answers, Q.queryKind);
   if (!gateChoice(gates, Q.queryKind, queryKind, t.queryKind, t.minMargin)) {
@@ -353,7 +349,7 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
   if (!hasTool(inventory, INTENTS.getState)) {
     // No state intent offered: answer from the catalog instead of paying for a model turn.
     return {
-      plan: { kind: 'text', text: answerDeviceState(entity) },
+      plan: { kind: 'text', text: answerStateQuestion(entity, utterance, templates(config, ctx.language)) },
       gates,
       reason: `query:device_state:${entity.id} (answered from the catalog: ${INTENTS.getState} is not offered)`,
       category: 'query',

@@ -48,8 +48,8 @@ test('a plain state question is answered from the catalog without the model', as
   const { directStatePlan } = await import('../src/answer.js');
   const answer = directStatePlan(catalog, 'is the desk lamp on?');
   assert.ok(answer, 'should answer locally');
-  assert.equal(answer!.text, 'The Desk Lamp is on.');
-  assert.equal(directStatePlan(catalog, 'is the kitchen ceiling off?')!.text, 'The Kitchen Ceiling is off.');
+  assert.equal(answer!.text, "Yes, it's on.");
+  assert.equal(directStatePlan(catalog, 'is the kitchen ceiling off?')!.text, "Yes, it's off.");
   // Ambiguous or unreadable questions take the normal path.
   assert.equal(directStatePlan(catalog, 'is it on?'), null);
   assert.equal(directStatePlan(catalog, 'is the light that is not named on?'), null);

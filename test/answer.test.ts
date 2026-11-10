@@ -106,7 +106,7 @@ test('a state question is answered from the catalog when HA offers no state inte
   });
   assert.equal(result.plan.kind, 'text');
   if (result.plan.kind !== 'text') return;
-  assert.equal(result.plan.text, 'The Desk Lamp is off.');
+  assert.equal(result.plan.text, "No, it's not on.");
   assert.match(result.reason, /answered from the catalog/);
 });
 
@@ -148,4 +148,75 @@ test('an unconfident target still forwards rather than answering the wrong thing
     [Q.targetEntity]: { type: 'choice', choice: NO_AREA, probabilities: { [NO_AREA]: 0.4 }, confidence: 0.4 },
   });
   assert.equal(result.plan.kind, 'forward');
+});
+
+/**
+ * "Is the door locked?" used to be answered "The Front Door is locked." — true, but not how a
+ * person answers. The speech templates gained a yes, a no, a plain state and an unreadable line,
+ * and the subject of a polar question may now be a word from a name or an alias.
+ */
+const DOORS = catalogFromRegistries({
+  areas: [{ area_id: 'hall', name: 'Front Hall' }],
+  floors: [],
+  devices: [],
+  entities: [
+    { entity_id: 'lock.front_door', name: 'Front Door', area_id: 'hall', aliases: ['door', 'front door lock'] },
+    { entity_id: 'lock.back_door', name: 'Back Door', area_id: 'hall' },
+    { entity_id: 'sensor.deadbolt', name: 'Deadbolt', area_id: 'hall' },
+    { entity_id: 'binary_sensor.door_sensor', name: 'Door Sensor', area_id: 'hall' },
+  ],
+  states: [
+    { entity_id: 'lock.front_door', state: 'locked', attributes: {} },
+    { entity_id: 'lock.back_door', state: 'unlocked', attributes: {} },
+    { entity_id: 'sensor.deadbolt', state: 'jammed', attributes: {} },
+    { entity_id: 'binary_sensor.door_sensor', state: 'off', attributes: {} },
+  ],
+});
+
+function door(id: string): CatalogEntity {
+  const found = DOORS.entities.find((candidate) => candidate.id === id);
+  assert.ok(found, `fixture is missing ${id}`);
+  return found;
+}
+
+test('a polar question is answered yes or no, with no model call', async () => {
+  const { directStatePlan } = await import('../src/answer.js');
+  assert.equal(directStatePlan(DOORS, 'is the front door locked?')!.text, "Yes, it's locked.");
+  assert.equal(directStatePlan(DOORS, 'is the back door locked?')!.text, "No, it's not locked.");
+  assert.equal(directStatePlan(DOORS, 'is the back door unlocked?')!.text, "Yes, it's unlocked.");
+  assert.equal(directStatePlan(DOORS, 'are the office lights on?'), null, 'not in this house');
+});
+
+test('an alias or a bare subject still finds the entity that is locked', async () => {
+  const { directStatePlan } = await import('../src/answer.js');
+  // "door" is the Front Door's alias and also part of two other names: the lock wins because it
+  // can answer "locked", and the sensor, at off, cannot.
+  const answer = directStatePlan(DOORS, 'is the door locked?');
+  assert.equal(answer!.entity.id, 'lock.front_door');
+  assert.equal(answer!.text, "Yes, it's locked.");
+});
+
+test('a question the state cannot answer stays a plain sentence, not a guess', async () => {
+  const { directStatePlan } = await import('../src/answer.js');
+  const answer = directStatePlan(DOORS, 'is the deadbolt open?');
+  assert.equal(answer!.entity.id, 'sensor.deadbolt');
+  assert.match(answer!.text, /The Deadbolt is jammed\./);
+});
+
+test('the yes, no and plain-word slots are what get spoken, and they are editable', async () => {
+  const { answerPolarity, answerStateQuestion, directStatePlan } = await import('../src/answer.js');
+  const german = { yes: 'Ja, {state}.', no: 'Nein, {actual}.', state: '{entity}: {state}.', unknown: 'Keine Ahnung.' };
+  assert.equal(answerPolarity(door('lock.front_door'), 'locked', german), 'Ja, locked.');
+  assert.equal(answerPolarity(door('lock.back_door'), 'locked', german), 'Nein, unlocked.');
+  assert.equal(answerStateQuestion(door('sensor.deadbolt'), 'is the deadbolt open?', german), 'Deadbolt: jammed.');
+  const silent: CatalogEntity = { ...door('lock.front_door'), state: 'unavailable' };
+  assert.equal(answerPolarity(silent, 'locked', german), null, 'unreadable is never a yes or a no');
+  assert.equal(directStatePlan(DOORS, 'is the front door locked?', german)!.text, 'Ja, locked.');
+});
+
+test('the {actual} slot can say what the state really is', async () => {
+  const { answerPolarity } = await import('../src/answer.js');
+  const chatty = { yes: 'Yes — {entity} is {actual}.', no: 'No — {entity} is {actual}, not {state}.', state: '{state}', unknown: 'unknown' };
+  assert.equal(answerPolarity(door('lock.front_door'), 'locked', chatty), 'Yes — Front Door is locked.');
+  assert.equal(answerPolarity(door('lock.back_door'), 'locked', chatty), 'No — Back Door is unlocked, not locked.');
 });

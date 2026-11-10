@@ -18,6 +18,30 @@ export interface SpeechRule {
   say?: string;
 }
 
+/**
+ * What the assistant says, per language.
+ *
+ * `done`, `clarify` and `confirm` are spoken around an action; `yes`, `no`, `state` and
+ * `unknown` are what a state question is answered with, so "is the door locked?" can be
+ * told "Yes, it's locked." instead of reading the state back.
+ */
+export interface SpeechTemplates {
+  /** After a call succeeded: `{action}` and `{entity}`. */
+  done: string;
+  /** When the request could be more than one thing: `{options}`. */
+  clarify: string;
+  /** Before a risky action: `{action}` and `{entity}`. */
+  confirm: string;
+  /** A state question whose answer is yes: `{entity}`, `{state}` (as asked), `{actual}`. */
+  yes: string;
+  /** The same question, answered no. */
+  no: string;
+  /** A state said plainly when the question was not a yes/no: `{entity}` and `{state}`. */
+  state: string;
+  /** An entity that is not reporting: `{entity}`. */
+  unknown: string;
+}
+
 export interface DecisionThresholds {
   minMargin: number;
   actTerse: number;
@@ -231,8 +255,8 @@ export interface Config {
     rules: SpeechRule[];
     /** Seconds a confirmation question stays armed. */
     confirmSeconds: number;
-    /** Per-language templates, `{entity}` and `{action}` are substituted. */
-    templates: Record<string, { done: string; clarify: string; confirm: string }>;
+    /** Per-language templates for what the assistant says. */
+    templates: Record<string, SpeechTemplates>;
   };
   catalog: {
     /** `http://homeassistant.local:8123` - enables the structured catalog + live state. */
@@ -271,13 +295,25 @@ export interface Config {
   };
 }
 
-export const DEFAULT_TEMPLATES = {
+export const DEFAULT_TEMPLATES: Record<string, SpeechTemplates> = {
   en: {
     done: '{action} {entity}.',
     clarify: 'Which one did you mean: {options}?',
     confirm: 'Do you want me to {action} the {entity}?',
+    // A yes/no question gets a yes or a no first: "is the door locked?" is not answered well
+    // by "The Front Door is locked." — the asker wants a decision, then the state.
+    yes: "Yes, it's {state}.",
+    no: "No, it's not {state}.",
+    state: 'The {entity} is {state}.',
+    unknown: "I can't read the state of the {entity} right now.",
   },
 };
+
+/** The templates for a language, falling back to English when it has none. */
+export function speechTemplates(config: Config, language?: string): SpeechTemplates {
+  const key = (language ?? 'en').split('-')[0] ?? 'en';
+  return config.speech.templates[key] ?? config.speech.templates.en ?? DEFAULT_TEMPLATES.en!;
+}
 
 export const DEFAULT_THRESHOLDS: DecisionThresholds = {
   minMargin: 0.15,

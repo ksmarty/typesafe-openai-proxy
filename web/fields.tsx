@@ -37,7 +37,18 @@ import { monoFont } from './theme.js';
 import type { SettingsField } from '../src/schema.js';
 import { previewForRule } from '../src/speech.js';
 import { generateToken } from '../src/token.js';
-import { asNumber, asRules, asString, asTemplates, readPath, writePath, type Config, type SpeechRule } from './config';
+import {
+  asNumber,
+  asRules,
+  asString,
+  asTemplates,
+  readPath,
+  writePath,
+  type Config,
+  type SpeechRule,
+  type TemplateRecord,
+  type TemplateSlot,
+} from './config';
 import { fixed } from './format';
 
 interface ControlProps {
@@ -158,18 +169,47 @@ function SliderField({ field, config, onChange }: ControlProps) {
   );
 }
 
+/** The slots that surround an action, in the order they are spoken. */
+const ACTION_SLOTS: { slot: TemplateSlot; label: string; hint: string }[] = [
+  { slot: 'done', label: 'Done', hint: '{action} and {entity}' },
+  { slot: 'clarify', label: 'Clarify', hint: '{options}' },
+  { slot: 'confirm', label: 'Confirm', hint: '{action} and {entity}' },
+];
+
+/**
+ * The slots that answer a state question: a yes, a no, the plain state, and what to say when
+ * the entity is not reporting. {state} is the word that was asked, {actual} the state itself.
+ */
+const STATE_SLOTS: { slot: TemplateSlot; label: string; hint: string }[] = [
+  { slot: 'yes', label: 'Yes', hint: '“Yes, it’s {state}.” — {entity} and {actual} work too' },
+  { slot: 'no', label: 'No', hint: '“No, it’s not {state}.”' },
+  { slot: 'state', label: 'State', hint: '“The {entity} is {state}.”' },
+  { slot: 'unknown', label: 'Unreadable', hint: '“I can’t read the state of the {entity} right now.”' },
+];
+
+/** The English wording a new language starts from. */
+const TEMPLATE_SEED: TemplateRecord = {
+  done: '{action} {entity}.',
+  clarify: 'Which one did you mean: {options}?',
+  confirm: 'Do you want me to {action} the {entity}?',
+  yes: "Yes, it's {state}.",
+  no: "No, it's not {state}.",
+  state: 'The {entity} is {state}.',
+  unknown: "I can't read the state of the {entity} right now.",
+};
+
 function TemplateField({ field, config, onChange }: ControlProps) {
   const templates = asTemplates(readPath(config, field.key));
   const [language, setLanguage] = useState('');
   const languages = Object.keys(templates);
-  const setSlot = (lang: string, slot: 'done' | 'clarify' | 'confirm', value: string) => {
+  const setSlot = (lang: string, slot: TemplateSlot, value: string) => {
     const next = { ...templates, [lang]: { ...templates[lang], [slot]: value } };
     onChange(field.key, next);
   };
   const add = () => {
     const code = language.trim().toLowerCase();
     if (!code || templates[code]) return;
-    onChange(field.key, { ...templates, [code]: { done: '{action} {entity}.', clarify: 'Which one: {options}?', confirm: 'Do you want me to {action} the {entity}?' } });
+    onChange(field.key, { ...templates, [code]: { ...TEMPLATE_SEED } });
     setLanguage('');
   };
   const remove = (lang: string) => {
@@ -177,6 +217,19 @@ function TemplateField({ field, config, onChange }: ControlProps) {
     delete next[lang];
     onChange(field.key, next);
   };
+
+  const slotFields = (lang: string, slots: Partial<TemplateRecord>, fields: typeof ACTION_SLOTS) =>
+    fields.map(({ slot, label, hint }) => (
+      <TextField
+        key={slot}
+        label={label}
+        helperText={hint}
+        value={asString(slots[slot])}
+        multiline
+        minRows={1}
+        onChange={(event) => setSlot(lang, slot, event.target.value)}
+      />
+    ));
 
   return (
     <Stack spacing={1.5}>
@@ -201,27 +254,14 @@ function TemplateField({ field, config, onChange }: ControlProps) {
               </IconButton>
             </Stack>
             <Stack spacing={1.5}>
-              <TextField
-                label="Done"
-                value={asString(slots.done)}
-                multiline
-                minRows={1}
-                onChange={(event) => setSlot(lang, 'done', event.target.value)}
-              />
-              <TextField
-                label="Clarify"
-                value={asString(slots.clarify)}
-                multiline
-                minRows={1}
-                onChange={(event) => setSlot(lang, 'clarify', event.target.value)}
-              />
-              <TextField
-                label="Confirm"
-                value={asString(slots.confirm)}
-                multiline
-                minRows={1}
-                onChange={(event) => setSlot(lang, 'confirm', event.target.value)}
-              />
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                After an action
+              </Typography>
+              {slotFields(lang, slots, ACTION_SLOTS)}
+              <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Answering a state question
+              </Typography>
+              {slotFields(lang, slots, STATE_SLOTS)}
             </Stack>
           </Paper>
         );
@@ -248,6 +288,7 @@ function TemplateField({ field, config, onChange }: ControlProps) {
     </Stack>
   );
 }
+
 
 /** Up, down, remove — the order controls that sit to the left of every rule. */
 function RuleOrder({

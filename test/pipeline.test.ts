@@ -113,7 +113,7 @@ test('a state question about one named device is answered from the catalog', asy
   assert.equal(result.route.plan.kind, 'text', JSON.stringify(result.route.gates));
   const plan = result.route.plan;
   if (plan.kind !== 'text') return;
-  assert.match(plan.text, /Desk Lamp is (on|off)/);
+  assert.match(plan.text, /^(Yes|No), it's (not )?on\.$/);
   // No model call: the catalog already held the answer.
   assert.equal(result.entry.timings?.decideMs, 0);
 });

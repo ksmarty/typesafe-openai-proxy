@@ -83,11 +83,19 @@ test('saveConfig writes the file and loadConfig reads it back', () => {
   assert.equal(loadConfig(true).catalog.defaultArea, '');
 });
 
-test('templates survive a save and are normalised to the three known slots', () => {
+test('templates survive a save and are normalised to the known slots', () => {
   const { config } = saveConfig({
     speech: { templates: { en: { done: 'ok {entity}', clarify: '', confirm: 'sure?' }, de: { done: 'gut' } } },
   });
-  assert.deepEqual(config.speech.templates.de, { done: 'gut', clarify: '', confirm: '' });
+  assert.deepEqual(config.speech.templates.de, {
+    done: 'gut',
+    clarify: '',
+    confirm: '',
+    yes: '',
+    no: '',
+    state: '',
+    unknown: '',
+  });
   assert.equal(config.speech.templates.en.done, 'ok {entity}');
   resetConfig();
   assert.deepEqual(loadConfig(true).speech.templates, DEFAULT_TEMPLATES);

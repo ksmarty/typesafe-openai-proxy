@@ -40,17 +40,30 @@ export function asBoolean(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
 }
 
-export function asTemplates(value: unknown): Record<string, { done?: string; clarify?: string; confirm?: string }> {
+/** Every template slot, so the editor and the config agree on the shape. */
+export const TEMPLATE_SLOTS = [
+  'done',
+  'clarify',
+  'confirm',
+  'yes',
+  'no',
+  'state',
+  'unknown',
+] as const;
+
+export type TemplateSlot = (typeof TEMPLATE_SLOTS)[number];
+
+export type TemplateRecord = Record<TemplateSlot, string>;
+
+export function asTemplates(value: unknown): Record<string, Partial<TemplateRecord>> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return {};
-  const result: Record<string, { done?: string; clarify?: string; confirm?: string }> = {};
+  const result: Record<string, Partial<TemplateRecord>> = {};
   for (const [language, slots] of Object.entries(value as Record<string, unknown>)) {
     if (slots === null || typeof slots !== 'object' || Array.isArray(slots)) continue;
     const entry = slots as Record<string, unknown>;
-    result[language] = {
-      done: asString(entry.done),
-      clarify: asString(entry.clarify),
-      confirm: asString(entry.confirm),
-    };
+    const record: Partial<TemplateRecord> = {};
+    for (const slot of TEMPLATE_SLOTS) record[slot] = asString(entry[slot]);
+    result[language] = record;
   }
   return result;
 }

@@ -685,6 +685,41 @@ and talkative about lists, scenes and the vacuum. A trace reads `silent by rule 
 "[pause:1.5s]")` when a rule fired, and `1 of them silent by rule` when only part of a round was
 silenced.
 
+## Answering a state question
+
+"Is the desk lamp on?" never reaches a model: the catalog holds the state, so the proxy answers it
+itself in about two milliseconds. A question with a yes in it gets a yes, because that is how a
+person answers:
+
+| You say | Assist says |
+| --- | --- |
+| is the front door locked? | Yes, it's locked. |
+| is the back door locked? | No, it's not locked. |
+| is the office blind open? | Yes, it's open. |
+| what is the office temperature? | The Office Temperature is 21.5 °C. |
+
+The four sentences come from `Settings → Speech → Templates`, per language, next to the three that
+surround an action:
+
+| Slot | Default | Filled with |
+| --- | --- | --- |
+| `yes` | `Yes, it's {state}.` | `{state}` is the word that was asked, `{entity}` the name, `{actual}` the state itself |
+| `no` | `No, it's not {state}.` | the same three placeholders |
+| `state` | `The {entity} is {state}.` | the plain answer when the question was not polar |
+| `unknown` | `I can't read the state of the {entity} right now.` | an entity that is not reporting |
+
+So `No — {entity} is {actual}, not {state}.` becomes "No — Back Door is unlocked, not locked.", and
+a language you add starts from the English wording so nothing is ever blank. A yes is only spoken
+when the state really contradicts or confirms the word asked: `on`/`off`, `open`/`closed`,
+`locked`/`unlocked`, `playing`/`paused`, `home`/`away` and `running`/`stopped` are the pairs. Ask
+"is the deadbolt open?" of a lock that reports `jammed` and you get the plain sentence instead of a
+guess, and an entity that is `unavailable` is never a yes.
+
+The subject of the question may be looser than the entity's name: "is the door locked?" finds a lock
+called *Front Door* (and an entity aliased `door`) because it is the only one that can answer
+"locked", while a *Door Sensor* reading `off` is left alone. Two candidates that both fit is still a
+forward — the proxy does not pick the nearer lock.
+
 ## Endpoints
 
 | path | purpose |

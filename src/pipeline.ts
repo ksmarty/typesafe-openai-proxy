@@ -21,7 +21,7 @@ import { looksLikeChatter } from './chatter.js';
 import { judgeAddressee } from './addressee.js';
 import { actionPhrase, humanTarget, interpolateSpeech, ruleFor } from './speech.js';
 import { cachedDecision, decisionKey, isQuestion, rememberDecision } from './decidecache.js';
-import { loadConfig, ROUTER_MODEL, type Config } from './config.js';
+import { loadConfig, ROUTER_MODEL, speechTemplates, type Config } from './config.js';
 import { extract } from './extract.js';
 import { heuristicDecide } from './heuristic.js';
 import { buildQuestions, Q } from './questions.js';
@@ -410,7 +410,7 @@ export async function runPipeline(
   // "Is the desk lamp on?" is a catalogue lookup, not a decision: the state is already here,
   // so answering locally turns the most common query into a couple of milliseconds.
   if (active.routing.enabled) {
-    const direct = directStatePlan(catalog, utterance);
+    const direct = directStatePlan(catalog, utterance, speechTemplates(active, languageOf(request)));
     if (direct) {
       const reason = `state question about ${direct.entity.id} — answered from the catalog, no model call`;
       const entry: TraceEntry = {
