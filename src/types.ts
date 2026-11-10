@@ -308,6 +308,8 @@ export interface TraceEntry {
   entities?: number;
   /** Tool names the request offered, so "not offered" can be read against reality. */
   toolsOffered?: string[];
+  /** The device Home Assistant named as the one spoken to, when it named one. */
+  device?: string;
   model?: string;
   error?: string;
   clarification?: string;

@@ -523,6 +523,15 @@ is the room, and the room's speaker is where the music goes. A device with no ar
 satellite and its player do need their area set in Home Assistant, and the catalog needs
 reloading (Settings → Home Assistant catalog → *Refresh*, or a restart) after they are.
 
+If no device is named — or the named device has no area — the default area is used, and it is
+used only if it holds a real speaker: an area whose only players are televisions does not put
+music on the TV while the house has one speaker somewhere else, because a default area is a
+fallback and not an instruction. The reason on the trace says which of the two decided. The
+debug export carries what a wrong room needs: `requestFields` is the list of fields Home
+Assistant actually sent (whether `device_id` is among them is the whole question), each trace
+entry carries the `device` it named, and `catalog.devices` is the device registry the room came
+from.
+
 **Shuffle.** "shuffle Tyler the Creator", "play Taylor Swift on shuffle", "put some jazz on
 random": the word says how to play, not what to play, so it is taken out of the sentence and
 sent as a boolean, alongside `media_id`, `media_type` and the room. `shuffle` is sent whether or

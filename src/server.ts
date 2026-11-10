@@ -36,7 +36,19 @@ import { assistTools } from './toolcall.js';
 import { installLogCapture, note, recentLogs } from './log.js';
 import { jsonResponse } from './respond.js';
 import { secretOrStored, settingsGroups } from './schema.js';
-import { averageDecisionMs, pendingConfirmations, rememberRequest, rememberTrace, requestLog, routableShare, startedAt, stats, trace } from './state.js';
+import {
+  averageDecisionMs,
+  lastRequestFields,
+  pendingConfirmations,
+  rememberRequest,
+  rememberRequestFields,
+  rememberTrace,
+  requestLog,
+  routableShare,
+  startedAt,
+  stats,
+  trace,
+} from './state.js';
 import { breakerState, listModels, resetBreaker, warmDecision } from './systemone.js';
 import { configureDecisionCache, decisionCachePath, decisionCacheSize } from './decidecache.js';
 import { ensureUiBundle } from './ui.js';
@@ -271,11 +283,16 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
             domains: catalog.domains,
             entities: catalog.entities.slice(0, 300).map((entity) => `${entity.id} (${entity.name})`),
             entityCount: catalog.entities.length,
+            // The device registry is how "play it here" finds a room, so a wrong room is
+            // usually visible right here.
+            devices: (catalog.devices ?? []).map((device) => `${device.id} (${device.name ?? 'no name'}) -> ${device.areaId}`),
+            deviceCount: (catalog.devices ?? []).length,
             exposure: catalog.exposure,
           }
         : null,
       traces: trace.slice(0, limit),
       requests: requestLog.slice(0, 50),
+      requestFields: lastRequestFields,
       logs: recentLogs(),
       notes: [
         'Secrets are masked to their first 12 characters; they are not exported in full.',
@@ -586,6 +603,7 @@ export function createApp() {
               jsonResponse(response, 400, { error: { message: 'invalid JSON body', type: 'invalid_request_error' } });
               return;
             }
+            rememberRequestFields(Object.keys(parsed));
             try {
               await handleChatCompletions(parsed, raw, response);
             } catch (err) {

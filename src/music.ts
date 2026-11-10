@@ -531,6 +531,14 @@ export function musicTarget(
   const heard = spokenAreaHere ? ', where it was asked' : ', the room this assistant is set to';
 
   if (area && inAreaOf(catalog, area).length) {
+    // A room with nothing but televisions in it is not where music goes when the house has a
+    // real speaker somewhere: a default area is a fallback, not an instruction to play on the
+    // TV. This is the case a voice satellite hits when Home Assistant names no device and the
+    // dashboard's default area is the living room.
+    const realSpeakers = speakersIn(players);
+    if (inAreaOf(catalog, area).every(isTelevision) && realSpeakers.length === 1) {
+      return { player: realSpeakers[0]!, reason: `the only speaker in the house, as ${area.name} has none` };
+    }
     const room = roomSpeaker(catalog, area, options.on);
     return 'error' in room ? room : { player: room.player, reason: `${room.reason}${heard}` };
   }

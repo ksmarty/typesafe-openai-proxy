@@ -892,3 +892,66 @@ test('a play service with no shuffle slot is not sent one', () => {
   if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
   assert.equal(plan.plan.args.shuffle, undefined);
 });
+
+// ---------------------------------------------------------------------------
+// A default area with only a television in it does not put music on the TV
+// ---------------------------------------------------------------------------
+
+/**
+ * The user's house as the proxy sees it: the living room TV is exposed, the Music Assistant
+ * player of the satellite is exposed, and the dashboard's default area is the living room.
+ */
+function satelliteHouse(): Catalog {
+  return {
+    areas: [
+      { id: 'living', name: 'Living Room' },
+      { id: 'office', name: 'Office' },
+    ],
+    entities: [
+      {
+        id: 'media_player.living_room',
+        name: 'Living Room TV',
+        domain: 'media_player',
+        state: 'off',
+        areaId: 'living',
+        areaName: 'Living Room',
+        deviceClass: 'tv',
+      },
+      {
+        id: 'media_player.voice_assistant_1_media_player_2',
+        name: '(MA) Voice Assistant 1',
+        domain: 'media_player',
+        state: 'idle',
+        areaId: 'office',
+        areaName: 'Office',
+      },
+    ],
+    domains: ['media_player'],
+    source: 'manual',
+  };
+}
+
+test('a default area with only a television in it plays on the one real speaker instead', () => {
+  const base = config();
+  const plan = musicPlan({
+    utterance: 'Play Tyler the Creator.',
+    catalog: satelliteHouse(),
+    inventory: inventoryFor([playMusicScript()]),
+    config: { ...base, catalog: { ...base.catalog, defaultArea: 'Living Room' } },
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.deepEqual(plan.plan.targets, ['media_player.voice_assistant_1_media_player_2']);
+  assert.match(plan.reason, /the only speaker in the house, as Living Room has none/);
+});
+
+test('a default area with a real speaker in it still plays there', () => {
+  const base = config();
+  const plan = musicPlan({
+    utterance: 'Play Tyler the Creator.',
+    catalog: home(),
+    inventory: inventoryFor([playerPlayService()]),
+    config: { ...base, catalog: { ...base.catalog, defaultArea: 'Living Room' } },
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.deepEqual(plan.plan.targets, ['media_player.living_speaker']);
+});

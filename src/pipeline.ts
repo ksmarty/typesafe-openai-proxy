@@ -281,6 +281,14 @@ export async function runPipeline(
   const readiness = fastPathStatus(active);
   const inventory = inventoryFor(request.tools);
   const toolsOffered = [...inventory.keys()].sort().slice(0, 40);
+
+  // Every entry records the device the sentence came from: a wrong room is nearly always
+  // "Home Assistant named no device, or that device has no area", and the export should say so.
+  const deviceId = deviceOf(request);
+  const noteTrace = (entry: TraceEntry): void => {
+    if (deviceId) entry.device = deviceId;
+    rememberTrace(entry);
+  };
   // Nothing can be called when the request brought no tool schemas: deciding would only
   // produce "X is not offered" for everything, which reads as a proxy fault when it is
   // actually the caller sending no intents.
@@ -292,7 +300,7 @@ export async function runPipeline(
     const verdict = addresseeVerdict(active, utterance, catalog);
     if (verdict.silent) {
       const entry = ignoredEntry(startedAt, utterance, catalog, toolsOffered, catalogMs, verdict.reason);
-      rememberTrace(entry);
+      noteTrace(entry);
       stats.requests += 1;
       stats.ignored += 1;
       return {
@@ -313,7 +321,7 @@ export async function runPipeline(
       toolsOffered: [],
       totalMs: Date.now() - startedAt,
     };
-    rememberTrace(entry);
+    noteTrace(entry);
     recordTurn(request, systemPrompt, entry);
     stats.requests += 1;
     stats.bypassed += 1;
@@ -356,7 +364,7 @@ export async function runPipeline(
       timings: { catalogMs, questionsMs: 0, decideMs: 0 },
       totalMs: Date.now() - startedAt,
     };
-    rememberTrace(entry);
+    noteTrace(entry);
     stats.requests += 1;
     return {
       route: { plan: { kind: 'text', text } as Plan, gates: [], reason, category: 'query', action: 'query' },
@@ -399,7 +407,7 @@ export async function runPipeline(
           timings: { catalogMs, questionsMs: 0, decideMs: 0 },
           totalMs: Date.now() - startedAt,
         };
-        rememberTrace(entry);
+        noteTrace(entry);
         stats.requests += 1;
         return {
           route: { plan: { kind: 'text', text } as Plan, gates: [], reason, category: 'query', action: 'query' },
@@ -429,7 +437,7 @@ export async function runPipeline(
         timings: { catalogMs, questionsMs: 0, decideMs: 0 },
         totalMs: Date.now() - startedAt,
       };
-      rememberTrace(entry);
+      noteTrace(entry);
       stats.requests += 1;
       return {
         route: { plan: { kind: 'text', text: direct.text } as Plan, gates: [], reason, category: 'query' },
@@ -471,7 +479,7 @@ export async function runPipeline(
         timings: { catalogMs, questionsMs: 0, decideMs: 0 },
         totalMs: Date.now() - startedAt,
       };
-      rememberTrace(entry);
+      noteTrace(entry);
       stats.requests += 1;
       stats.toolCalls += 1;
       stats.routable += 1;
@@ -524,7 +532,7 @@ export async function runPipeline(
       timings: { catalogMs, questionsMs: 0, decideMs: 0 },
       totalMs: Date.now() - startedAt,
     };
-    rememberTrace(entry);
+    noteTrace(entry);
     stats.requests += 1;
     stats.toolCalls += 1;
     stats.routable += 1;
@@ -588,7 +596,7 @@ export async function runPipeline(
       const verdict = addresseeVerdict(active, utterance, catalog);
       if (verdict.silent) {
         const entry = ignoredEntry(startedAt, utterance, catalog, toolsOffered, catalogMs, verdict.reason);
-        rememberTrace(entry);
+        noteTrace(entry);
         stats.requests += 1;
         stats.ignored += 1;
         return {
@@ -614,7 +622,7 @@ export async function runPipeline(
         timings: { catalogMs, questionsMs: 0, decideMs: 0 },
         totalMs: Date.now() - startedAt,
       };
-      rememberTrace(entry);
+      noteTrace(entry);
       recordTurn(request, systemPrompt, entry);
       stats.requests += 1;
       stats.bypassed += 1;
@@ -772,7 +780,7 @@ export async function runPipeline(
             }
           : {}),
       });
-      rememberTrace(ignored);
+      noteTrace(ignored);
       stats.requests += 1;
       stats.ignored += 1;
       return {
@@ -851,7 +859,7 @@ export async function runPipeline(
     default:
       break;
   }
-  rememberTrace(entry);
+  noteTrace(entry);
   recordTurn(request, systemPrompt, entry);
 
   return { route: result, entry, ...(readiness.ready ? {} : { bypass: readiness.reason }) };

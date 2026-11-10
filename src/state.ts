@@ -164,6 +164,19 @@ export function rememberRequest(entry: SeenRequest): void {
   if (requestLog.length > 50) requestLog.length = 50;
 }
 
+/**
+ * The top-level fields of the last /v1 body, names only.
+ *
+ * "Why did it not know which room it was in" turns on one fact: whether Home Assistant
+ * puts `device_id` in the request at all. Names are enough to answer that, and a name is
+ * not a secret.
+ */
+export let lastRequestFields: string[] = [];
+
+export function rememberRequestFields(fields: string[]): void {
+  lastRequestFields = fields;
+}
+
 export function rememberTrace(entry: TraceEntry): void {
   pruneState();
   trace.unshift(entry);
