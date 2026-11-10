@@ -376,7 +376,7 @@ export type MusicTargetResult = MusicTarget | { error: string };
 
 const OFF_STATES = /^(off|standby|unavailable|unknown|idle)$/i;
 
-function areaOfName(catalog: Catalog, phrase: string | undefined): CatalogArea | undefined {
+export function areaOfName(catalog: Catalog, phrase: string | undefined): CatalogArea | undefined {
   if (!phrase) return undefined;
   const text = ` ${normalise(phrase)} `;
   const hits = catalog.areas
@@ -386,7 +386,7 @@ function areaOfName(catalog: Catalog, phrase: string | undefined): CatalogArea |
   return hits[0]?.area;
 }
 
-function playersNamed(players: CatalogEntity[], phrase: string): CatalogEntity[] {
+export function playersNamed(players: CatalogEntity[], phrase: string): CatalogEntity[] {
   const text = ` ${normalise(phrase)} `;
   const hits = players
     .flatMap((player) => [player.name, ...(player.aliases ?? [])].map((name) => ({ player, name: normalise(name) })))
@@ -401,7 +401,7 @@ function playersNamed(players: CatalogEntity[], phrase: string): CatalogEntity[]
 }
 
 /** The room the spoken-to device stands in, read off any of its entities. */
-function spokenAreaId(catalog: Catalog, deviceId?: string): string | undefined {
+export function spokenAreaId(catalog: Catalog, deviceId?: string): string | undefined {
   if (!deviceId) return undefined;
   return catalog.entities.find((entity) => entity.deviceId === deviceId && entity.areaId)?.areaId;
 }
@@ -413,7 +413,7 @@ function spokenAreaId(catalog: Catalog, deviceId?: string): string | undefined {
 /** A name that ends in "TV" is a television even when the catalog carries no device class. */
 const TV_NAME = /(?:^|\s)(?:tv|television)$/i;
 
-function isTelevision(player: CatalogEntity): boolean {
+export function isTelevision(player: CatalogEntity): boolean {
   if ((player.deviceClass ?? '').toLowerCase() === 'tv') return true;
   return TV_NAME.test(player.name.trim());
 }
@@ -423,7 +423,7 @@ function speakersIn(players: CatalogEntity[]): CatalogEntity[] {
   return withoutTv.length ? withoutTv : players;
 }
 
-function inAreaOf(catalog: Catalog, area: CatalogArea): CatalogEntity[] {
+export function inAreaOf(catalog: Catalog, area: CatalogArea): CatalogEntity[] {
   return catalog.entities.filter(
     (entity) =>
       entity.domain === 'media_player' && (entity.areaId === area.id || entity.areaName === area.name),

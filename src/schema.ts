@@ -398,6 +398,20 @@ export function settingsGroups(): SettingsGroup[] {
       ],
     },
     {
+      id: 'media',
+      title: 'Playback and televisions',
+      description:
+        '“Pause”, “stop”, “next song”, “volume up”, “turn the TV off”: the player is not named, so it is the one already playing or the one in the room the sentence mentions, and Home Assistant’s own media intents do the rest. Music Assistant registers a media player for each speaker, so pausing that entity pauses Music Assistant. Volume moves in a relative step (louder than it was, not a level), a bare “stop” only acts when something is playing, and two players that are equally plausible is forwarded to the model rather than guessed. The television on and off needs the word “TV” in the sentence, so “turn it off” stays a question for the model.',
+      fields: [
+        {
+          key: 'media.enabled',
+          label: 'Read media commands here',
+          type: 'checkbox',
+          help: 'Off leaves “pause”, “volume up” and “turn the TV off” to the model server.',
+        },
+      ],
+    },
+    {
       id: 'reminders',
       title: 'Reminders',
       description:

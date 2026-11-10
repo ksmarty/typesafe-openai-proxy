@@ -566,6 +566,47 @@ Nothing is said after the call either: the music starting is the answer, so `mus
 sits in the default silent speech rules next to `media_player`. Settings → Speech → *Rules*
 changes that if you would rather hear what is playing.
 
+### Pause, skip and the television
+
+Once something is playing, "pause", "stop", "next song", "volume up" are commands with no names
+in them: the player is the one already playing, or the one in the room the sentence mentions,
+and the sentence is turned into Home Assistant's own media intent with no model call.
+
+| you say | what happens |
+| --- | --- |
+| pause | `HassMediaPause` on the player that is playing |
+| stop the music | `HassTurnOff` on that player — a pause that stays paused is not a stop |
+| next song / go back | `HassMediaNext` / `HassMediaPrevious` |
+| volume up / turn it up a lot | `HassSetVolumeRelative` with a step of 13, or 25 for "a lot" |
+| mute / unmute | `HassMediaPlayerMute` / `HassMediaPlayerUnmute` |
+| turn the TV on / off | `HassTurnOn` / `HassTurnOff` on the television |
+
+Music Assistant registers a media player for every speaker it plays on, so pausing that entity is
+pausing Music Assistant — there is nothing Music Assistant-specific to configure. Which player a
+bare "pause" means is decided the same way music is: the player the sentence names, or the room it
+names, then the player on the device that was spoken to, then the room it was spoken in, then
+whatever is playing. Two players playing at once, neither of them Music Assistant's, is forwarded
+to the model rather than guessed at, and the trace says so.
+
+Volume is always relative: "volume up" is louder than it was, not a level, because a level nobody
+asked for is a worse guess than a step. A bare "pause" with nothing playing is not a media command
+at all and keeps its old route — but volume and mute are allowed, because setting the level before
+the music starts is a normal thing to ask for.
+
+The television needs the word in the sentence: "turn the TV off" is ours, "turn it off" is not,
+because only your model knows what "it" is. "Turn off the lights" belongs to the lights. A named
+television wins ("switch off the Living Room TV"), then the one in the room that was mentioned,
+then the only television in the house.
+
+**What to expose:** nothing new. These are the `Hass*` intents Home Assistant offers every Assist
+agent — `HassMediaPause`, `HassMediaUnpause`, `HassMediaNext`, `HassMediaPrevious`,
+`HassSetVolumeRelative`, `HassMediaPlayerMute`, `HassMediaPlayerUnmute`, `HassTurnOn` and
+`HassTurnOff` — and every one of them is already in the debug export's `toolsOffered`. What
+matters is the catalog: the Music Assistant player has to be exposed to Assist and has to know its
+room, because the choice between two players is made from state and area. A television you want
+switched has to be exposed as a `media_player` too. Set `MEDIA=0` to hand all of it back to your
+model.
+
 ### Reminders
 
 [ha-reminders](https://github.com/ksmarty/ha-reminders) teaches Home Assistant to remember

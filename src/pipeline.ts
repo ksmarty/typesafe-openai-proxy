@@ -13,6 +13,7 @@ import { ACTION_VERBS } from './actions.js';
 
 import { getCatalog, homeSignature, homeZoneCoordinates } from './catalog.js';
 import { directStatePlan } from './answer.js';
+import { mediaPlan } from './media.js';
 import { musicPlan } from './music.js';
 import { reminderPlan } from './reminders.js';
 import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
@@ -497,6 +498,50 @@ export async function runPipeline(
   // When this reader reads a music sentence and still cannot place it, the forest of reasons a
   // sentence reaches the model unexplained is the reason "it worked once the cloud model did
   // it". Keep it and say so on the trace the decision path writes.
+  /**
+   * Record a call this proxy built itself and end the turn with it.
+   *
+   * The local readers (music, media, state) answer without a model, so their traces carry the
+   * sentence they read and the call they made rather than a decision and its gates.
+   */
+  const localCall = (plan: Extract<Plan, { kind: 'tool' }>, reason: string): PipelineResult => {
+    const entry: TraceEntry = {
+      id: uid('trace'),
+      at: startedAt,
+      utterance,
+      route: 'tool',
+      reason,
+      tool: plan.tool,
+      args: plan.args,
+      gates: [],
+      category: 'command',
+      action: plan.action,
+      ...(plan.targets[0] ? { target: plan.targets[0] } : {}),
+      backend: 'off',
+      catalogSource: catalog.source,
+      catalogExposure: catalog.exposure,
+      toolsOffered,
+      timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+      totalMs: Date.now() - startedAt,
+    };
+    rememberTrace(entry);
+    stats.requests += 1;
+    stats.toolCalls += 1;
+    stats.routable += 1;
+    recordTurn(request, systemPrompt, entry);
+    return {
+      route: {
+        plan,
+        gates: [],
+        reason,
+        category: 'command',
+        action: plan.action,
+        ...(plan.targets[0] ? { target: plan.targets[0] } : {}),
+      },
+      entry,
+    };
+  };
+
   let musicNote: string | undefined;
   if (active.routing.enabled && active.music.enabled) {
     const music = musicPlan({
@@ -510,43 +555,24 @@ export async function runPipeline(
     // An error means the sentence is a music request this reader cannot place — no speaker,
     // or a service with no slot for the name. Falling through gives the model its say
     // instead of answering a request with a refusal.
-    if (music && !('error' in music)) {
-      const entry: TraceEntry = {
-        id: uid('trace'),
-        at: startedAt,
-        utterance,
-        route: 'tool',
-        reason: music.reason,
-        tool: music.plan.tool,
-        args: music.plan.args,
-        gates: [],
-        category: 'command',
-        action: music.plan.action,
-        ...(music.plan.targets[0] ? { target: music.plan.targets[0] } : {}),
-        backend: 'off',
-        catalogSource: catalog.source,
-        catalogExposure: catalog.exposure,
-        toolsOffered,
-        timings: { catalogMs, questionsMs: 0, decideMs: 0 },
-        totalMs: Date.now() - startedAt,
-      };
-      rememberTrace(entry);
-      stats.requests += 1;
-      stats.toolCalls += 1;
-      stats.routable += 1;
-      recordTurn(request, systemPrompt, entry);
-      return {
-        route: {
-          plan: music.plan,
-          gates: [],
-          reason: music.reason,
-          category: 'command',
-          action: music.plan.action,
-          ...(music.plan.targets[0] ? { target: music.plan.targets[0] } : {}),
-        },
-        entry,
-      };
-    }
+    if (music && !('error' in music)) return localCall(music.plan, music.reason);
+  }
+
+  // "Pause", "volume up", "next song", "turn the TV off": a command with no names in it.
+  // The player is the one already playing, or the one in the room the sentence names — for
+  // Music Assistant that entity is Music Assistant, so pausing it pauses the music. A command
+  // with nothing playing, or two players just as plausible, is not read here at all.
+  let mediaNote: string | undefined;
+  if (active.routing.enabled && active.media.enabled) {
+    const media = mediaPlan({
+      utterance,
+      catalog,
+      inventory,
+      config: active,
+      ...(deviceOf(request) ? { deviceId: deviceOf(request)! } : {}),
+    });
+    if (media && 'error' in media) mediaNote = `media: ${media.error}`;
+    if (media && !('error' in media)) return localCall(media.plan, media.reason);
   }
 
   const entityNames = catalog.entities.map((entity) => entity.name);
@@ -794,9 +820,12 @@ export async function runPipeline(
     entry.reason = `pass-through: ${readiness.reason}`;
   }
 
-  // A forwarded music sentence says why it was not played here, so the trace answers the
-  // question instead of the person asking it twice.
-  if (musicNote && entry.route === 'forward') entry.reason = `${entry.reason} (${musicNote})`;
+  // A forwarded music or media sentence says why it was not played here, so the trace answers
+  // the question instead of the person asking it twice.
+  if (entry.route === 'forward') {
+    const note = mediaNote ?? musicNote;
+    if (note) entry.reason = `${entry.reason} (${note})`;
+  }
 
   stats.requests += 1;
   // Only a real decision counts toward the average; pass-throughs and probes don't.

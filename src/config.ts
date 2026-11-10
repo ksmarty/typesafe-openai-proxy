@@ -212,6 +212,19 @@ export interface Config {
     enabled: boolean;
   };
   /**
+   * Pause, stop, skip and volume, and the television on and off.
+   *
+   * "Pause", "volume up", "next song", "turn the TV off" are commands with no names in them:
+   * the player is the one already playing, or the one in the room that was mentioned, and Home
+   * Assistant's own media intents do the rest. Music Assistant registers a media player per
+   * speaker, so pausing that entity is pausing Music Assistant. A command with nothing playing,
+   * or two players that are equally plausible, is forwarded rather than guessed.
+   */
+  media: {
+    /** Read media commands here instead of leaving them to the model. */
+    enabled: boolean;
+  };
+  /**
    * Was that sentence meant for the assistant?
    *
    * A voice assistant hears the whole room, and anything the fast path declines is
@@ -373,6 +386,7 @@ export function defaultConfig(): Config {
     },
     music: { enabled: true, provider: 'auto', enqueue: 'replace', artist: 'artist' },
     reminders: { enabled: true },
+    media: { enabled: true },
     // On by default: an overheard remark answered with an action is the failure this
     // exists to prevent, and the judge declines to speak unless it is sure.
     listening: { enabled: true, confidence: 0.75, local: true },
@@ -506,6 +520,9 @@ function applyEnv(config: Config): void {
   if (env.MUSIC_ARTIST === 'artist' || env.MUSIC_ARTIST === 'radio') config.music.artist = env.MUSIC_ARTIST;
   if (env.REMINDERS !== undefined && env.REMINDERS !== '') {
     config.reminders.enabled = /^(1|true|yes|on)$/i.test(env.REMINDERS);
+  }
+  if (env.MEDIA !== undefined && env.MEDIA !== '') {
+    config.media.enabled = /^(1|true|yes|on)$/i.test(env.MEDIA);
   }
 }
 
