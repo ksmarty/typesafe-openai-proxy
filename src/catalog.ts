@@ -13,7 +13,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 
-import type { Catalog, CatalogArea, CatalogEntity } from './types.js';
+import type { Catalog, CatalogArea, CatalogDevice, CatalogEntity } from './types.js';
 import type { Config } from './config.js';
 import { normalise, sha1, titleCase } from './util.js';
 import { note } from './log.js';
@@ -546,8 +546,16 @@ export function catalogFromRegistries(input: {
     });
   }
   const deviceArea = new Map<string, string | null | undefined>();
+  const knownDevices: CatalogDevice[] = [];
   for (const device of deviceList) {
     if (device.id) deviceArea.set(device.id, device.area_id ?? null);
+    const areaId = device.area_id;
+    const name = device.name_by_user ?? device.name ?? undefined;
+    // Only devices that sit in a room are worth keeping: the map is how a sentence spoken to
+    // a satellite finds its room, and a device with no room cannot answer that question.
+    if (device.id && areaId) {
+      knownDevices.push({ id: device.id, areaId, ...(name ? { name } : {}) });
+    }
   }
   const stateById = new Map<string, StateRow>();
   for (const row of stateList) {
@@ -611,6 +619,7 @@ export function catalogFromRegistries(input: {
   return {
     areas: [...areaById.values()].sort((a, b) => a.name.localeCompare(b.name)),
     entities: entitiesSorted,
+    ...(knownDevices.length ? { devices: knownDevices } : {}),
     domains: domainsOf(entitiesSorted),
     source: 'ha-websocket',
     builtAt: Date.now(),

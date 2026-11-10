@@ -763,3 +763,132 @@ test('with no script and no room, the sentence is still forwarded rather than gu
   if (!plan || !('error' in plan)) throw new Error('expected an error, not a call');
   assert.match(plan.error, /no speaker in Bedroom/);
 });
+
+// ---------------------------------------------------------------------------
+// The office satellite: the room comes from the device registry, not an entity
+// ---------------------------------------------------------------------------
+
+/**
+ * A house where the voice satellite has no exposed entity of its own — the usual case, and
+ * the one where the room has to come from the device registry instead.
+ */
+function officeHouse(): Catalog {
+  return {
+    areas: [
+      { id: 'office', name: 'Office' },
+      { id: 'living', name: 'Living Room' },
+    ],
+    devices: [{ id: 'dev-satellite', name: 'Voice Assistant 1', areaId: 'office' }],
+    entities: [
+      {
+        id: 'media_player.office_speaker',
+        name: 'Office Speaker',
+        domain: 'media_player',
+        state: 'idle',
+        areaId: 'office',
+        areaName: 'Office',
+      },
+      {
+        id: 'media_player.living_room_airplay',
+        name: 'Living Room AirPlay',
+        domain: 'media_player',
+        state: 'off',
+        areaId: 'living',
+        areaName: 'Living Room',
+      },
+    ],
+    domains: ['media_player'],
+    source: 'manual',
+  };
+}
+
+test('a satellite with no exposed entity plays in the room its device is set to', () => {
+  const target = musicTarget(officeHouse(), { deviceId: 'dev-satellite', defaultArea: 'Living Room' });
+  if ('error' in target) throw new Error(target.error);
+  assert.equal(target.player.id, 'media_player.office_speaker');
+  assert.match(target.reason, /where it was asked/);
+});
+
+test('the office satellite plan never reaches the living room', () => {
+  const plan = musicPlan({
+    utterance: 'Play Tyler the Creator.',
+    catalog: officeHouse(),
+    inventory: inventoryFor([playerPlayService()]),
+    config: config(),
+    deviceId: 'dev-satellite',
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.deepEqual(plan.plan.targets, ['media_player.office_speaker']);
+});
+
+test('a room the dashboard sets is still used when the device is not placed in one', () => {
+  const base = config();
+  const plan = musicPlan({
+    utterance: 'Play Tyler the Creator.',
+    catalog: officeHouse(),
+    inventory: inventoryFor([playerPlayService()]),
+    config: { ...base, catalog: { ...base.catalog, defaultArea: 'Living Room' } },
+    deviceId: 'dev-unknown',
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.deepEqual(plan.plan.targets, ['media_player.living_room_airplay']);
+});
+
+// ---------------------------------------------------------------------------
+// Shuffle — a word about how to play, not what to play
+// ---------------------------------------------------------------------------
+
+test('"shuffle Tyler the Creator" asks for the artist, shuffled', () => {
+  const request = readMusicRequest('shuffle Tyler the Creator');
+  if (!request) throw new Error('not read as a request');
+  assert.equal(request.query, 'Tyler the Creator');
+  assert.equal(request.kind, 'artist');
+  assert.equal(request.shuffle, true);
+});
+
+test('"play Taylor Swift on shuffle" keeps the artist and asks for shuffle', () => {
+  const request = readMusicRequest('play Taylor Swift on shuffle');
+  if (!request) throw new Error('not read as a request');
+  assert.equal(request.query, 'Taylor Swift');
+  assert.equal(request.shuffle, true);
+});
+
+test('a sentence without the word does not ask for shuffle', () => {
+  const request = readMusicRequest('play Taylor Swift');
+  if (!request) throw new Error('not read as a request');
+  assert.equal(request.shuffle, undefined);
+});
+
+test('shuffle is always sent as a boolean, false included', () => {
+  const plan = musicPlan({
+    utterance: 'play Taylor Swift',
+    catalog: televisionsOnly(),
+    inventory: inventoryFor([playMusicScript()]),
+    config: { ...config(), catalog: { ...config().catalog, defaultArea: 'Living Room' } },
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.args.shuffle, false);
+});
+
+test('a shuffled request tells the script to shuffle', () => {
+  const plan = musicPlan({
+    utterance: 'shuffle Tyler the Creator',
+    catalog: televisionsOnly(),
+    inventory: inventoryFor([playMusicScript()]),
+    config: { ...config(), catalog: { ...config().catalog, defaultArea: 'Living Room' } },
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.args.media_id, 'Tyler the Creator');
+  assert.equal(plan.plan.args.shuffle, true);
+});
+
+test('a play service with no shuffle slot is not sent one', () => {
+  const plan = musicPlan({
+    utterance: 'shuffle Taylor Swift',
+    catalog: televisionsOnly(),
+    inventory: inventoryFor([playerPlayService()]),
+    config: { ...config(), catalog: { ...config().catalog, defaultArea: 'Living Room' } },
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.args.shuffle, undefined);
+});

@@ -35,9 +35,23 @@ export interface CatalogEntity {
   levelIn?: 'brightness' | 'percentage' | 'position' | 'volume_level' | 'temperature' | 'humidity';
 }
 
+/**
+ * A Home Assistant device and the room it is in.
+ *
+ * Kept separately from the entities because the device that heard a sentence (a voice
+ * satellite) usually has no exposed entity of its own: without this, "play it here" has no
+ * way to become a room and falls back to the default area, which is a different room.
+ */
+export interface CatalogDevice {
+  id: string;
+  name?: string;
+  areaId?: string;
+}
 export interface Catalog {
   areas: CatalogArea[];
   entities: CatalogEntity[];
+  /** The device registry, so a spoken-to device can be placed in a room. */
+  devices?: CatalogDevice[];
   /** `light`, `switch`, ... present among the exposed entities. */
   domains: string[];
   source: 'ha-websocket' | 'prompt' | 'manual' | 'empty';

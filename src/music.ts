@@ -38,6 +38,8 @@ export interface MusicRequest {
    * "play Taylor Swift" is an artist, and every provider plays an artist as their top tracks.
    */
   bare: boolean;
+  /** "shuffle Tyler the Creator", "play this on shuffle" — the queue order, not the target. */
+  shuffle?: boolean;
 }
 
 /**
@@ -47,7 +49,7 @@ export interface MusicRequest {
  * this reader only ever sees sentences that begin with a verb, so a loose one would turn the
  * rest of the house into search terms.
  */
-const VERBS = ['start playing', 'put some', 'put on', 'queue up', 'listen to', 'stream', 'play'];
+const VERBS = ['start playing', 'put some', 'put on', 'queue up', 'listen to', 'stream', 'shuffle', 'play'];
 
 /** How people begin a request. Stripped before the verb, longest first. */
 const LEAD_INS = [
@@ -337,11 +339,18 @@ export function readMusicRequest(utterance: string, catalog?: Catalog): MusicReq
   // "what's playing?", "which song is this?" — a state question, not a request.
   if (/\b(what|which|who)\b[^?]*\b(playing|listening to|song is this|track is this)\b/i.test(text)) return null;
 
+  // "shuffle Tyler the Creator", "play Taylor Swift on shuffle": the word says how to play,
+  // not what to play, so it is read here and taken out before the content is parsed.
+  const shuffle = /\bshuffl(?:e|ed|ing)\b|\bon (?:random|shuffle)\b/i.test(text);
   const rest = afterVerb(stripLeadIns(text));
   if (!rest) return null;
+  const wanted = tidy(
+    rest.replace(/\bon (?:random|shuffle)\b/gi, ' ').replace(/\bshuffl(?:e|ed|ing)\b/gi, ' '),
+  );
+  if (!wanted) return null;
 
-  const aside = splitAside(rest, catalog);
-  const content = aside ? aside.content : rest;
+  const aside = splitAside(wanted, catalog);
+  const content = aside ? aside.content : wanted;
   if (!content.trim()) return null;
   if (NOT_CONTENT.has(normalise(content))) return null;
 
@@ -359,6 +368,7 @@ export function readMusicRequest(utterance: string, catalog?: Catalog): MusicReq
     ...(split.artist ? { artist: split.artist } : {}),
     ...(aside?.target ? { on: aside.target } : {}),
     bare: reading.kind === undefined && !split.artist,
+    ...(shuffle ? { shuffle: true } : {}),
   };
 }
 
@@ -403,7 +413,18 @@ export function playersNamed(players: CatalogEntity[], phrase: string): CatalogE
 /** The room the spoken-to device stands in, read off any of its entities. */
 export function spokenAreaId(catalog: Catalog, deviceId?: string): string | undefined {
   if (!deviceId) return undefined;
-  return catalog.entities.find((entity) => entity.deviceId === deviceId && entity.areaId)?.areaId;
+  const exposed = catalog.entities.find((entity) => entity.deviceId === deviceId && entity.areaId);
+  if (exposed?.areaId) return exposed.areaId;
+  // A voice satellite usually has no exposed entity of its own, so the catalog's entities say
+  // nothing about where it is. The device registry does, and that is the whole difference
+  // between "play it here" landing in this room and falling back to the default area.
+  return catalog.devices?.find((device) => device.id === deviceId && device.areaId)?.areaId;
+}
+
+/** The room a sentence was spoken in, when the device that heard it is placed in one. */
+export function spokenArea(catalog: Catalog, deviceId?: string): CatalogArea | undefined {
+  const id = spokenAreaId(catalog, deviceId);
+  return id ? catalog.areas.find((area) => area.id === id) : undefined;
 }
 
 /**
@@ -503,16 +524,15 @@ export function musicTarget(
     if (onDevice.length === 1) return { player: onDevice[0]!, reason: 'the device that was spoken to' };
   }
 
-  const spoken = spokenAreaId(catalog, options.deviceId);
+  const spokenAreaHere = spokenArea(catalog, options.deviceId);
   // The room the sentence was heard in: the room of the device that sent it, or the room the
   // dashboard says this assistant is in when the request does not name a device.
-  const area =
-    (spoken ? catalog.areas.find((row) => row.id === spoken) : undefined) ??
-    areaOfName(catalog, options.defaultArea);
+  const area = spokenAreaHere ?? areaOfName(catalog, options.defaultArea);
+  const heard = spokenAreaHere ? ', where it was asked' : ', the room this assistant is set to';
 
   if (area && inAreaOf(catalog, area).length) {
     const room = roomSpeaker(catalog, area, options.on);
-    return 'error' in room ? room : { player: room.player, reason: `${room.reason}, where it was asked` };
+    return 'error' in room ? room : { player: room.player, reason: `${room.reason}${heard}` };
   }
 
   if (players.length === 1) return { player: players[0]!, reason: 'the only speaker in the house' };
@@ -542,6 +562,9 @@ const MEDIA_ID_SLOTS = ['media_id', 'media_ids', 'media_content_id', 'media', 'u
 const MEDIA_TYPE_SLOTS = ['media_type', 'media_content_type'];
 const ARTIST_SLOTS = ['artist'];
 const ENQUEUE_SLOTS = ['enqueue'];
+
+/** A house script asks whether to shuffle as a boolean next to the media id. */
+const SHUFFLE_SLOTS = ['shuffle', 'shuffled', 'random'];
 // A service tool may name its target `entity_id`, `entity`, `target`, or — the way the Assist
 // intent tools do — `name`, which takes an entity id just the same.
 const ENTITY_SLOTS = ['entity_id', 'entity', 'target', 'name'];
@@ -679,6 +702,7 @@ function serviceArgs(input: {
   mediaId: string;
   mediaType?: string;
   artist?: string;
+  shuffle?: boolean;
 }): Record<string, unknown> | undefined {
   const { service, player, config } = input;
   const properties = propertiesOf(service.fn);
@@ -717,6 +741,15 @@ function serviceArgs(input: {
   const enqueueSlot = slotName(properties, ENQUEUE_SLOTS);
   if (enqueueSlot && allows(properties[enqueueSlot], config.music.enqueue)) {
     args[enqueueSlot] = config.music.enqueue;
+  }
+
+  // Shuffle is a boolean and is always sent, `false` included: a script that reads its own
+  // `shuffle` variable gets Home Assistant's template helper when nothing is passed, and then
+  // fails with "invalid boolean value" instead of playing anything at all.
+  const shuffleSlot = slotName(properties, SHUFFLE_SLOTS);
+  const shuffleType = shuffleSlot ? (properties[shuffleSlot] as { type?: string } | undefined)?.type : undefined;
+  if (shuffleSlot && shuffleType === 'boolean') {
+    args[shuffleSlot] = input.shuffle === true;
   }
 
   // A house script is told what to do as well as what to play: `action: play`, never `stop`.
@@ -766,6 +799,7 @@ export function musicCall(input: {
       mediaId: request.query,
       ...(request.kind ? { mediaType: mediaTypeFor(request.kind, config.music.artist) } : {}),
       ...(request.artist ? { artist: request.artist } : {}),
+      shuffle: request.shuffle === true,
     });
     if (args) return { tool: service.name, args, provider: service.provider };
   }
@@ -850,7 +884,10 @@ export function musicPlan(input: {
   // rather than a player: a house script (or Music Assistant asked by area) finds the players
   // itself, including the ones Assist was never given. Only then is the room enough.
   const byArea = areaPlayService(input.inventory, input.config);
-  const room = 'error' in target && byArea ? areaOfName(input.catalog, request.on) : undefined;
+  const room =
+    'error' in target && byArea
+      ? (areaOfName(input.catalog, request.on) ?? spokenArea(input.catalog, input.deviceId))
+      : undefined;
   if (room) {
     const call = musicCall({
       request,

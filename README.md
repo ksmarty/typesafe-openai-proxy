@@ -515,6 +515,23 @@ for — and the trace says so, with the music error in its reason. The words tha
 are dropped from what is searched for — a sentence that says "in the kitchen" is not looking for
 a band called "in the kitchen".
 
+**Where "here" is.** A voice satellite usually has no exposed entity of its own, so the
+catalog's entities cannot say which room it hears you from. The device registry can, and it is
+read for exactly that: the request names the device that took the sentence, that device's area
+is the room, and the room's speaker is where the music goes. A device with no area falls back to
+*Default area* in Settings → Home Assistant catalog. Nothing has to be exposed for this — but the
+satellite and its player do need their area set in Home Assistant, and the catalog needs
+reloading (Settings → Home Assistant catalog → *Refresh*, or a restart) after they are.
+
+**Shuffle.** "shuffle Tyler the Creator", "play Taylor Swift on shuffle", "put some jazz on
+random": the word says how to play, not what to play, so it is taken out of the sentence and
+sent as a boolean, alongside `media_id`, `media_type` and the room. `shuffle` is sent whether or
+not you asked for it, `false` included: a script that reads its own `shuffle` variable gets Home
+Assistant's *template helper* of the same name when nothing is passed, and then fails the whole
+run with `invalid boolean value <bound method …shuffle…>` after the music has already started.
+A plain "shuffle" with nothing to play is not a request — that one still goes to your model,
+which can turn shuffle on for whatever is playing.
+
 **Which service.** Four, in this order. Music Assistant's own `play_media` service first,
 because it searches every provider at once and knows the difference between an artist, an album
 and a track. Then a script of yours that plays music — Home Assistant offers exposed scripts as
