@@ -14,6 +14,7 @@ import { ACTION_VERBS } from './actions.js';
 import { getCatalog, homeSignature, homeZoneCoordinates } from './catalog.js';
 import { directStatePlan } from './answer.js';
 import { musicPlan } from './music.js';
+import { reminderPlan } from './reminders.js';
 import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
 import { readWeatherQuestion, requestedSummaryLanguage, weatherAnswer, weatherFor } from './weather.js';
 import { looksLikeChatter } from './chatter.js';
@@ -431,6 +432,58 @@ export async function runPipeline(
       stats.requests += 1;
       return {
         route: { plan: { kind: 'text', text: direct.text } as Plan, gates: [], reason, category: 'query' },
+        entry,
+      };
+    }
+  }
+
+  // "Remind me to take out the trash in 30 minutes", "remind me to water the plants at 7 am",
+  // "snooze reminder unpack the shopping for 10 minutes": a reminder sentence names one of
+  // ha-reminders' five intents and fills the slots itself. Deciding that with a model costs a
+  // round trip and can misread the one thing that matters — the title — so the reading happens
+  // here and the integration's own tool is called directly. A sentence this reader cannot
+  // place, such as a reminder with no time at all, is forwarded, where the model can ask.
+  if (active.routing.enabled && active.reminders.enabled) {
+    const reminder = reminderPlan({
+      utterance,
+      inventory,
+      config: active,
+      ...(systemPrompt ? { systemPrompt } : {}),
+    });
+    if (reminder) {
+      const entry: TraceEntry = {
+        id: uid('trace'),
+        at: startedAt,
+        utterance,
+        route: 'tool',
+        reason: reminder.reason,
+        tool: reminder.plan.tool,
+        args: reminder.plan.args,
+        gates: [],
+        category: 'command',
+        action: reminder.plan.action,
+        ...(reminder.plan.targets[0] ? { target: reminder.plan.targets[0] } : {}),
+        backend: 'off',
+        catalogSource: catalog.source,
+        catalogExposure: catalog.exposure,
+        toolsOffered,
+        timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+        totalMs: Date.now() - startedAt,
+      };
+      rememberTrace(entry);
+      stats.requests += 1;
+      stats.toolCalls += 1;
+      stats.routable += 1;
+      recordTurn(request, systemPrompt, entry);
+      return {
+        route: {
+          plan: reminder.plan,
+          gates: [],
+          reason: reminder.reason,
+          category: 'command',
+          action: reminder.plan.action,
+          ...(reminder.plan.targets[0] ? { target: reminder.plan.targets[0] } : {}),
+        },
         entry,
       };
     }

@@ -169,6 +169,24 @@ export interface Config {
     artist: 'artist' | 'radio';
   };
   /**
+   * Reminders, read from the sentence instead of decided by a model.
+   *
+   * "Remind me to take out the trash in 30 minutes" carries a title and a time and nothing
+   * else, so ha-reminders' own tool can be called without asking a model what the sentence
+   * meant. This reads the five reminder intents (`ReminderCreate`, `ReminderList`,
+   * `ReminderComplete`, `ReminderSnooze`, `ReminderDelete`) and converts what was said into
+   * the slots the integration validates — "half an hour" to `minutes: 30`, "at 8" to the
+   * next 8 o'clock as `time: "08:00"`. Anything it cannot place, such as a reminder with no
+   * time at all, is forwarded like every other sentence.
+   *
+   * It only acts when Home Assistant offers the integration's tools, so a house without
+   * ha-reminders is unaffected.
+   */
+  reminders: {
+    /** Read reminder sentences here instead of leaving them to the model. */
+    enabled: boolean;
+  };
+  /**
    * Was that sentence meant for the assistant?
    *
    * A voice assistant hears the whole room, and anything the fast path declines is
@@ -317,6 +335,7 @@ export function defaultConfig(): Config {
       timeoutMs: 8000,
     },
     music: { enabled: true, provider: 'auto', enqueue: 'replace', artist: 'artist' },
+    reminders: { enabled: true },
     // On by default: an overheard remark answered with an action is the failure this
     // exists to prevent, and the judge declines to speak unless it is sure.
     listening: { enabled: true, confidence: 0.75, local: true },
@@ -443,6 +462,9 @@ function applyEnv(config: Config): void {
     config.music.enqueue = env.MUSIC_ENQUEUE;
   }
   if (env.MUSIC_ARTIST === 'artist' || env.MUSIC_ARTIST === 'radio') config.music.artist = env.MUSIC_ARTIST;
+  if (env.REMINDERS !== undefined && env.REMINDERS !== '') {
+    config.reminders.enabled = /^(1|true|yes|on)$/i.test(env.REMINDERS);
+  }
 }
 
 /** The dashboard shows secrets masked; a save that echoes the mask back means "leave it". */

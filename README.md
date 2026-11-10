@@ -532,6 +532,46 @@ Nothing is said after the call either: the music starting is the answer, so `mus
 sits in the default silent speech rules next to `media_player`. Settings → Speech → *Rules*
 changes that if you would rather hear what is playing.
 
+### Reminders
+
+[ha-reminders](https://github.com/ksmarty/ha-reminders) teaches Home Assistant to remember
+things, and it offers the conversation agent five tools: create, list, complete, snooze and
+delete. "remind me to take out the trash in 30 minutes" needs none of your model to answer —
+the sentence names a title and a time, so the proxy fills the slots itself and calls the tool
+in the time the round trip takes. The same is true of a time of day, a place, and the four
+sentences that manage an existing list.
+
+| Said | Called |
+| --- | --- |
+| "remind me to take out the trash in 30 minutes" | create, `title` and `minutes` |
+| "remind me to water the plants at 7 am" | create, `title` and `time` — a daily reminder |
+| "remind me when I get home to unpack the shopping" | create, `title`, `direction: enter`, `zone` |
+| "remind me to unpack the shopping when I leave work" | create, `title`, `direction: leave`, `zone` |
+| "list my reminders" | list, nothing to fill |
+| "complete reminder unpack the shopping" | complete, `title` |
+| "snooze reminder unpack the shopping for 10 minutes" | snooze, `title` and `minutes` |
+| "delete reminder number 2" | delete, `number` |
+
+**What is converted rather than passed through.** The integration reads a time as `8 pm` or
+`20:00` and a number as a digit or a word, so a phrase it would refuse is turned into one it
+accepts: "half an hour" becomes `30`, "an hour" becomes `60`, "twenty minutes" becomes `20`,
+"noon" becomes `12:00`, "quarter to 9 pm" becomes `20:45`, and a bare "at 8" becomes the next
+eight o'clock on the clock the proxy already keeps for time questions. The split is at the last
+" in " or " at ", so a title keeps its own words: "check in at the hotel at 9 pm" reminds about
+"check in at the hotel", and "email Dr. Chen about the invoice" keeps its capital letters,
+because a title is spoken back in a notification.
+
+**When it is left alone.** A reminder with no time and no place — "remind me to call the
+plumber" — is forwarded, because the integration needs a trigger and your model can ask which
+one was meant. Nothing at all changes when Home Assistant does not offer the tools, and
+Settings → Reminders → *Read reminder sentences here* turns it off for a house that would rather
+the model read them.
+
+**What is said afterwards** is the integration's own sentence — "Got it. I will remind you to
+take out the trash in 30 minutes." — because it is the handler that knows whether it created the
+reminder or updated one that was already on the list. A house that would rather hear nothing can
+add a silent rule for `ha_reminders.*`; the default rules are about devices and leave it speaking.
+
 ### Only what Assist can see
 
 The catalog asks Home Assistant which entities are exposed to the conversation agent
@@ -748,6 +788,8 @@ different provider is used for prose. Nothing changes when the flag is off.
 - **Compound requests** are split when each clause names its own target ("turn off the kitchen
   lights and lock the door"); a clause that needs a slot the fast path cannot fill is forwarded whole.
 - **Media search grammar** beyond a simple "play X on Y" query slot.
+- **A reminder with no time or place** — "remind me to call the plumber" needs a trigger the
+  proxy will not invent, so it is forwarded.
 - **Script/template field filling**, `set_mode`, and MQTT-specific actions — forwarded.
 - **The time in another timezone** — "what time is it in Tokyo" is forwarded, since the proxy
   only knows the time in this house.

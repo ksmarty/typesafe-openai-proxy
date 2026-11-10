@@ -397,6 +397,20 @@ export function settingsGroups(): SettingsGroup[] {
       ],
     },
     {
+      id: 'reminders',
+      title: 'Reminders',
+      description:
+        'ha-reminders adds five tools to Home Assistant: create, list, complete, snooze and delete. A reminder sentence says everything they need — “remind me to take out the trash in 30 minutes”, “remind me to water the plants at 7 am”, “remind me when I get home to unpack the shopping”, “snooze reminder unpack the shopping for 10 minutes”, “delete reminder number 2” — so it is classified here and the integration’s tool is called directly, with no model round trip. What was said is converted into the slots the integration validates: “half an hour” becomes 30 minutes, and “at 8” becomes the next 8 o’clock. A reminder that names no time is left to the model, which can ask the follow-up question.',
+      fields: [
+        {
+          key: 'reminders.enabled',
+          label: 'Read reminder sentences here',
+          type: 'checkbox',
+          help: 'Off leaves every reminder sentence to the model server. Only used when Home Assistant offers the ha-reminders tools.',
+        },
+      ],
+    },
+    {
       id: 'listening',
       title: 'Listening',
       description:
