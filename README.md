@@ -506,12 +506,14 @@ device id at all. In a room with a television in it, the television is passed ov
 speaker: music does not start on the TV because the TV happened to be exposed. A room named in
 the sentence is a room, not a television that happens to carry its name — "play Taylor Swift in
 the living room" plays on the speaker in the living room even when the TV there is called "Living
-Room TV". Two speakers in that room with nothing to choose between them stay a question instead
-of a guess, and music for two rooms becomes one call per room. When the house has several
-speakers and the request names neither a speaker nor a room, the sentence is left to your model
-rather than played in a room nobody asked for. The words that named the room are dropped from
-what is searched for — a sentence that says "in the kitchen" is not looking for a band called
-"in the kitchen".
+Room TV". A room whose *only* players are televisions is not a question either: the television
+already on plays, and that is the same call your model would have made. Two speakers in that room
+with nothing to choose between them stay a question instead of a guess, and music for two rooms
+becomes one call per room. When the house has several speakers and the request names neither a
+speaker nor a room, the sentence is left to your model rather than played in a room nobody asked
+for — and the trace says so, with the music error in its reason. The words that named the room
+are dropped from what is searched for — a sentence that says "in the kitchen" is not looking for
+a band called "in the kitchen".
 
 **Which service.** Three, in this order. Music Assistant's own `play_media` service first,
 because it searches every provider at once and knows the difference between an artist, an album
@@ -520,6 +522,25 @@ Assistant player answers as well — this is what a house where Music Assistant 
 through its players offers, and it takes the same name and media type. Last, Home Assistant's
 own media search (`HassMediaSearchAndPlay`), which takes the name and the artist as one search
 string. Settings → Music → *Which service plays* pins one of the three.
+
+**What to expose.** Music only starts if Home Assistant gives the conversation agent something
+that plays. In Settings → Voice assistants → *Expose* tab (or by entity), expose:
+
+- the speakers you say "play" to — including the Music Assistant player of your voice satellite,
+  which is where "play it here" lands; a player with no area cannot be found by room, so give the
+  speaker an area in its device settings;
+- the media players you would accept music on, as entities of the `media_player` domain. A
+  television that is exposed but is not the target is passed over, not chosen;
+- the `play_media` service among the tools Home Assistant offers the agent — a media player's
+  own `media_player__play_media`, or `music_assistant__play_media` when Music Assistant is
+  installed. These are the names in the debug export's `toolsOffered`; without one of them every
+  music sentence is forwarded. Music Assistant's service is preferred when both are offered, and
+  Home Assistant's own media search is the last resort — it only searches, so it is never used as
+  the play path.
+
+Nothing else needs exposing: the proxy reads the sentence, so no music entity has to be in the
+prompt. If the debug export's `toolsOffered` has no play service at all, every music sentence goes
+to the model — that is the one exposure a "play" request cannot work without.
 
 **What happens to the queue** is a setting too: replace and play (the default), play next, queue
 after the current track, clear what is queued after this, or add to the end. An artist can be

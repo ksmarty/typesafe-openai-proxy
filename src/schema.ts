@@ -353,7 +353,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'music',
       title: 'Music',
       description:
-        '“Play Taylor Swift” names no speaker and no media type, and both are worked out here: it plays on the speaker that was spoken to (or the one the sentence names), and a bare name is an artist, which every provider plays as their top tracks. “Play Don’t Tap The Glass by Tyler The Creator” is an album. Music Assistant is asked first when Home Assistant offers its play service, because it resolves a name against every provider you connected; otherwise the player’s own play service takes the same name and media type, and Home Assistant’s media search is the last resort.',
+        '“Play Taylor Swift” names no speaker and no media type, and both are worked out here: it plays on the speaker that was spoken to (or the one the sentence names), and a bare name is an artist, which every provider plays as their top tracks. “Play Don’t Tap The Glass by Tyler The Creator” is an album. Music Assistant is asked first when Home Assistant offers its play service, because it resolves a name against every provider you connected; otherwise the player’s own play service takes the same name and media type, and Home Assistant’s media search is the last resort. A room whose only players are televisions plays on the television that is already on.',
       fields: [
         {
           key: 'music.enabled',

@@ -597,3 +597,66 @@ test('a play service that targets by name, the way Assist intents do, still gets
   if ('error' in call) throw new Error(call.error);
   assert.equal(call.args.name, 'media_player.voice_assistant_1_media_player_2');
 });
+
+// ---------------------------------------------------------------------------
+// A room with nothing but televisions in it, and a house with no room at all
+// ---------------------------------------------------------------------------
+
+/** The Living Room as the diagnostic bundle showed it: two TVs, no speaker of its own. */
+function televisionsOnly(): Catalog {
+  const room = tvRoom();
+  return { ...room, entities: room.entities.filter((entity) => entity.deviceClass === 'tv') };
+}
+
+test('a room whose only players are televisions plays on the one that is on', () => {
+  const base = config();
+  const plan = musicPlan({
+    utterance: 'Play Taylor Swift.',
+    catalog: televisionsOnly(),
+    inventory: inventoryFor([playerPlayService()]),
+    config: { ...base, catalog: { ...base.catalog, defaultArea: 'Living Room' } },
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.tool, 'media_player__play_media');
+  assert.deepEqual(plan.plan.targets, ['media_player.living_room']);
+  assert.equal(plan.plan.args.media_content_id, 'Taylor Swift');
+  assert.equal(plan.plan.args.media_content_type, 'artist');
+  assert.match(plan.reason, /the television already on in Living Room/);
+});
+
+test('a house where no player is in the room says which players it can see', () => {
+  const base = config();
+  const plan = musicPlan({
+    utterance: 'Play Taylor Swift.',
+    catalog: home(),
+    inventory: inventoryFor([playerPlayService()]),
+    config: { ...base, catalog: { ...base.catalog, defaultArea: 'Office' } },
+    deviceId: 'dev-unknown',
+  });
+  if (!plan || !('error' in plan)) throw new Error('expected an error, not a call');
+  assert.match(plan.error, /no room to play in/);
+  assert.match(plan.error, /Kitchen Speaker, Living Room Speaker/);
+  assert.match(plan.error, /give one an area in Home Assistant/);
+});
+
+test('a music sentence that is forwarded says on the trace why it was not played', async () => {
+  clearCatalogCache();
+  const base = config();
+  const active: Config = {
+    ...base,
+    catalog: { ...base.catalog, defaultArea: 'Office' },
+  };
+  const twoRooms = [
+    'Available Devices:',
+    'Kitchen Speaker (media_player.kitchen_speaker): idle',
+    'Living Room Speaker (media_player.living_speaker): playing',
+  ].join('\n');
+  const result = await runPipeline(
+    { model: 'test', messages: [{ role: 'user', content: 'Play Taylor Swift.' }], tools: [playerPlayService()] },
+    'Play Taylor Swift.',
+    twoRooms,
+    active,
+  );
+  assert.equal(result.route.plan.kind, 'forward');
+  assert.match(result.entry.reason, /music: no room to play in/);
+});

@@ -494,6 +494,10 @@ export async function runPipeline(
   // the media type follows from the shape of the phrase, and Music Assistant (when Home
   // Assistant offers its play service) resolves the name against every provider the user
   // connected — an artist to their top tracks, an album to the album itself.
+  // When this reader reads a music sentence and still cannot place it, the forest of reasons a
+  // sentence reaches the model unexplained is the reason "it worked once the cloud model did
+  // it". Keep it and say so on the trace the decision path writes.
+  let musicNote: string | undefined;
   if (active.routing.enabled && active.music.enabled) {
     const music = musicPlan({
       utterance,
@@ -502,6 +506,7 @@ export async function runPipeline(
       config: active,
       ...(deviceOf(request) ? { deviceId: deviceOf(request)! } : {}),
     });
+    if (music && 'error' in music) musicNote = `music: ${music.error}`;
     // An error means the sentence is a music request this reader cannot place — no speaker,
     // or a service with no slot for the name. Falling through gives the model its say
     // instead of answering a request with a refusal.
@@ -788,6 +793,10 @@ export async function runPipeline(
     entry.backend = 'off';
     entry.reason = `pass-through: ${readiness.reason}`;
   }
+
+  // A forwarded music sentence says why it was not played here, so the trace answers the
+  // question instead of the person asking it twice.
+  if (musicNote && entry.route === 'forward') entry.reason = `${entry.reason} (${musicNote})`;
 
   stats.requests += 1;
   // Only a real decision counts toward the average; pass-throughs and probes don't.

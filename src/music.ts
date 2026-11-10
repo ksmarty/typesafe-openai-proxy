@@ -441,13 +441,32 @@ export function roomSpeaker(catalog: Catalog, area: CatalogArea, on?: string): M
   const players = inAreaOf(catalog, area);
   if (!players.length) return { error: `no speaker in ${area.name}` };
   const speakers = speakersIn(players);
-  if (speakers.length === 1) return { player: speakers[0]!, reason: `the only speaker in ${area.name}` };
+  // A room whose only players are televisions still has somewhere to play: a television that
+  // is already on is what is playing in there, and otherwise either end of the room is the
+  // right room. Refusing here hands the sentence to a model that can only guess the same way.
+  const televisionsOnly = speakers.every(isTelevision);
+  if (speakers.length === 1) {
+    const only = speakers[0]!;
+    return {
+      player: only,
+      reason: televisionsOnly ? `the television in ${area.name}` : `the only speaker in ${area.name}`,
+    };
+  }
   // A room with several speakers: "the kitchen speaker" still names one of them.
   const named = on ? playersNamed(speakers, on) : [];
   if (named.length === 1) return { player: named[0]!, reason: `the speaker the sentence named in ${area.name}` };
   // Otherwise the one already awake is what "play it here" means.
   const awake = speakers.filter((player) => !OFF_STATES.test(player.state));
-  if (awake.length === 1) return { player: awake[0]!, reason: `the speaker already on in ${area.name}` };
+  if (awake.length === 1) {
+    return {
+      player: awake[0]!,
+      reason: televisionsOnly ? `the television already on in ${area.name}` : `the speaker already on in ${area.name}`,
+    };
+  }
+  if (televisionsOnly) {
+    const pick = awake[0] ?? speakers[0]!;
+    return { player: pick, reason: `the television in ${area.name}` };
+  }
   return { error: `${speakers.length} speakers in ${area.name}` };
 }
 
@@ -494,7 +513,14 @@ export function musicTarget(
   }
 
   if (players.length === 1) return { player: players[0]!, reason: 'the only speaker in the house' };
-  return { error: 'no speaker to play on' };
+  // Nothing placed the player, so say what is exposed: the fix is usually an area in Home
+  // Assistant (or naming the room), and that is not something the trace told anyone before.
+  const where = options.defaultArea ? `"${options.defaultArea}"` : 'the room the sentence came from';
+  return {
+    error: `no room to play in: none of the ${players.length} media players exposed to Assist (${players
+      .map((player) => player.name)
+      .join(', ')}) is in ${where} — give one an area in Home Assistant, or say the room`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -517,6 +543,9 @@ const ENQUEUE_SLOTS = ['enqueue'];
 // intent tools do — `name`, which takes an entity id just the same.
 const ENTITY_SLOTS = ['entity_id', 'entity', 'target', 'name'];
 const AREA_SLOTS = ['area', 'area_id'];
+// Home Assistant's search tool takes the words to look for; it is not a way to play, but
+// knowing it is there turns "no play service" into advice.
+const SEARCH_SLOTS = ['search_query', 'query', 'search', 'text', 'media_content_id'];
 
 export interface MusicToolMatch {
   name: string;
@@ -584,6 +613,17 @@ export function musicTool(
         provider: best.preferred ? 'music_assistant' : 'media_player',
       }
     : undefined;
+}
+
+/** The media search tool Home Assistant offers, when it offers one: it finds, it does not play. */
+function searchMediaTool(inventory: ToolInventory): { name: string; fn: OpenAIToolFunction } | undefined {
+  for (const [name, fn] of inventory) {
+    const short = shortToolName(name);
+    if (!/(^|[_.-])search_media$/i.test(short) && !/search_media$/i.test(name)) continue;
+    if (!slotName(propertiesOf(fn), SEARCH_SLOTS)) continue;
+    return { name, fn };
+  }
+  return undefined;
 }
 
 /** The media type a kind asks the provider for. */
@@ -713,7 +753,17 @@ export function musicCall(input: {
     action: 'search_and_play',
     text: searchText(request),
   });
-  if ('error' in built) return { error: built.error };
+  if ('error' in built) {
+    // A search tool with no play service behind it cannot play anything, and "no action is
+    // known" is not what the person needs to hear: the fix is to expose the play service.
+    const searched = searchMediaTool(inventory);
+    if (searched) {
+      return {
+        error: `${searched.name} finds music but does not play it, and no play service is exposed to Assist — expose the media player's play_media service in Home Assistant`,
+      };
+    }
+    return { error: built.error };
+  }
   return { tool: built.tool, args: built.args, provider: 'assist' };
 }
 
