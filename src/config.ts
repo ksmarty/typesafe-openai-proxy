@@ -92,7 +92,7 @@ export interface Config {
   /**
    * Telling the time.
    *
-   * The proxy answers "what time is it?" itself, in words ("five twenty two", "five
+   * The proxy answers "what time is it?" itself, in words ("five twenty-two", "five
    * o'clock" on the hour, never a.m. or p.m.), because that is the only way to own the
    * wording and it needs no model call at all.
    */

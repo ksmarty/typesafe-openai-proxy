@@ -2,7 +2,7 @@
  * Telling the time, in words.
  *
  * These pin the three decisions the feature rests on: the reply is the bare spoken time
- * ("five twenty two", "five o'clock" on the hour, never a.m. or p.m.); the clock comes from
+ * ("five twenty-two", "five o'clock" on the hour, never a.m. or p.m.); the clock comes from
  * the configured zone, else Home Assistant's own prompt clock, else the process; and only a
  * question about the time here is answered this way — a date, another city or a command that
  * happens to say "time" takes the normal path.
@@ -41,12 +41,21 @@ test('numbers below a hundred are words, never digits', () => {
 });
 
 test('the hour is read on a clock face, never with a.m. or p.m.', () => {
-  assert.equal(spokenTime(at(5, 22)), 'five twenty two');
-  assert.equal(spokenTime(at(17, 22)), 'five twenty two');
+  assert.equal(spokenTime(at(5, 22)), 'five twenty-two');
+  assert.equal(spokenTime(at(17, 22)), 'five twenty-two');
   assert.equal(spokenTime(at(0, 30)), 'twelve thirty');
   assert.equal(spokenTime(at(12, 30)), 'twelve thirty');
-  assert.equal(spokenTime(at(23, 59)), 'eleven fifty nine');
+  assert.equal(spokenTime(at(23, 59)), 'eleven fifty-nine');
   assert.ok(!/am|pm|a\.m|p\.m/i.test(spokenTime(at(17, 22))));
+});
+
+test('the minutes are hyphenated, so a time is two words and not three', () => {
+  // A voice reads "five twenty two" as three numbers; "five twenty-two" is one time.
+  assert.equal(spokenTime(at(5, 22)), 'five twenty-two');
+  assert.equal(spokenTime(at(5, 45)), 'five forty-five');
+  assert.equal(spokenTime(at(21, 59)), 'nine fifty-nine');
+  assert.equal(spokenTime(at(5, 20)).split(' ').length, 2);
+  assert.equal(spokenTime(at(5, 10)).split(' ').length, 2);
 });
 
 test('the top of the hour is o’clock', () => {
@@ -76,7 +85,7 @@ test('Home Assistant’s own clock is read out of the system prompt', () => {
 test('the prompt clock means the hour it says, in either half of the day', () => {
   const pm = clockFromPrompt('Current time is 5:22 PM.');
   assert.ok(pm);
-  assert.equal(spokenTime(pm!), 'five twenty two');
+  assert.equal(spokenTime(pm!), 'five twenty-two');
   const am = clockFromPrompt('Current time is 12:05 am.');
   assert.ok(am);
   assert.equal(spokenTime(am!), 'twelve oh five');
@@ -161,7 +170,7 @@ test('a date, another city or a command is not a request for the clock', () => {
 
 test('a request for the clock answers with the bare spoken time', () => {
   const answer = clockAnswer('what time is it?', clock(''), 'Current time is 5:22 PM.');
-  assert.equal(answer, 'five twenty two');
+  assert.equal(answer, 'five twenty-two');
   assert.equal(clockAnswer('what time is it?', clock(''), 'Current time is 5:00 PM.'), "five o'clock");
   assert.equal(clockAnswer("what's the date", clock(''), 'Current time is 5:22 PM.'), null);
 });
@@ -207,7 +216,7 @@ test('the router answers the time in words even when Home Assistant offers the i
   const result = routeTime('what time is it?', PROMPT);
   assert.equal(result.plan.kind, 'text', JSON.stringify(result.gates));
   if (result.plan.kind !== 'text') return;
-  assert.equal(result.plan.text, 'five twenty two');
+  assert.equal(result.plan.text, 'five twenty-two');
   assert.match(result.reason, /spoken in words/);
 });
 
@@ -235,7 +244,7 @@ test('the pipeline answers the time with no model call at all', async () => {
   );
   assert.equal(result.route.plan.kind, 'text', JSON.stringify(result.route.gates));
   if (result.route.plan.kind !== 'text') return;
-  assert.equal(result.route.plan.text, 'five twenty two');
+  assert.equal(result.route.plan.text, 'five twenty-two');
   assert.equal(result.entry.timings?.decideMs, 0);
   assert.equal(result.entry.backend, 'off');
   // The fast path being off does not stop the clock: it needs no model.

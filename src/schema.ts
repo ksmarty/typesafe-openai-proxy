@@ -461,7 +461,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'clock',
       title: 'Clock',
       description:
-        'The proxy answers “what time is it?” itself, in the words a person would use — “five twenty two”, and “five o’clock” on the hour — with no model call. It never says a.m. or p.m.: the reply is spoken aloud, and the part of the day is obvious from the moment you hear it.',
+        'The proxy answers “what time is it?” itself, in the words a person would use — “five twenty-two”, and “five o’clock” on the hour — with no model call. It never says a.m. or p.m.: the reply is spoken aloud, and the part of the day is obvious from the moment you hear it.',
       fields: [
         {
           key: 'clock.timezone',

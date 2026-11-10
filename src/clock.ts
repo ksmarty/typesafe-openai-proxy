@@ -4,7 +4,7 @@
  * Home Assistant can answer "what time is it?" itself with `HassGetCurrentTime`, but that
  * response is either read digit by digit or phrased by the conversation agent — "It is
  * 17:22" or "The current time is 5:22 PM" — and neither is what a clock in a room should
- * say. The reply wanted here is the one a person gives: **"five twenty two"**, **"five
+ * say. The reply wanted here is the one a person gives: **"five twenty-two"**, **"five
  * o'clock"** on the hour, never a.m. or p.m., because the answer is spoken aloud and the
  * part of the day is obvious from the moment it is heard.
  *
@@ -77,7 +77,16 @@ function hourWords(hours24: number): string {
 }
 
 /**
- * The time as a person says it: `five twenty two`, and `five o'clock` at the top of the
+ * Minutes the way a clock face reads them: `twenty-two`, hyphenated, so a spoken time is two
+ * words ("five twenty-two") and not three ("five twenty two"), which a voice reads as two
+ * separate numbers.
+ */
+function minuteWords(minutes: number): string {
+  return numberWords(minutes).replace(' ', '-');
+}
+
+/**
+ * The time as a person says it: `five twenty-two`, and `five o'clock` at the top of the
  * hour. Minutes below ten take "oh" (`nine oh five`) so they are not heard as a number.
  */
 export function spokenTime(date: Date): string {
@@ -85,7 +94,7 @@ export function spokenTime(date: Date): string {
   const minutes = date.getMinutes();
   if (minutes === 0) return `${hour} o'clock`;
   if (minutes < 10) return `${hour} oh ${numberWords(minutes)}`;
-  return `${hour} ${numberWords(minutes)}`;
+  return `${hour} ${minuteWords(minutes)}`;
 }
 
 /** `9:41 AM.` at the front of Home Assistant's system prompt. */
@@ -212,7 +221,7 @@ export function isTimeQuestion(text: string): boolean {
 }
 
 /**
- * The bare spoken answer to a request for the time — "five twenty two" — or null when the
+ * The bare spoken answer to a request for the time — "five twenty-two" — or null when the
  * sentence is not one.
  *
  * Bare on purpose: it is spoken as the whole reply, with no "It is" in front of it.

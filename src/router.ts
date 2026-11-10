@@ -245,7 +245,7 @@ function planQuery(ctx: RouteContext, gates: Gate[]): RouteResult {
       return forward('no time/date intent offered', gates, { category: 'query' });
     }
     // The time is answered here, in words, because the wording is the point: a clock in a
-    // room should say "five twenty two", not read out a timestamp.
+    // room should say "five twenty-two", not read out a timestamp.
     if (isTimeQuestion(ctx.utterance)) {
       return {
         plan: { kind: 'text', text: spokenTime(clockNow(ctx.config.clock, ctx.systemPrompt)) },

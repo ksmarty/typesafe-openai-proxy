@@ -333,7 +333,7 @@ export async function runPipeline(
       : undefined,
   });
   catalogMs = Date.now() - catalogStarted;
-  // "What time is it?" is answered here, in words ("five twenty two", "five o'clock" on the
+  // "What time is it?" is answered here, in words ("five twenty-two", "five o'clock" on the
   // hour, never a.m. or p.m.): the wording is the whole point, and owning it costs no model
   // call and no intent round trip. A question about the date is left to Home Assistant.
   if (active.routing.enabled && isTimeQuestion(utterance)) {

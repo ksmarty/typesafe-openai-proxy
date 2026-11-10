@@ -382,9 +382,11 @@ model*, with the round trip shown.
 ### The time, in words
 
 "what time is it?" is answered by the proxy itself, and spoken the way a person says it:
-**"five twenty two"**, **"five o'clock"** on the hour, "nine oh five" below ten past. Never
-a.m. or p.m. — the reply is heard, not read, and which half of the day it is is obvious from
-the moment it is heard. The reply is the bare time, with no "It is" in front of it.
+**"five twenty-two"**, **"five o'clock"** on the hour, "nine oh five" below ten past. The
+minutes are hyphenated on purpose: a voice reads "five twenty two" as three numbers, and
+"five twenty-two" as one time. Never a.m. or p.m. — the reply is heard, not read, and which
+half of the day it is is obvious from the moment it is heard. The reply is the bare time,
+with no "It is" in front of it.
 
 Home Assistant can answer this itself with `HassGetCurrentTime`, but what comes back is
 either digits read out one by one or a sentence the conversation agent phrased ("The current
