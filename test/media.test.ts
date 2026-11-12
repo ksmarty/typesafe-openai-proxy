@@ -304,3 +304,84 @@ test('a command this reader cannot place is forwarded, and the trace says why', 
   assert.equal(result.route.plan.kind, 'forward');
   assert.match(result.entry.reason, /\(media: 2 players are playing/);
 });
+
+// ---------------------------------------------------------------------------
+// A kiosk music script steers what plays, on the speaker its kiosk follows
+// ---------------------------------------------------------------------------
+
+/** The Kiosk Satellite music blueprint, as an exposed script looks in the request's tools. */
+function kioskScript(): OpenAITool {
+  return tool(
+    'script__kiosk_satellite_music',
+    {
+      action: {
+        type: 'string',
+        enum: [
+          'play',
+          'show',
+          'now_playing',
+          'pause',
+          'resume',
+          'next',
+          'previous',
+          'volume',
+          'volume_up',
+          'volume_down',
+          'queue',
+          'clear_queue',
+          'speakers',
+        ],
+      },
+      query: { type: 'string' },
+      kind: { type: 'string', enum: ['track', 'album', 'artist', 'playlist', 'radio', 'podcast', 'audiobook'] },
+      artist: { type: 'string' },
+      mode: { type: 'string', enum: ['replace', 'next', 'add', 'radio'] },
+      speaker: { type: 'string' },
+      level: { type: 'number' },
+      kiosk: { type: 'string' },
+    },
+    ['action'],
+  );
+}
+
+function kioskPlanFor(text: string, deviceId?: string) {
+  return mediaPlan({
+    utterance: text,
+    catalog: house(),
+    inventory: inventoryFor([kioskScript(), ...mediaTools()]),
+    config: config(),
+    ...(deviceId ? { deviceId } : {}),
+  });
+}
+
+test('"pause" is sent to the kiosk music script as its own action', () => {
+  const plan = kioskPlanFor('pause', 'dev-satellite');
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.tool, 'script__kiosk_satellite_music');
+  assert.deepEqual(plan.plan.args, { action: 'pause', speaker: 'Living Room' });
+  assert.deepEqual(plan.plan.targets, []);
+  assert.match(plan.reason, /^media: pause in Living Room via the kiosk music script, no model call/);
+});
+
+test('a volume step and a skip are the kiosk script\'s actions too', () => {
+  const up = kioskPlanFor('volume up', 'dev-satellite');
+  if (!up || 'error' in up) throw new Error(up ? up.error : 'no plan');
+  assert.deepEqual(up.plan.args, { action: 'volume_up', speaker: 'Living Room' });
+
+  const next = kioskPlanFor('next song', 'dev-satellite');
+  if (!next || 'error' in next) throw new Error(next ? next.error : 'no plan');
+  assert.equal(next.plan.args.action, 'next');
+});
+
+test('a room named in the sentence goes to the kiosk script as the speaker', () => {
+  const plan = kioskPlanFor('pause in the kitchen', 'dev-satellite');
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.deepEqual(plan.plan.args, { action: 'pause', speaker: 'Kitchen' });
+});
+
+test('stop keeps going to the player, because the kiosk script has no stop', () => {
+  const plan = kioskPlanFor('stop the music', 'dev-satellite');
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.tool, 'HassTurnOff');
+  assert.deepEqual(plan.plan.args, { name: 'media_player.voice_assistant_1_media_player_2' });
+});

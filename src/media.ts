@@ -13,7 +13,7 @@
 
 import { specFor } from './actions.js';
 import type { Config } from './config.js';
-import { areaOfName, inAreaOf, isTelevision, playersNamed, spokenAreaId } from './music.js';
+import { areaOfName, inAreaOf, isTelevision, kioskTool, playersNamed, spokenArea, spokenAreaId } from './music.js';
 import { buildToolCall, magnitudeStep } from './toolcall.js';
 import type { ToolInventory } from './toolcall.js';
 import type { Catalog, CatalogArea, CatalogEntity, ToolCallPlan } from './types.js';
@@ -49,6 +49,23 @@ const ACTION: Record<Transport, string> = {
 
 /** A player that is doing something now, so "pause" has an object. */
 const AWAKE = /^(playing|buffering|paused|on)$/i;
+
+/**
+ * The action a kiosk music script takes for a command.
+ *
+ * The blueprint steers playback itself — `pause`, `resume`, `next`, `previous`, `volume_up`,
+ * `volume_down` — and it knows which speaker the kiosk it was spoken to follows, so a paused
+ * kiosk pauses the right thing. A stop, a mute or a television has no action there, and those
+ * keep going to the player itself.
+ */
+const KIOSK_ACTION: Partial<Record<Transport, string>> = {
+  pause: 'pause',
+  resume: 'resume',
+  next: 'next',
+  previous: 'previous',
+  louder: 'volume_up',
+  quieter: 'volume_down',
+};
 
 /** A media player that is switched off. */
 const ASLEEP = /^(off|standby|unavailable|unknown)$/i;
@@ -345,6 +362,29 @@ export function mediaPlan(input: {
 
   const request = readTransport(input.utterance);
   if (!request) return null;
+
+  // A kiosk music script steers what plays itself, and it knows the speaker the kiosk it was
+  // spoken to follows — so "pause" and "a little louder" land where the music is, without
+  // picking a player at all. Stop, mute and a television are not its actions and fall through.
+  const kioskAction = KIOSK_ACTION[request.kind];
+  const kiosk = kioskAction ? kioskTool(input.inventory) : undefined;
+  if (kiosk && kioskAction) {
+    const room = areaOfName(input.catalog, text) ?? spokenArea(input.catalog, input.deviceId);
+    const args: Record<string, unknown> = { [kiosk.profile.action]: kioskAction };
+    // An empty speaker means "where this kiosk plays", so only a room that was named is sent.
+    if (kiosk.profile.speaker && room) args[kiosk.profile.speaker] = room.name;
+    return {
+      plan: {
+        kind: 'tool',
+        tool: kiosk.name,
+        args,
+        targets: [],
+        action: request.kind,
+        domain: 'media_player',
+      },
+      reason: `media: ${PHRASE[request.kind]}${room ? ` in ${room.name}` : ''} via the kiosk music script, no model call`,
+    };
+  }
 
   const target = transportTarget(input.catalog, text, options);
   if ('error' in target) {

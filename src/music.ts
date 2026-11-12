@@ -583,10 +583,19 @@ const SEARCH_SLOTS = ['search_query', 'query', 'search', 'text', 'media_content_
 // A house script says what to do in a slot of its own: `action: play` or `action: stop`.
 const ACTION_SLOTS = ['action'];
 
+// A kiosk music script — the Kiosk Satellite blueprint, or anything written in its shape — says
+// what to play in a free-text slot and what it is separately, because it searches Music
+// Assistant itself and needs no media id.
+const QUERY_SLOTS = ['query', 'search_query'];
+const KIND_SLOTS = ['kind', 'media_kind'];
+const SPEAKER_SLOTS = ['speaker', 'speakers'];
+const MODE_SLOTS = ['mode'];
+const LEVEL_SLOTS = ['level'];
+
 export interface MusicToolMatch {
   name: string;
   fn: OpenAIToolFunction;
-  provider: 'music_assistant' | 'script' | 'media_player';
+  provider: 'kiosk' | 'music_assistant' | 'script' | 'media_player';
 }
 
 function propertiesOf(fn: OpenAIToolFunction): Record<string, unknown> {
@@ -640,6 +649,69 @@ function isPlayScript(name: string, properties: Record<string, unknown>): boolea
   return Boolean(slotName(properties, MEDIA_ID_SLOTS) && slotName(properties, MEDIA_TYPE_SLOTS));
 }
 
+/** A slot that lists this value among its options; a slot with no list offers nothing by name. */
+function offers(schema: unknown, value: string): boolean {
+  const list = (schema as { enum?: unknown[] } | undefined)?.enum;
+  if (!Array.isArray(list)) return false;
+  return list.some((item) => String(item).toLowerCase() === value.toLowerCase());
+}
+
+/** The slots of a script shaped like the Kiosk Satellite music blueprint. */
+export interface KioskProfile {
+  /** Where the words to play go. */
+  query: string;
+  /** Where `play`, `pause`, `next` and the volume steps go. */
+  action: string;
+  kind?: string;
+  artist?: string;
+  speaker?: string;
+  mode?: string;
+  level?: string;
+}
+
+/**
+ * A script built from the Kiosk Satellite music blueprint, read off its shape.
+ *
+ * The blueprint's script is the one tool that knows where the kiosk it was spoken to plays, so
+ * it takes no media id, no media type and no exposed media player: it takes `action`, `query`,
+ * `kind`, `artist`, `mode`, `speaker` and `level`, and answers with what it did. Recognised on
+ * those slots rather than on its name, because the name is whatever the person called it — and
+ * `action` has to be a list that actually offers `play`, or a script with an action and a query
+ * (`script.run_routine`, "say something with a note") would be mistaken for a music player.
+ */
+export function kioskProfile(properties: Record<string, unknown>): KioskProfile | undefined {
+  const action = slotName(properties, ACTION_SLOTS);
+  if (!action || !offers(properties[action], 'play')) return undefined;
+  const query = slotName(properties, QUERY_SLOTS);
+  const kind = slotName(properties, KIND_SLOTS);
+  if (!query || !kind) return undefined;
+  const artist = slotName(properties, ARTIST_SLOTS);
+  const speaker = slotName(properties, SPEAKER_SLOTS);
+  const mode = slotName(properties, MODE_SLOTS);
+  const level = slotName(properties, LEVEL_SLOTS);
+  return {
+    query,
+    action,
+    kind,
+    ...(artist ? { artist } : {}),
+    ...(speaker ? { speaker } : {}),
+    ...(mode ? { mode } : {}),
+    ...(level ? { level } : {}),
+  };
+}
+
+/** The kiosk music script Home Assistant offers, when it offers one. */
+export function kioskTool(
+  inventory: ToolInventory,
+): { name: string; fn: OpenAIToolFunction; profile: KioskProfile } | undefined {
+  for (const [name, fn] of inventory) {
+    if (!/(^|__)script(__|\.)/i.test(name)) continue;
+    const profile = kioskProfile(propertiesOf(fn));
+    if (profile) return { name, fn, profile };
+  }
+  return undefined;
+}
+
 export function musicTool(
   inventory: ToolInventory,
   provider: Config['music']['provider'] = 'auto',
@@ -648,20 +720,30 @@ export function musicTool(
   const candidates: { name: string; fn: OpenAIToolFunction; rank: number; provider: MusicToolMatch['provider'] }[] = [];
   for (const [name, fn] of inventory) {
     const properties = propertiesOf(fn);
-    // Music Assistant's own service first: it resolves a name against every provider at once.
-    // Then a house script, because a script that plays music is what someone wrote when the
-    // generic service would not start it on their speakers. The player's own service last.
-    const rank = /music[_-]?assistant|(^|[_.])mass([_.]|$)/i.test(name)
+    // A kiosk music script first: it is the only tool that knows where the kiosk it was spoken
+    // to plays, it needs no exposed media player, and it steers the queue as well as starting
+    // it. Then Music Assistant's own service, because it resolves a name against every provider
+    // at once. Then a house script, and the player's own service last.
+    const kiosk = /(^|__)script(__|\.)/i.test(name) && Boolean(kioskProfile(properties));
+    const rank = kiosk
       ? 0
-      : isPlayScript(name, properties)
+      : /music[_-]?assistant|(^|[_.])mass([_.]|$)/i.test(name)
         ? 1
-        : 2;
-    if (rank === 2 && !looksLikePlayMedia(name)) continue;
-    if (!slotName(properties, MEDIA_ID_SLOTS)) continue;
-    const matched: MusicToolMatch['provider'] =
-      rank === 0 ? 'music_assistant' : rank === 1 ? 'script' : 'media_player';
+        : isPlayScript(name, properties)
+          ? 2
+          : 3;
+    if (rank === 3 && !looksLikePlayMedia(name)) continue;
+    // Every other play tool is told what to play; a kiosk script is told what was said.
+    if (!kiosk && !slotName(properties, MEDIA_ID_SLOTS)) continue;
+    const matched: MusicToolMatch['provider'] = kiosk
+      ? 'kiosk'
+      : rank === 1
+        ? 'music_assistant'
+        : rank === 2
+          ? 'script'
+          : 'media_player';
     if (provider === 'music_assistant' && matched !== 'music_assistant') continue;
-    if (provider === 'script' && matched !== 'script') continue;
+    if (provider === 'script' && matched !== 'script' && matched !== 'kiosk') continue;
     candidates.push({ name, fn, rank, provider: matched });
   }
   const best = candidates.sort((a, b) => a.rank - b.rank)[0];
@@ -694,7 +776,7 @@ export interface MusicCall {
   tool: string;
   args: Record<string, unknown>;
   /** Which service took the request; the trace says so. */
-  provider: 'music_assistant' | 'script' | 'media_player' | 'assist';
+  provider: 'kiosk' | 'music_assistant' | 'script' | 'media_player' | 'assist';
 }
 
 /**
@@ -768,6 +850,65 @@ function serviceArgs(input: {
   return args;
 }
 
+/** The kinds a kiosk script's `kind` slot names. A genre is not one of them. */
+const KIOSK_KIND: Record<MusicKind, string | undefined> = {
+  artist: 'artist',
+  album: 'album',
+  track: 'track',
+  playlist: 'playlist',
+  radio: 'radio',
+  genre: undefined,
+};
+
+/** The queue order, in the words a kiosk script uses; anything else is left to its default. */
+const KIOSK_MODE: Partial<Record<Config['music']['enqueue'], string>> = {
+  replace: 'replace',
+  next: 'next',
+  add: 'add',
+};
+
+/**
+ * The arguments a kiosk music script wants.
+ *
+ * It searches Music Assistant itself, so it is given the words rather than a media id: the title
+ * in `query` and the artist in `artist`, because "Punisher by Phoebe Bridgers" is two answers.
+ * The `kind` slot is only sent when the script lists that kind by name, and the room only when one
+ * was worked out — an empty `speaker` means "where this kiosk plays", which is the right default
+ * and the whole reason such a script needs no exposed media player.
+ */
+function kioskArgs(input: {
+  profile: KioskProfile;
+  request: MusicRequest;
+  config: Config;
+  room?: string;
+}): Record<string, unknown> {
+  const { profile, request, config } = input;
+  const args: Record<string, unknown> = { [profile.action]: 'play', [profile.query]: request.query };
+  const kind = KIOSK_KIND[request.kind];
+  if (profile.kind && kind) args[profile.kind] = kind;
+  if (profile.artist && request.artist) args[profile.artist] = request.artist;
+  if (profile.speaker && input.room) args[profile.speaker] = input.room;
+  if (profile.mode) {
+    // A radio station built from the artist is the script's own radio mode: it plays them and
+    // keeps going with similar music, which is what the setting asks the provider for.
+    const mode =
+      config.music.artist === 'radio' && request.kind === 'artist' ? 'radio' : KIOSK_MODE[config.music.enqueue];
+    if (mode) args[profile.mode] = mode;
+  }
+  return args;
+}
+
+/** The call a kiosk music script takes, from the request and the room it should play in. */
+function kioskCall(input: {
+  service: MusicToolMatch;
+  profile: KioskProfile;
+  request: MusicRequest;
+  config: Config;
+  room?: string;
+}): MusicCall {
+  return { tool: input.service.name, args: kioskArgs(input), provider: 'kiosk' };
+}
+
 /**
  * A media search the router decided, played the same way as one this module read itself.
  *
@@ -799,6 +940,18 @@ export function musicCall(input: {
 }): MusicCall | { error: string } {
   const { request, player, inventory, config } = input;
   const service = musicTool(inventory, config.music.provider);
+  if (service?.provider === 'kiosk') {
+    const profile = kioskProfile(propertiesOf(service.fn));
+    if (profile) {
+      return kioskCall({
+        service,
+        profile,
+        request,
+        config,
+        ...(player.areaName ? { room: player.areaName } : {}),
+      });
+    }
+  }
   if (service) {
     const args = serviceArgs({
       service,
@@ -844,6 +997,7 @@ export interface MusicPlan {
 
 /** The service a call went through, in the words the trace shows. */
 function describeService(provider: MusicCall['provider']): string {
+  if (provider === 'kiosk') return 'the kiosk music script';
   if (provider === 'music_assistant') return 'Music Assistant';
   if (provider === 'script') return 'your own play script';
   if (provider === 'media_player') return "the player's own play service";
@@ -881,6 +1035,37 @@ export function musicPlan(input: {
 }): MusicPlan | { error: string } | null {
   const request = readMusicRequest(input.utterance, input.catalog);
   if (!request) return null;
+
+  // A kiosk music script makes the question of which player moot: it plays on the speaker the
+  // kiosk it was spoken to follows, which is something only it knows. So no player is looked
+  // for and none has to be exposed — the whole reason the blueprint exists.
+  const kioskService = musicTool(input.inventory, input.config.music.provider);
+  if (kioskService?.provider === 'kiosk') {
+    const profile = kioskProfile(propertiesOf(kioskService.fn));
+    if (profile) {
+      const room = areaOfName(input.catalog, request.on) ?? spokenArea(input.catalog, input.deviceId);
+      const call = kioskCall({
+        service: kioskService,
+        profile,
+        request,
+        config: input.config,
+        ...(room ? { room: room.name } : {}),
+      });
+      const what = request.artist ? `${request.query} by ${request.artist}` : request.query;
+      return {
+        plan: {
+          kind: 'tool',
+          tool: call.tool,
+          args: call.args,
+          targets: [],
+          action: 'search_and_play',
+          // It plays music, so the speech rules that speak for `media_player` speak for it.
+          domain: 'media_player',
+        },
+        reason: `music: "${what}" as ${ARTICLE[request.kind]}${room ? ` in ${room.name}` : ''} via ${describeService(call.provider)}, no model call`,
+      };
+    }
+  }
 
   const target = musicTarget(input.catalog, {
     ...(request.on ? { on: request.on } : {}),

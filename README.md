@@ -541,7 +541,23 @@ run with `invalid boolean value <bound method …shuffle…>` after the music ha
 A plain "shuffle" with nothing to play is not a request — that one still goes to your model,
 which can turn shuffle on for whatever is playing.
 
-**Which service.** Four, in this order. Music Assistant's own `play_media` service first,
+**A kiosk music script.** A script built from the Kiosk Satellite music blueprint is recognised
+by its shape rather than its name — an `action` slot that offers `play`, a `query` slot and a `kind`
+slot — and it is asked first, ahead of Music Assistant, because it knows where its own tablet
+plays. It is sent `action: play`, the words as `query`, the kind only when the sentence said one
+(`kind: album` from "play the album Punisher"; a genre is not one of the blueprint's kinds, so a
+genre is left out), the artist when one was named beside the title, and `speaker` when a room was
+named or the device that heard the sentence is set to one. An empty `speaker` means "where this
+kiosk plays", so nothing has to be exposed in that room and no player is chosen here at all.
+`mode` follows Settings → Music — `replace`, `next` or `add`, and `radio` for a bare artist when a
+bare artist plays a radio station. "Pause", "skip", "go back", "volume up" and "volume down" are
+its `pause`, `next`, `previous`, `volume_up` and `volume_down` actions, sent with `speaker` the same
+way; "stop" is not — the blueprint has no stop, so stopping the music still goes to a player, or to
+your model when no player is exposed. The script alone is enough for music: with it exposed, no
+media player has to be.
+
+**Which service.** Four, in this order, after a kiosk music script (which is asked first whenever
+the request offers one). Music Assistant's own `play_media` service first,
 because it searches every provider at once and knows the difference between an artist, an album
 and a track. Then a script of yours that plays music — Home Assistant offers exposed scripts as
 tools, and `script__play_music` is what people write when the generic service will not start

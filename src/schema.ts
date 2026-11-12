@@ -371,7 +371,7 @@ export function settingsGroups(): SettingsGroup[] {
             { value: 'script', label: 'Your own play script only' },
             { value: 'assist', label: 'Home Assistant’s own media search only' },
           ],
-          help: 'In order: Music Assistant’s play service, then a script of yours that takes a media id and type (a “Play Music” script is what plays when the generic service will not), then the player’s own play_media, then Home Assistant’s media search. Only the first three can play an artist rather than a search.',
+          help: 'In order: a Kiosk Satellite music script (recognised by its action, query and kind fields, and asked first because it knows where its own tablet plays), then Music Assistant’s play service, then a script of yours that takes a media id and type (a “Play Music” script is what plays when the generic service will not), then the player’s own play_media, then Home Assistant’s media search.',
         },
         {
           key: 'music.enqueue',

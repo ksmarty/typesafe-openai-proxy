@@ -955,3 +955,140 @@ test('a default area with a real speaker in it still plays there', () => {
   if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
   assert.deepEqual(plan.plan.targets, ['media_player.living_speaker']);
 });
+
+// ---------------------------------------------------------------------------
+// A kiosk music script: the Kiosk Satellite blueprint's shape
+// ---------------------------------------------------------------------------
+
+/** The Kiosk Satellite music blueprint, as an exposed script looks in the request's tools. */
+function kioskScript(): OpenAITool {
+  return tool(
+    'script__kiosk_satellite_music',
+    {
+      action: {
+        type: 'string',
+        enum: [
+          'play',
+          'show',
+          'now_playing',
+          'pause',
+          'resume',
+          'next',
+          'previous',
+          'volume',
+          'volume_up',
+          'volume_down',
+          'queue',
+          'clear_queue',
+          'speakers',
+        ],
+      },
+      query: { type: 'string' },
+      kind: { type: 'string', enum: ['track', 'album', 'artist', 'playlist', 'radio', 'podcast', 'audiobook'] },
+      artist: { type: 'string' },
+      mode: { type: 'string', enum: ['replace', 'next', 'add', 'radio'] },
+      speaker: { type: 'string' },
+      level: { type: 'number' },
+      kiosk: { type: 'string' },
+    },
+    ['action'],
+  );
+}
+
+/**
+ * The house a kiosk plays in: rooms and a device registry, and no exposed media player at all —
+ * the kiosk finds the speaker itself, which is the point of the blueprint.
+ */
+function kioskHouse(): Catalog {
+  return {
+    areas: [
+      { id: 'kitchen', name: 'Kitchen' },
+      { id: 'office', name: 'Office' },
+    ],
+    entities: [],
+    devices: [
+      { id: 'dev-kiosk', name: 'Office Tablet', areaId: 'office' },
+      { id: 'dev-kitchen-kiosk', name: 'Kitchen Tablet', areaId: 'kitchen' },
+    ],
+    domains: [],
+    source: 'manual',
+    builtAt: Date.now(),
+  };
+}
+
+test('a script shaped like the kiosk blueprint is the music tool, ahead of Music Assistant', () => {
+  assert.equal(musicTool(inventoryFor([musicAssistant(), kioskScript()]))?.provider, 'kiosk');
+  assert.equal(musicTool(inventoryFor([musicAssistant(), kioskScript()]))?.name, 'script__kiosk_satellite_music');
+  // Asking for Music Assistant's own service only still leaves it out.
+  assert.equal(musicTool(inventoryFor([musicAssistant(), kioskScript()]), 'music_assistant')?.provider, 'music_assistant');
+  // A house that plays from a script only takes the kiosk script.
+  assert.equal(musicTool(inventoryFor([kioskScript()]), 'script')?.provider, 'kiosk');
+});
+
+test('a kiosk script is sent the words, the kind and the room, and needs no player', () => {
+  const plan = musicPlan({
+    utterance: 'play Punisher by Phoebe Bridgers in the kitchen',
+    catalog: kioskHouse(),
+    inventory: inventoryFor([musicAssistant(), kioskScript()]),
+    config: config(),
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.tool, 'script__kiosk_satellite_music');
+  assert.deepEqual(plan.plan.args, {
+    action: 'play',
+    query: 'Punisher',
+    kind: 'album',
+    artist: 'Phoebe Bridgers',
+    speaker: 'Kitchen',
+    mode: 'replace',
+  });
+  // No player is named, because only the kiosk knows which speaker it follows.
+  assert.deepEqual(plan.plan.targets, []);
+  assert.match(plan.reason, /in Kitchen via the kiosk music script, no model call/);
+});
+
+test('the kiosk script is given the room the request was spoken in', () => {
+  const plan = musicPlan({
+    utterance: 'Play Taylor Swift.',
+    catalog: kioskHouse(),
+    inventory: inventoryFor([kioskScript()]),
+    config: config(),
+    deviceId: 'dev-kiosk',
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.args.speaker, 'Office');
+  assert.equal(plan.plan.args.query, 'Taylor Swift');
+  assert.equal(plan.plan.args.kind, 'artist');
+});
+
+test('a genre is not sent as a kind the kiosk script does not list', () => {
+  const plan = musicPlan({
+    utterance: 'play some jazz',
+    catalog: kioskHouse(),
+    inventory: inventoryFor([kioskScript()]),
+    config: config(),
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal('kind' in plan.plan.args, false);
+  assert.equal(plan.plan.args.query, 'jazz');
+});
+
+test('a radio artist asks the kiosk script for its radio mode', () => {
+  const base = config();
+  const plan = musicPlan({
+    utterance: 'play Tyler the Creator',
+    catalog: kioskHouse(),
+    inventory: inventoryFor([kioskScript()]),
+    config: { ...base, music: { ...base.music, artist: 'radio' } },
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.args.mode, 'radio');
+});
+
+test('a script with an action and a query but no kind is not a music tool', () => {
+  const routine = tool('script__run_routine', {
+    action: { type: 'string', enum: ['run', 'stop'] },
+    query: { type: 'string' },
+  });
+  assert.equal(musicTool(inventoryFor([routine])), undefined);
+});
