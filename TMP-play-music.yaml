@@ -1,0 +1,605 @@
+# One music script for Assist.
+#
+# It keeps the Kiosk Satellite blueprint's fields (so the proxy keeps recognising it and any
+# agent taught to use the blueprint still works) and does the Music Assistant work itself, the
+# way "Play Music New" does: one tool for play, search, queue, transport, volume, the library
+# and the kiosk screen, returning a spoken reply.
+#
+# Settings > Automations & scenes > Scripts > New, switch to YAML, paste everything below the
+# "alias:" line. Then fill in the settings in the first variables block.
+
+alias: Play Music
+mode: parallel
+max: 10
+
+description: >-
+  Plays and steers music through Music Assistant. Always use this tool for music — never a
+  Music Assistant voice script and never a media_player search. Use it to play songs, albums,
+  artists, playlists, radio, podcasts and audiobooks; to pause, resume, skip, go back or stop;
+  to set or step the volume; to shuffle; to say what is playing; to read the queue; to list the
+  speakers; or to open the music library on the kiosk. With no speaker named it plays where
+  music already plays, or on this house's default speaker, so never ask which speaker: it knows.
+  When the user names a title and an artist, put the title in query and the artist in artist,
+  like query "Punisher" with artist "Phoebe Bridgers". Use mode radio when the user wants more
+  music like the thing they named.
+
+fields:
+  action:
+    name: Action
+    description: >-
+      play plays music (or queues it, as mode says). pause, resume, next, previous and stop
+      steer it. volume sets level, volume_up and volume_down step it. shuffle turns shuffling
+      on or off. now_playing says what plays, queue says what plays next, speakers lists where
+      music can play, show opens the library on the kiosk.
+    required: true
+    selector:
+      select:
+        options:
+          - play
+          - pause
+          - resume
+          - next
+          - previous
+          - stop
+          - volume
+          - volume_up
+          - volume_down
+          - shuffle
+          - now_playing
+          - queue
+          - clear_queue
+          - speakers
+          - show
+  query:
+    name: Query
+    description: >-
+      What to play or search for: a song, album, artist, playlist, station, podcast or audiobook.
+      Required for play.
+    selector:
+      text:
+  kind:
+    name: Kind
+    description: Only when the user says what it is, like "the album" or "the song".
+    selector:
+      select:
+        options:
+          - track
+          - album
+          - artist
+          - playlist
+          - radio
+          - podcast
+          - audiobook
+  artist:
+    name: Artist
+    description: The artist, only when the user names one beside the title.
+    selector:
+      text:
+  mode:
+    name: Mode
+    description: >-
+      replace plays it now and clears the queue (the default). next plays it after the current
+      track. add puts it at the end of the queue. radio plays it and keeps going with similar
+      music.
+    selector:
+      select:
+        options:
+          - replace
+          - next
+          - add
+          - radio
+  speaker:
+    name: Speaker
+    description: >-
+      A speaker or room name, only when the user names one, like "Kitchen". Leave empty to play
+      where music already plays.
+    selector:
+      text:
+  level:
+    name: Level
+    description: The volume for the volume action, 0 to 100.
+    selector:
+      number:
+        min: 0
+        max: 100
+  kiosk:
+    name: Kiosk
+    description: Leave empty. Only when the user names another kiosk, like "Bedroom".
+    selector:
+      text:
+  shuffle:
+    name: Shuffle
+    description: True when the user asked to shuffle, like "shuffle Taylor Swift".
+    selector:
+      boolean:
+  essentials:
+    name: Essentials playlist
+    description: >-
+      For an artist, play Apple Music's "Essentials" playlist for them when one exists. On
+      unless the user asked for something else.
+    selector:
+      boolean:
+
+variables:
+  # The Music Assistant config entry: Settings > Devices & services > Music Assistant.
+  ma_entry: "01JFK4K4QSXSF53AY4M5TBK4TS"
+  # Where music plays when no speaker is named and nothing is playing yet, e.g.
+  # media_player.office_satellite. Empty means use default_area.
+  default_speaker: ""
+  # A room to fall back to, e.g. Office.
+  default_area: ""
+  # Play the artist's Essentials playlist when there is one.
+  essentials_setting: true
+
+sequence:
+  # ---------------------------------------------------------------------------------------
+  # What was asked
+  # ---------------------------------------------------------------------------------------
+  - variables:
+      want_action: "{{ (action | default('play')) | trim | lower }}"
+      want_query: "{{ (query | default('')) | trim }}"
+      want_kind: "{{ (kind | default('')) | trim | lower }}"
+      want_artist: "{{ (artist | default('')) | trim }}"
+      want_mode: "{{ (mode | default('replace')) | trim | lower }}"
+      want_speaker_text: "{{ (speaker | default('')) | trim | lower }}"
+      want_level: "{{ (level | default(30)) | int }}"
+      want_kiosk: "{{ (kiosk | default('')) | trim }}"
+      want_essentials: "{{ (essentials | default(essentials_setting)) | bool }}"
+      enqueue_mode: "{{ {'next': 'next', 'add': 'add', 'radio': 'replace'}.get(want_mode, 'replace') }}"
+      wants_radio: "{{ want_mode == 'radio' }}"
+      # Filled in by the branches below; declared here so a response never names a missing variable.
+      essentials_hit: "{{ {} }}"
+      queue_here: "{{ {} }}"
+      heard_player: ""
+      result: "{{ {'ok': false, 'error': 'Nothing was done.'} }}"
+
+  # ---------------------------------------------------------------------------------------
+  # Which speakers: the one named, the house default, the default room, or wherever music is
+  # ---------------------------------------------------------------------------------------
+  - variables:
+      all_speakers: >-
+        {{ integration_entities('music_assistant') | select('match', 'media_player\\.') | list }}
+      playing_now: >-
+        {{ integration_entities('music_assistant') | select('match', 'media_player\\.')
+           | select('is_state', 'playing') | list }}
+      named_speakers: >-
+        {% set out = namespace(ids=[]) %}
+        {% for p in integration_entities('music_assistant') | select('match', 'media_player\\.') | list %}
+          {% set label = (state_attr(p, 'friendly_name') or p) | lower %}
+          {% set room = (area_name(p) or '') | lower %}
+          {% if want_speaker_text and (want_speaker_text in label or (room and (want_speaker_text in room or room in want_speaker_text))) %}
+            {% set out.ids = out.ids + [p] %}
+          {% endif %}
+        {% endfor %}
+        {{ out.ids }}
+      area_players: >-
+        {% set out = namespace(ids=[]) %}
+        {% if default_area %}
+          {% for p in integration_entities('music_assistant') | select('match', 'media_player\\.') | list %}
+            {% if (area_name(p) or '') | lower == (default_area | lower) %}
+              {% set out.ids = out.ids + [p] %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+        {{ out.ids }}
+
+  - variables:
+      target_players: >-
+        {% if named_speakers | count > 0 %}{{ named_speakers }}
+        {% elif default_speaker and default_speaker in all_speakers %}{{ [default_speaker] }}
+        {% elif area_players | count > 0 %}{{ area_players }}
+        {% elif playing_now | count > 0 %}{{ playing_now }}
+        {% elif all_speakers | count == 1 %}{{ all_speakers }}
+        {% else %}{{ [] }}{% endif %}
+      primary_player: "{{ (target_players | first) if target_players | count > 0 else '' }}"
+      secondary_players: "{{ target_players[1:] if target_players | count > 1 else [] }}"
+      speaker_names: >-
+        {% set out = namespace(names=[]) %}
+        {% for p in target_players %}
+          {% set out.names = out.names + [((state_attr(p, 'friendly_name') or p) ~ ((' in ' ~ area_name(p)) if area_name(p) else ''))] %}
+        {% endfor %}
+        {{ out.names }}
+      all_speaker_names: >-
+        {% set out = namespace(names=[]) %}
+        {% for p in all_speakers %}
+          {% set out.names = out.names + [((state_attr(p, 'friendly_name') or p) ~ ((' in ' ~ area_name(p)) if area_name(p) else '') ~ ', ' ~ states(p))] %}
+        {% endfor %}
+        {{ out.names }}
+
+  # ---------------------------------------------------------------------------------------
+  # play
+  # ---------------------------------------------------------------------------------------
+  - choose:
+      - conditions:
+          - condition: template
+            value_template: "{{ want_action == 'play' }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ want_query | length == 0 }}"
+                sequence:
+                  - variables:
+                      result: "{{ {'ok': false, 'error': 'Nothing to play: say what to play.'} }}"
+                  - stop: Done
+                    response_variable: result
+              - conditions:
+                  - condition: template
+                    value_template: "{{ primary_player | length == 0 }}"
+                sequence:
+                  - variables:
+                      result: >-
+                        {{ {'ok': false,
+                            'error': 'No speaker to play on. Name one of these.',
+                            'speakers': all_speaker_names} }}
+                  - stop: Done
+                    response_variable: result
+
+          # An artist: their Essentials playlist is a fixed list of tracks, so it starts
+          # faster than building a queue from the whole catalogue.
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ want_kind in ['artist', ''] and want_essentials }}"
+                sequence:
+                  - action: music_assistant.search
+                    data:
+                      config_entry_id: "{{ ma_entry }}"
+                      name: "{{ (want_query ~ ' ' ~ want_artist) | trim }}"
+                      media_type: playlist
+                      limit: 25
+                    response_variable: playlist_search
+                    continue_on_error: true
+                  - variables:
+                      essentials_hit: >-
+                        {{ (playlist_search.playlists | default([]))
+                           | selectattr('name', 'search', 'essentials', ignorecase=true)
+                           | selectattr('name', 'search', want_query, ignorecase=true)
+                           | list | first | default({}) }}
+
+          # Play it: the playlist's URI when there is one, else the name and the kind, else
+          # just the name and let Music Assistant work the kind out — as a manual search does.
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ essentials_hit.uri | default('') | length > 0 }}"
+                sequence:
+                  - action: music_assistant.play_media
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    data:
+                      media_id: "{{ essentials_hit.uri }}"
+                      media_type: playlist
+                      enqueue: "{{ enqueue_mode }}"
+                      radio_mode: "{{ wants_radio }}"
+                    continue_on_error: true
+              - conditions:
+                  - condition: template
+                    value_template: "{{ want_kind | length > 0 }}"
+                sequence:
+                  - action: music_assistant.play_media
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    data:
+                      media_id: "{{ want_query }}"
+                      media_type: "{{ want_kind }}"
+                      artist: "{{ want_artist }}"
+                      enqueue: "{{ enqueue_mode }}"
+                      radio_mode: "{{ wants_radio }}"
+                    continue_on_error: true
+                # Neither a playlist nor a kind: hand Music Assistant the name alone.
+              - conditions:
+                  - condition: template
+                    value_template: "{{ true }}"
+                sequence:
+                  - action: music_assistant.play_media
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    data:
+                      media_id: "{{ want_query }}"
+                      enqueue: "{{ enqueue_mode }}"
+                      radio_mode: "{{ wants_radio }}"
+                    continue_on_error: true
+
+          # Several speakers: join them, so the music plays in step instead of twice.
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ secondary_players | count > 0 }}"
+                sequence:
+                  - action: media_player.join
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    data:
+                      group_members: "{{ secondary_players }}"
+                    continue_on_error: true
+
+          # Shuffle, only when it was asked for.
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ (shuffle | default(false)) | bool }}"
+                sequence:
+                  - action: media_player.shuffle_set
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    data:
+                      shuffle: true
+                    continue_on_error: true
+
+          - variables:
+              result: >-
+                {{ {'ok': true,
+                    'action': 'play',
+                    'playing': (essentials_hit.name | default(want_query)),
+                    'kind': (('playlist' if essentials_hit.uri | default('') else want_kind) or 'auto'),
+                    'on': speaker_names,
+                    'mode': want_mode} }}
+          - stop: Done
+            response_variable: result
+
+      # -----------------------------------------------------------------------------------
+      # transport
+      # -----------------------------------------------------------------------------------
+      - conditions:
+          - condition: template
+            value_template: "{{ want_action in ['pause', 'resume', 'next', 'previous', 'stop'] }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ primary_player | length == 0 }}"
+                sequence:
+                  - variables:
+                      result: >-
+                        {{ {'ok': false,
+                            'error': 'No speaker is playing. Name one of these.',
+                            'speakers': all_speaker_names} }}
+                  - stop: Done
+                    response_variable: result
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ want_action == 'pause' }}"
+                sequence:
+                  - action: media_player.media_pause
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    continue_on_error: true
+              - conditions:
+                  - condition: template
+                    value_template: "{{ want_action == 'resume' }}"
+                sequence:
+                  - action: media_player.media_play
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    continue_on_error: true
+              - conditions:
+                  - condition: template
+                    value_template: "{{ want_action == 'next' }}"
+                sequence:
+                  - action: media_player.media_next_track
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    continue_on_error: true
+              - conditions:
+                  - condition: template
+                    value_template: "{{ want_action == 'previous' }}"
+                sequence:
+                  - action: media_player.media_previous_track
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    continue_on_error: true
+              - conditions:
+                  - condition: template
+                    value_template: "{{ true }}"
+                sequence:
+                  - action: media_player.media_stop
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    continue_on_error: true
+          - variables:
+              result: "{{ {'ok': true, 'action': want_action, 'on': speaker_names} }}"
+          - stop: Done
+            response_variable: result
+
+      # -----------------------------------------------------------------------------------
+      # volume
+      # -----------------------------------------------------------------------------------
+      - conditions:
+          - condition: template
+            value_template: "{{ want_action in ['volume', 'volume_up', 'volume_down'] }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ primary_player | length == 0 }}"
+                sequence:
+                  - variables:
+                      result: >-
+                        {{ {'ok': false,
+                            'error': 'No speaker to change the volume on. Name one of these.',
+                            'speakers': all_speaker_names} }}
+                  - stop: Done
+                    response_variable: result
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ want_action == 'volume' }}"
+                sequence:
+                  - action: media_player.volume_set
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    data:
+                      volume_level: "{{ (want_level / 100) | round(2) }}"
+                    continue_on_error: true
+              - conditions:
+                  - condition: template
+                    value_template: "{{ want_action == 'volume_up' }}"
+                sequence:
+                  - action: media_player.volume_up
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    continue_on_error: true
+              - conditions:
+                  - condition: template
+                    value_template: "{{ true }}"
+                sequence:
+                  - action: media_player.volume_down
+                    target:
+                      entity_id: "{{ primary_player }}"
+                    continue_on_error: true
+          - variables:
+              result: >-
+                {{ {'ok': true,
+                    'action': want_action,
+                    'level': ((state_attr(primary_player, 'volume_level') | float(0)) * 100) | round(0),
+                    'on': speaker_names} }}
+          - stop: Done
+            response_variable: result
+
+      # -----------------------------------------------------------------------------------
+      # shuffle
+      # -----------------------------------------------------------------------------------
+      - conditions:
+          - condition: template
+            value_template: "{{ want_action == 'shuffle' }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ primary_player | length == 0 }}"
+                sequence:
+                  - variables:
+                      result: "{{ {'ok': false, 'error': 'Nothing is playing to shuffle.'} }}"
+                  - stop: Done
+                    response_variable: result
+          - action: media_player.shuffle_set
+            target:
+              entity_id: "{{ primary_player }}"
+            data:
+              shuffle: "{{ (shuffle | default(true)) | bool }}"
+            continue_on_error: true
+          - variables:
+              result: >-
+                {{ {'ok': true,
+                    'action': 'shuffle',
+                    'shuffle': (shuffle | default(true)) | bool,
+                    'on': speaker_names} }}
+          - stop: Done
+            response_variable: result
+
+      # -----------------------------------------------------------------------------------
+      # what plays
+      # -----------------------------------------------------------------------------------
+      - conditions:
+          - condition: template
+            value_template: "{{ want_action == 'now_playing' }}"
+        sequence:
+          - variables:
+              heard_player: >-
+                {{ primary_player if primary_player else (playing_now | first | default('')) }}
+              result: >-
+                {% if heard_player | length == 0 %}
+                  {{ {'ok': false, 'error': 'Nothing is playing.'} }}
+                {% else %}
+                  {{ {'ok': true,
+                      'action': 'now_playing',
+                      'playing': (state_attr(heard_player, 'media_title') or 'something'),
+                      'artist': (state_attr(heard_player, 'media_artist') or ''),
+                      'state': states(heard_player),
+                      'on': [(state_attr(heard_player, 'friendly_name') or heard_player)]} }}
+                {% endif %}
+          - stop: Done
+            response_variable: result
+
+      # -----------------------------------------------------------------------------------
+      # what plays next
+      # -----------------------------------------------------------------------------------
+      - conditions:
+          - condition: template
+            value_template: "{{ want_action == 'queue' }}"
+        sequence:
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ primary_player | length == 0 }}"
+                sequence:
+                  - variables:
+                      result: "{{ {'ok': false, 'error': 'Nothing is playing, so there is no queue.'} }}"
+                  - stop: Done
+                    response_variable: result
+          - action: music_assistant.get_queue
+            target:
+              entity_id: "{{ primary_player }}"
+            response_variable: queue_info
+            continue_on_error: true
+          - variables:
+              queue_here: "{{ queue_info[primary_player] if primary_player in (queue_info | default({})) else {} }}"
+              result: >-
+                {{ {'ok': true,
+                    'action': 'queue',
+                    'playing': (queue_here.current_item.name | default('')),
+                    'up_next': ((queue_here.next_items | default([])) | map(attribute='name') | list)[:5],
+                    'on': speaker_names} }}
+          - stop: Done
+            response_variable: result
+
+      # -----------------------------------------------------------------------------------
+      # where music can play
+      # -----------------------------------------------------------------------------------
+      - conditions:
+          - condition: template
+            value_template: "{{ want_action == 'speakers' }}"
+        sequence:
+          - variables:
+              result: "{{ {'ok': true, 'action': 'speakers', 'speakers': all_speaker_names} }}"
+          - stop: Done
+            response_variable: result
+
+      # -----------------------------------------------------------------------------------
+      # the library on the kiosk — the one thing only the kiosk can do
+      # -----------------------------------------------------------------------------------
+      - conditions:
+          - condition: template
+            value_template: "{{ want_action == 'show' }}"
+        sequence:
+          - variables:
+              show_request: "{{ now().timestamp() | int }}-{{ range(10000) | random }}"
+          - event: kiosk_satellite_music
+            event_data:
+              id: "{{ show_request }}"
+              action: show
+              query: "{{ want_query }}"
+              kind: "{{ want_kind }}"
+              artist: "{{ want_artist }}"
+              mode: "{{ want_mode }}"
+              speaker: "{{ want_speaker_text }}"
+              level: ""
+              kiosk: "{{ want_kiosk }}"
+          - wait_for_trigger:
+              - trigger: event
+                event_type: kiosk_satellite_music_result
+                event_data:
+                  id: "{{ show_request }}"
+            timeout: 10
+          - variables:
+              result: >-
+                {{ wait.trigger.event.data if wait.trigger else
+                   {'ok': false, 'error': 'No kiosk answered. Open the library on the kiosk itself.'} }}
+          - stop: Done
+            response_variable: result
+
+      # -----------------------------------------------------------------------------------
+      # what Home Assistant cannot do
+      # -----------------------------------------------------------------------------------
+      - conditions:
+          - condition: template
+            value_template: "{{ want_action == 'clear_queue' }}"
+        sequence:
+          - variables:
+              result: >-
+                {{ {'ok': false,
+                    'error': 'Home Assistant has no action that empties a Music Assistant queue. Stop the music, or clear the queue in Music Assistant itself. Nothing was changed.'} }}
+          - stop: Done
+            response_variable: result

@@ -310,7 +310,7 @@ test('a command this reader cannot place is forwarded, and the trace says why', 
 // ---------------------------------------------------------------------------
 
 /** The Kiosk Satellite music blueprint, as an exposed script looks in the request's tools. */
-function kioskScript(): OpenAITool {
+function kioskScript(extraActions: string[] = []): OpenAITool {
   return tool(
     'script__kiosk_satellite_music',
     {
@@ -330,6 +330,7 @@ function kioskScript(): OpenAITool {
           'queue',
           'clear_queue',
           'speakers',
+          ...extraActions,
         ],
       },
       query: { type: 'string' },
@@ -344,11 +345,11 @@ function kioskScript(): OpenAITool {
   );
 }
 
-function kioskPlanFor(text: string, deviceId?: string) {
+function kioskPlanFor(text: string, deviceId?: string, extraActions: string[] = []) {
   return mediaPlan({
     utterance: text,
     catalog: house(),
-    inventory: inventoryFor([kioskScript(), ...mediaTools()]),
+    inventory: inventoryFor([kioskScript(extraActions), ...mediaTools()]),
     config: config(),
     ...(deviceId ? { deviceId } : {}),
   });
@@ -384,4 +385,12 @@ test('stop keeps going to the player, because the kiosk script has no stop', () 
   if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
   assert.equal(plan.plan.tool, 'HassTurnOff');
   assert.deepEqual(plan.plan.args, { name: 'media_player.voice_assistant_1_media_player_2' });
+});
+
+test('a kiosk script that lists stop is told to stop instead', () => {
+  const plan = kioskPlanFor('stop the music', 'dev-satellite', ['stop']);
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.tool, 'script__kiosk_satellite_music');
+  assert.deepEqual(plan.plan.args, { action: 'stop', speaker: 'Living Room' });
+  assert.deepEqual(plan.plan.targets, []);
 });

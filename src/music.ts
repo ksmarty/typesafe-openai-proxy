@@ -656,12 +656,26 @@ function offers(schema: unknown, value: string): boolean {
   return list.some((item) => String(item).toLowerCase() === value.toLowerCase());
 }
 
+/** Every value a slot lists, lowercased — empty when it lists none. */
+function slotValues(schema: unknown): string[] {
+  const list = (schema as { enum?: unknown[] } | undefined)?.enum;
+  return Array.isArray(list) ? list.map((item) => String(item).toLowerCase()) : [];
+}
+
 /** The slots of a script shaped like the Kiosk Satellite music blueprint. */
 export interface KioskProfile {
   /** Where the words to play go. */
   query: string;
   /** Where `play`, `pause`, `next` and the volume steps go. */
   action: string;
+  /**
+   * Every action the `action` slot lists, lowercased.
+   *
+   * Read so a command is only sent to a script that says it takes it: the blueprint lists no
+   * `stop`, and a rewritten script that adds one should get it.
+   */
+  actions: string[];
+  shuffle?: string;
   kind?: string;
   artist?: string;
   speaker?: string;
@@ -689,14 +703,17 @@ export function kioskProfile(properties: Record<string, unknown>): KioskProfile 
   const speaker = slotName(properties, SPEAKER_SLOTS);
   const mode = slotName(properties, MODE_SLOTS);
   const level = slotName(properties, LEVEL_SLOTS);
+  const shuffle = slotName(properties, SHUFFLE_SLOTS);
   return {
     query,
     action,
+    actions: slotValues(properties[action]),
     kind,
     ...(artist ? { artist } : {}),
     ...(speaker ? { speaker } : {}),
     ...(mode ? { mode } : {}),
     ...(level ? { level } : {}),
+    ...(shuffle ? { shuffle } : {}),
   };
 }
 
@@ -887,6 +904,9 @@ function kioskArgs(input: {
   const kind = KIOSK_KIND[request.kind];
   if (profile.kind && kind) args[profile.kind] = kind;
   if (profile.artist && request.artist) args[profile.artist] = request.artist;
+  // Only ever sent as asked-for: a script that reads a `shuffle` slot it was never given gets
+  // Home Assistant's own `shuffle` template global and fails on it.
+  if (profile.shuffle && request.shuffle) args[profile.shuffle] = true;
   if (profile.speaker && input.room) args[profile.speaker] = input.room;
   if (profile.mode) {
     // A radio station built from the artist is the script's own radio mode: it plays them and

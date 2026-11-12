@@ -552,9 +552,12 @@ kiosk plays", so nothing has to be exposed in that room and no player is chosen 
 `mode` follows Settings → Music — `replace`, `next` or `add`, and `radio` for a bare artist when a
 bare artist plays a radio station. "Pause", "skip", "go back", "volume up" and "volume down" are
 its `pause`, `next`, `previous`, `volume_up` and `volume_down` actions, sent with `speaker` the same
-way; "stop" is not — the blueprint has no stop, so stopping the music still goes to a player, or to
-your model when no player is exposed. The script alone is enough for music: with it exposed, no
-media player has to be.
+way. "Shuffle Taylor Swift" is `action: play` plus `shuffle: true`, sent only to a script that has
+a `shuffle` slot, and only when you asked — a script reading a slot it was never given gets Home
+Assistant's template helper of that name and fails on it. "Stop" is sent as `action: stop` only to a
+script whose `action` slot lists `stop`: the blueprint does not, so stopping the music still goes to
+a player, or to your model when no player is exposed — a script you wrote yourself that lists
+`stop` gets it. The script alone is enough for music: with it exposed, no media player has to be.
 
 **Which service.** Four, in this order, after a kiosk music script (which is asked first whenever
 the request offers one). Music Assistant's own `play_media` service first,

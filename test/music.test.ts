@@ -961,7 +961,10 @@ test('a default area with a real speaker in it still plays there', () => {
 // ---------------------------------------------------------------------------
 
 /** The Kiosk Satellite music blueprint, as an exposed script looks in the request's tools. */
-function kioskScript(): OpenAITool {
+function kioskScript(
+  extra: Record<string, unknown> = {},
+  extraActions: string[] = [],
+): OpenAITool {
   return tool(
     'script__kiosk_satellite_music',
     {
@@ -981,6 +984,7 @@ function kioskScript(): OpenAITool {
           'queue',
           'clear_queue',
           'speakers',
+          ...extraActions,
         ],
       },
       query: { type: 'string' },
@@ -990,6 +994,7 @@ function kioskScript(): OpenAITool {
       speaker: { type: 'string' },
       level: { type: 'number' },
       kiosk: { type: 'string' },
+      ...extra,
     },
     ['action'],
   );
@@ -1091,4 +1096,40 @@ test('a script with an action and a query but no kind is not a music tool', () =
     query: { type: 'string' },
   });
   assert.equal(musicTool(inventoryFor([routine])), undefined);
+});
+
+test('a kiosk script with a shuffle slot is told to shuffle', () => {
+  const plan = musicPlan({
+    utterance: 'shuffle Taylor Swift',
+    catalog: kioskHouse(),
+    inventory: inventoryFor([kioskScript({ shuffle: { type: 'boolean' } })]),
+    config: config(),
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal(plan.plan.args.shuffle, true);
+  assert.equal(plan.plan.args.query, 'Taylor Swift');
+  assert.equal(plan.plan.args.kind, 'artist');
+});
+
+test('a kiosk script is not sent a shuffle slot it does not have', () => {
+  const plan = musicPlan({
+    utterance: 'shuffle Tyler the Creator',
+    catalog: kioskHouse(),
+    inventory: inventoryFor([kioskScript()]),
+    config: config(),
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal('shuffle' in plan.plan.args, false);
+  assert.equal(plan.plan.args.query, 'Tyler the Creator');
+});
+
+test('a plain request leaves the shuffle slot alone, so the script keeps its own default', () => {
+  const plan = musicPlan({
+    utterance: 'play Taylor Swift',
+    catalog: kioskHouse(),
+    inventory: inventoryFor([kioskScript({ shuffle: { type: 'boolean' } })]),
+    config: config(),
+  });
+  if (!plan || 'error' in plan) throw new Error(plan ? plan.error : 'no plan');
+  assert.equal('shuffle' in plan.plan.args, false);
 });

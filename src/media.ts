@@ -55,7 +55,8 @@ const AWAKE = /^(playing|buffering|paused|on)$/i;
  *
  * The blueprint steers playback itself — `pause`, `resume`, `next`, `previous`, `volume_up`,
  * `volume_down` — and it knows which speaker the kiosk it was spoken to follows, so a paused
- * kiosk pauses the right thing. A stop, a mute or a television has no action there, and those
+ * kiosk pauses the right thing. `stop` is sent only to a script whose `action` slot lists it,
+ * because the blueprint does not; a mute or a television has no action there either, so those
  * keep going to the player itself.
  */
 const KIOSK_ACTION: Partial<Record<Transport, string>> = {
@@ -63,6 +64,7 @@ const KIOSK_ACTION: Partial<Record<Transport, string>> = {
   resume: 'resume',
   next: 'next',
   previous: 'previous',
+  stop: 'stop',
   louder: 'volume_up',
   quieter: 'volume_down',
 };
@@ -365,10 +367,11 @@ export function mediaPlan(input: {
 
   // A kiosk music script steers what plays itself, and it knows the speaker the kiosk it was
   // spoken to follows — so "pause" and "a little louder" land where the music is, without
-  // picking a player at all. Stop, mute and a television are not its actions and fall through.
+  // picking a player at all. Its `action` slot has the last word: a script that does not list
+  // the action keeps going to the player, and so does a television.
   const kioskAction = KIOSK_ACTION[request.kind];
   const kiosk = kioskAction ? kioskTool(input.inventory) : undefined;
-  if (kiosk && kioskAction) {
+  if (kiosk && kioskAction && kiosk.profile.actions.includes(kioskAction)) {
     const room = areaOfName(input.catalog, text) ?? spokenArea(input.catalog, input.deviceId);
     const args: Record<string, unknown> = { [kiosk.profile.action]: kioskAction };
     // An empty speaker means "where this kiosk plays", so only a room that was named is sent.
