@@ -55,6 +55,14 @@ export const INTENTS = {
   listAddItem: 'HassListAddItem',
   listCompleteItem: 'HassListCompleteItem',
   listRemoveItem: 'HassListRemoveItem',
+  timerStart: 'HassStartTimer',
+  timerCancel: 'HassCancelTimer',
+  timerCancelAll: 'HassCancelAllTimers',
+  timerIncrease: 'HassIncreaseTimer',
+  timerDecrease: 'HassDecreaseTimer',
+  timerPause: 'HassPauseTimer',
+  timerUnpause: 'HassUnpauseTimer',
+  timerStatus: 'HassTimerStatus',
 } as const;
 
 const POWER_DOMAINS = [
@@ -237,7 +245,14 @@ export const ACTION_VERBS: Record<string, string> = {
   add_item: 'Added',
   complete_item: 'Ticked',
   remove_item: 'Removed',
-};
+  timer_start: 'Set',
+  timer_cancel: 'Canceled',
+  timer_cancel_all: 'Canceled',
+  timer_pause: 'Paused',
+  timer_unpause: 'Resumed',
+  timer_increase: 'Extended',
+  timer_decrease: 'Shortened',
+} satisfies Record<string, string>;
 
 /** Domain -> human label, used for question options and clarifications. */
 export const DOMAIN_LABELS: Record<string, string> = {

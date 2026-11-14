@@ -426,6 +426,20 @@ export function settingsGroups(): SettingsGroup[] {
       ],
     },
     {
+      id: 'timers',
+      title: 'Timers',
+      description:
+        'Home Assistant keeps timers itself, through the intent integration’s own timer intents, and a kiosk-satellite registers as a timer device so its timers ring on the kiosk that heard them. A timer sentence says everything those intents need — “set a timer for 10 minutes”, “set a pasta timer for 8 minutes”, “add 2 minutes to my timer”, “pause the pasta timer”, “cancel my timer”, “cancel all timers” — so it is classified here and Home Assistant’s own tool is called directly, with no model round trip. Several timers work at once: “set two timers for 10 minutes” and “set timers for 5 and 10 minutes” become one call per timer in a single turn, and “cancel the 5 and 10 minute timers” cancels both. A question such as “what timers are running” is left to the model, because only Home Assistant knows which timers exist.',
+      fields: [
+        {
+          key: 'timers.enabled',
+          label: 'Read timer sentences here',
+          type: 'checkbox',
+          help: 'Off leaves every timer sentence to the model server. Only used when Home Assistant offers the timer intents.',
+        },
+      ],
+    },
+    {
       id: 'listening',
       title: 'Listening',
       description:

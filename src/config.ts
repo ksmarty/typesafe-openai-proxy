@@ -212,6 +212,28 @@ export interface Config {
     enabled: boolean;
   };
   /**
+   * Timers, read from the sentence instead of decided by a model.
+   *
+   * Home Assistant keeps timers itself: `HassStartTimer`, `HassCancelTimer`,
+   * `HassCancelAllTimers`, `HassIncreaseTimer`, `HassDecreaseTimer`, `HassPauseTimer`,
+   * `HassUnpauseTimer` and `HassTimerStatus` are intents of the intent integration, and a
+   * timer belongs to the `device_id` of the conversation that started it. A kiosk-satellite
+   * registers itself as a timer device, so "set a pasta timer for 8 minutes" and "pause the
+   * pasta timer" are answered here, on the kiosk that heard them.
+   *
+   * Several timers at once are supported: "set two timers for 10 minutes" and "set timers
+   * for 5 and 10 minutes" become one call per timer in a single turn, and "cancel the 5 and
+   * 10 minute timers" cancels both. A status question is left to the model, because only
+   * Home Assistant's timer manager knows which timers are running.
+   *
+   * It only acts when Home Assistant offers the timer intents, so a house without them is
+   * unaffected.
+   */
+  timers: {
+    /** Read timer sentences here instead of leaving them to the model. */
+    enabled: boolean;
+  };
+  /**
    * Pause, stop, skip and volume, and the television on and off.
    *
    * "Pause", "volume up", "next song", "turn the TV off" are commands with no names in them:
@@ -386,6 +408,7 @@ export function defaultConfig(): Config {
     },
     music: { enabled: true, provider: 'auto', enqueue: 'replace', artist: 'artist' },
     reminders: { enabled: true },
+    timers: { enabled: true },
     media: { enabled: true },
     // On by default: an overheard remark answered with an action is the failure this
     // exists to prevent, and the judge declines to speak unless it is sure.
@@ -520,6 +543,9 @@ function applyEnv(config: Config): void {
   if (env.MUSIC_ARTIST === 'artist' || env.MUSIC_ARTIST === 'radio') config.music.artist = env.MUSIC_ARTIST;
   if (env.REMINDERS !== undefined && env.REMINDERS !== '') {
     config.reminders.enabled = /^(1|true|yes|on)$/i.test(env.REMINDERS);
+  }
+  if (env.TIMERS !== undefined && env.TIMERS !== '') {
+    config.timers.enabled = /^(1|true|yes|on)$/i.test(env.TIMERS);
   }
   if (env.MEDIA !== undefined && env.MEDIA !== '') {
     config.media.enabled = /^(1|true|yes|on)$/i.test(env.MEDIA);

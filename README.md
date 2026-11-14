@@ -692,6 +692,62 @@ take out the trash in 30 minutes." — because it is the handler that knows whet
 reminder or updated one that was already on the list. A house that would rather hear nothing can
 add a silent rule for `ha_reminders.*`; the default rules are about devices and leave it speaking.
 
+### Timers
+
+Home Assistant keeps the timers itself. Its conversation integration registers
+`HassStartTimer`, `HassCancelTimer`, `HassCancelAllTimers`, `HassIncreaseTimer`,
+`HassDecreaseTimer`, `HassPauseTimer`, `HassUnpauseTimer` and `HassTimerStatus`, and whatever
+conversation agent it hands those to can start one per tool call. No blueprint and no
+integration are needed for that, and nothing here speaks to a timer entity: a timer belongs to
+the device that was spoken to, not to the house.
+
+That is also what makes it work with [kiosk-satellite](https://github.com/jxlarrea/kiosk-satellite):
+its built-in Voice Satellite registers as a timer device with Home Assistant, so the timers this
+proxy starts ring on the kiosk that asked, appear in its own **VS Timers** list, and are the same
+timers its on-screen pause/resume controls act on. Its spoken timer sentences are the ones below.
+
+| Said | Called |
+| --- | --- |
+| "set a timer for 10 minutes" | `HassStartTimer`, `minutes: 10` |
+| "set a pasta timer for 8 minutes" | `HassStartTimer`, `minutes: 8`, `name: "pasta"` |
+| "set a timer for an hour and a half" | `HassStartTimer`, `hours: 1`, `minutes: 30` |
+| "set two timers for 5 and 10 minutes" | two `HassStartTimer` calls in one reply |
+| "set three timers for 4 minutes" | three calls, the same length each |
+| "pause the pasta timer" / "resume the pasta timer" | `HassPauseTimer` / `HassUnpauseTimer` |
+| "add 2 minutes to the pasta timer" | `HassIncreaseTimer`, `minutes: 2` |
+| "take 30 seconds off the pasta timer" | `HassDecreaseTimer`, `seconds: 30` |
+| "cancel the pasta timer" | `HassCancelTimer` |
+| "cancel all timers" | `HassCancelAllTimers` |
+
+**The split is the identity.** Home Assistant stores only the slots a start call carried — a
+"10 minutes" timer is `start_minutes: 10` with no hours and no seconds — and it finds a timer
+later by matching that exact triple. So a control call has to replay the same split, which is
+why "add 2 minutes to the 10 minute timer" sends `start_minutes: 10` and not `minutes: 10`. The
+proxy keeps the timers it started, per device, for the life of the process, so a split that was
+spoken differently is replayed the way it was created; when the sentence names no timer at all
+and only one is known to be running, that one is meant. A restart empties that memory and the
+call goes out with no slots, which is exactly what kiosk-satellite does: Home Assistant then
+falls back to the only timer of the device.
+
+**Several at once** is one reply with several calls, because Home Assistant executes every call
+in an answer, in order. Two timers in one sentence of different lengths, a count of the same
+length, or two names with two lengths ("set a pasta timer for 8 minutes and a rice timer for 12
+minutes") all become one turn. Two timers of this kiosk's running and neither named is a
+question rather than a guess — which one, listed the way they were started.
+
+**When it is left alone.** "What timers are running", "how long is left on the pasta timer" and
+anything else that asks for state is forwarded: only Home Assistant's `TimerManager` knows, and
+its answer is slots rather than a sentence. A bare "pause" with no timer anywhere in the
+sentence stays the media reader's, so pausing the music still works. Nothing changes when Home
+Assistant does not offer the timer tools, and Settings → Timers → *Read timer sentences here*
+(or `TIMERS=0`) turns the whole reader off for a house that would rather the model read it.
+
+**What is said afterwards.** Home Assistant speaks for itself when it cancels every timer and
+when it reports status; the other six intents return no sentence at all, so the proxy composes
+one from the call — "Set pasta timer.", "Paused pasta timer.", "Extended 10 minutes timer." A
+house that would rather hear nothing can add a silent rule for `timer.*`; the default rules are
+about devices and leave the timers speaking.
+
 ### Only what Assist can see
 
 The catalog asks Home Assistant which entities are exposed to the conversation agent
@@ -945,6 +1001,8 @@ different provider is used for prose. Nothing changes when the flag is off.
 - **Media search grammar** beyond a simple "play X on Y" query slot.
 - **A reminder with no time or place** — "remind me to call the plumber" needs a trigger the
   proxy will not invent, so it is forwarded.
+- **Timer status** — "what timers are running" and "how long is left" are forwarded, because only
+  Home Assistant's timer manager knows and its answer is slots rather than a sentence.
 - **Script/template field filling**, `set_mode`, and MQTT-specific actions — forwarded.
 - **The time in another timezone** — "what time is it in Tokyo" is forwarded, since the proxy
   only knows the time in this house.

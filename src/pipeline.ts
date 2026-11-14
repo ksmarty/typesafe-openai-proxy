@@ -16,6 +16,7 @@ import { directStatePlan } from './answer.js';
 import { mediaPlan } from './media.js';
 import { musicPlan } from './music.js';
 import { reminderPlan } from './reminders.js';
+import { timerPlan } from './timers.js';
 import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
 import { readWeatherQuestion, requestedSummaryLanguage, weatherAnswer, weatherFor } from './weather.js';
 import { looksLikeChatter } from './chatter.js';
@@ -507,24 +508,33 @@ export async function runPipeline(
   // sentence reaches the model unexplained is the reason "it worked once the cloud model did
   // it". Keep it and say so on the trace the decision path writes.
   /**
-   * Record a call this proxy built itself and end the turn with it.
+   * Record the call (or calls) this proxy built itself and end the turn with it.
    *
-   * The local readers (music, media, state) answer without a model, so their traces carry the
-   * sentence they read and the call they made rather than a decision and its gates.
+   * The local readers (music, media, state, timers) answer without a model, so their traces
+   * carry the sentence they read and the call they made rather than a decision and its gates.
+   * A reader that answers with a question instead — two timers running and neither named —
+   * gets a trace of its own rather than a decision, because no model was asked either.
    */
-  const localCall = (plan: Extract<Plan, { kind: 'tool' }>, reason: string): PipelineResult => {
+  const localCall = (
+    plan: Extract<Plan, { kind: 'tool' } | { kind: 'calls' } | { kind: 'clarify' }>,
+    reason: string,
+  ): PipelineResult => {
+    const calls: ToolCall[] = plan.kind === 'calls' ? plan.calls : plan.kind === 'tool' ? [plan] : [];
+    const first = calls[0];
+    const action = plan.kind === 'clarify' ? 'timer_clarify' : plan.action;
+    const target = first?.targets[0];
     const entry: TraceEntry = {
       id: uid('trace'),
       at: startedAt,
       utterance,
-      route: 'tool',
+      route: plan.kind,
       reason,
-      tool: plan.tool,
-      args: plan.args,
+      ...(calls.length === 1 && first ? { tool: first.tool, args: first.args } : {}),
+      ...(calls.length > 1 ? { calls: calls.map((call) => ({ tool: call.tool, args: call.args })) } : {}),
       gates: [],
       category: 'command',
-      action: plan.action,
-      ...(plan.targets[0] ? { target: plan.targets[0] } : {}),
+      action,
+      ...(target ? { target } : {}),
       backend: 'off',
       catalogSource: catalog.source,
       catalogExposure: catalog.exposure,
@@ -534,7 +544,8 @@ export async function runPipeline(
     };
     noteTrace(entry);
     stats.requests += 1;
-    stats.toolCalls += 1;
+    if (calls.length > 0) stats.toolCalls += calls.length;
+    if (plan.kind === 'clarify') stats.clarifications += 1;
     stats.routable += 1;
     recordTurn(request, systemPrompt, entry);
     return {
@@ -543,8 +554,8 @@ export async function runPipeline(
         gates: [],
         reason,
         category: 'command',
-        action: plan.action,
-        ...(plan.targets[0] ? { target: plan.targets[0] } : {}),
+        action,
+        ...(target ? { target } : {}),
       },
       entry,
     };
@@ -581,6 +592,25 @@ export async function runPipeline(
     });
     if (media && 'error' in media) mediaNote = `media: ${media.error}`;
     if (media && !('error' in media)) return localCall(media.plan, media.reason);
+  }
+
+  // "Set a pasta timer for 8 minutes", "add two minutes to the rice timer", "cancel all
+  // timers": Home Assistant keeps timers itself, through the timer intents, and a
+  // kiosk-satellite registers as a timer device so the timer rings where it was asked. The
+  // sentence is read here and sent as the intent call, so the timers survive a dropped
+  // network and two of them can run at once.
+  if (active.routing.enabled && active.timers.enabled) {
+    const timer = timerPlan({
+      utterance,
+      inventory,
+      config: active,
+      ...(deviceOf(request) ? { deviceId: deviceOf(request)! } : {}),
+      ...(languageOf(request) ? { language: languageOf(request)! } : {}),
+    });
+    // A timer sentence this reader cannot place (no timer intents offered, a request for a
+    // status only Home Assistant can answer) falls through to the model rather than being
+    // refused here.
+    if (timer) return localCall(timer.plan, timer.reason);
   }
 
   const entityNames = catalog.entities.map((entity) => entity.name);
