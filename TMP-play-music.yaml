@@ -119,6 +119,13 @@ fields:
       unless the user asked for something else.
     selector:
       boolean:
+  group:
+    name: Every speaker in the room
+    description: >-
+      Leave empty for the one speaker that is meant to play. True only when the user asks for
+      music on every speaker in the room, which joins them into one group.
+    selector:
+      boolean:
 
 variables:
   # The Music Assistant config entry: Settings > Devices & services > Music Assistant.
@@ -155,6 +162,12 @@ sequence:
 
   # ---------------------------------------------------------------------------------------
   # Which speakers: the one named, the house default, the default room, or wherever music is
+  #
+  # A room can hold two kiosks — one that hears you and one that only plays — and both show up
+  # in Home Assistant as a media_player in the same area. The one that hears you also hosts an
+  # `assist_satellite` entity; the one that only plays does not. That is the only difference the
+  # script can see, and it is the one that matters: music belongs on the speaker, not on the
+  # tablet that is listening to you.
   # ---------------------------------------------------------------------------------------
   - variables:
       all_speakers: >-
@@ -162,37 +175,53 @@ sequence:
       playing_now: >-
         {{ integration_entities('music_assistant') | select('match', 'media_player\\.')
            | select('is_state', 'playing') | list }}
-      named_speakers: >-
+      assist_devices: >-
         {% set out = namespace(ids=[]) %}
-        {% for p in integration_entities('music_assistant') | select('match', 'media_player\\.') | list %}
-          {% set label = (state_attr(p, 'friendly_name') or p) | lower %}
-          {% set room = (area_name(p) or '') | lower %}
-          {% if want_speaker_text and (want_speaker_text in label or (room and (want_speaker_text in room or room in want_speaker_text))) %}
-            {% set out.ids = out.ids + [p] %}
-          {% endif %}
+        {% for e in states.assist_satellite | map(attribute='entity_id') | list %}
+          {% set d = device_id(e) %}
+          {% if d %}{% set out.ids = out.ids + [d] %}{% endif %}
         {% endfor %}
-        {{ out.ids }}
-      area_players: >-
-        {% set out = namespace(ids=[]) %}
-        {% if default_area %}
-          {% for p in integration_entities('music_assistant') | select('match', 'media_player\\.') | list %}
-            {% if (area_name(p) or '') | lower == (default_area | lower) %}
-              {% set out.ids = out.ids + [p] %}
-            {% endif %}
-          {% endfor %}
-        {% endif %}
         {{ out.ids }}
 
   - variables:
+      named_players: >-
+        {% set every = namespace(ids=[]) %}
+        {% set pure = namespace(ids=[]) %}
+        {% for p in all_speakers %}
+          {% set label = (state_attr(p, 'friendly_name') or p) | lower %}
+          {% set room = (area_name(p) or '') | lower %}
+          {% if want_speaker_text and (want_speaker_text in label or (room and (want_speaker_text in room or room in want_speaker_text))) %}
+            {% set every.ids = every.ids + [p] %}
+            {% if device_id(p) not in assist_devices %}{% set pure.ids = pure.ids + [p] %}{% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ pure.ids if pure.ids | count > 0 else every.ids }}
+      area_players: >-
+        {% set every = namespace(ids=[]) %}
+        {% set pure = namespace(ids=[]) %}
+        {% if default_area %}
+          {% for p in all_speakers %}
+            {% if (area_name(p) or '') | lower == (default_area | lower) %}
+              {% set every.ids = every.ids + [p] %}
+              {% if device_id(p) not in assist_devices %}{% set pure.ids = pure.ids + [p] %}{% endif %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+        {{ pure.ids if pure.ids | count > 0 else every.ids }}
+
+  - variables:
       target_players: >-
-        {% if named_speakers | count > 0 %}{{ named_speakers }}
+        {% if named_players | count > 0 %}{{ named_players }}
         {% elif default_speaker and default_speaker in all_speakers %}{{ [default_speaker] }}
         {% elif area_players | count > 0 %}{{ area_players }}
         {% elif playing_now | count > 0 %}{{ playing_now }}
         {% elif all_speakers | count == 1 %}{{ all_speakers }}
         {% else %}{{ [] }}{% endif %}
       primary_player: "{{ (target_players | first) if target_players | count > 0 else '' }}"
-      secondary_players: "{{ target_players[1:] if target_players | count > 1 else [] }}"
+      # Only a deliberate "on every speaker" joins anything: grouping a voice kiosk with the
+      # speaker kiosk would mirror the music onto the tablet that is listening.
+      secondary_players: >-
+        {{ target_players[1:] if (group | default(false) | bool) and target_players | count > 1 else [] }}
       speaker_names: >-
         {% set out = namespace(names=[]) %}
         {% for p in target_players %}
