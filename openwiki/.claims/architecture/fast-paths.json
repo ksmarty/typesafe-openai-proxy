@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:f80f57a6ae9a56db81b834e4bbf8aac5494a9b0e46ded108ee25e86a6f2a8212",
+  "claims": [
+    {
+      "id": "claim_fc63701851c148de9ed7e77a97e4d30d",
+      "statement": "Fast-path readers only act when Home Assistant offered the matching intent, found via findTool over a ToolInventory built by inventoryFor.",
+      "evidence": [
+        {
+          "resource": "repo://src/toolcall.ts#L13-L80",
+          "version": "repo-lines-v1:sha256:4509701a86e86a17235269b19be8ac4b2dd1d2c91a1363211de20905cd694bde:eyJzZWxlY3RlZExpbmVDb3VudCI6NjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5Y2E3ZTNhZGYzMTA1OWI4MjZkZGQ0YjFlNjQ1ZDllY2JjZTNmMjVmNjk2NmU1OTZjMGJhMGM3NDIyODEyYzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiZjYwYTY4ZjgzNjdhNDYzY2Q5NmU3OWZjNzNmNzcxNzU0OWEyM2MxZjFkMGIxOGI5YzFiMDNiZjAxY2VmMmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRiMGZjN2FlMzQ3NzMwYzQyMmExODRmODhlY2MyY2U5ZjQ3M2ViMjY3MjFkNTU1OGJiYzMxYzYwOTAwZTc5MjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU3MzY3ZTIyZWFiYTgyYWJhNTM3YTgzMDAyNGQ1OTBkNDgzNWFjNjgxZjA0OThhZmFmNjUyNGIyYjliNmJhMzkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_78236bd6ed85406398e62d5b91f8dd09",
+      "statement": "buildToolCall is the only constructor of tool calls and reports the offered inventory when an intent is absent.",
+      "evidence": [
+        {
+          "resource": "repo://src/toolcall.ts#L302-L340",
+          "version": "repo-lines-v1:sha256:aa7fa803a5cf922404ab2767d3db3b040f75cf0d39c1924882d1197014103434:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzNzE3ZDM2YmM2MmI5OTQ0NTE1NjNlODIzZWYyMmRkMDNlNzJkZWY5NzM3ODQ3OWJkOWE1MWExMTFjYjdlNGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJjZjhkODJiNzA2YTIwYmY3Y2M4YjM0MmNlMTUyODRjMjYzNWQwNjRkYzA3ODg0NGQ4N2FjNWJjZDNkZjdhZDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRjZWIwMDE0MWExMGQ1ZGNiYzY1NTNjMjViNWRlOTgwZDRiZDE1Mjk3YjdmN2I4ZmY3MGZiNzNhNTY5MzE1NTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkYTRmMWI1MDU2ZWVjODQzZmFiMWUyN2ViZGUwZTlkZTQzNTc4NmJkNjQzNjAxYjc3MzBkMjI4NzZlNjI2MWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_164754fe12a74edc928f855355c82395",
+      "statement": "The pipeline tries time, weather, state, reminders, music, media, timers and chatter readers in order, each declining with null or an error note.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L277-L330",
+          "version": "repo-lines-v1:sha256:96fd4e9fc846be3fd6485c6796b576cbab3ff14713f6c7620ad7e05918af9549:eyJzZWxlY3RlZExpbmVDb3VudCI6NTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE0MWM1NWRhYjE5MjRjMWQwNTEyY2NkMzRmMzc2MGFiNzU4MGI5M2UzODFiODM3Y2VhMDgzN2MyMjE2Y2ExN2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2NzdmZTFmMWNkMWJhMmNmY2M3MGE2NjFlZWIxYWI4YTljMmY0ZTJkMTJhOWVmMjRkNTE5ODY2NDJjMDE3OWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyNGU5NzVmNmVjMmVhZGFmOWI3Y2I3ZjgzZTk5ZGM4MDQ2NmU5ZGExMTEwZDc3MTdkMzQwNmU3MGY0OGFlMWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ5NjM1ZDFjM2JiMGJmZjQ5N2YzNGRiMDY0MWI5OGNiMzAyYTcxNGU5OTYyNDA2NDAxODQ3NjlhY2NjZmMxMzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cc2bac2dd66940419484894b97ca72bf",
+      "statement": "Compound sentences are only acted on when every clause can be decided locally.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L516-L560",
+          "version": "repo-lines-v1:sha256:efb7ec6864b1d545eebe610ebf025f8837b0e20013950ac599e301e2ac41e1a4:eyJzZWxlY3RlZExpbmVDb3VudCI6NDUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM4OGQ5MjY2ZWJkZDg0MWJkNzY4ZjgxM2M3Y2E2NmZiODgzNGM1NDVhODVjYzY5ODM0YWQyZDJhZWU5ZTVkMmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI5NzhlMjUwM2I4Y2YzN2EwNmY3ZDZmMGEzYTZiNmZlMzU2OTFmYmNhYjUwYjg3NzVjYWI2ZmFiYzcxYzU5MmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcwN2Y2OWJlNThmN2I3NDFhOWQxNWY3YmJiMjQzNzYyMzBjN2VjNjA0MjQ1NjUwMjAxMjJmYjE2NGRhNGE0NmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2NmRmYmYwYmU3MDA0MmVjYzIwNzZmYzdjYTFkMjU0OWMwNWU2NWIxMDhlODMwNTYwMTBjODI4NGI5NTE5OTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ff87a6f6edc1436a82d413d9c9685eec",
+      "statement": "Music provider precedence is kiosk script, Music Assistant, house script, then play_media, and the kiosk path sends shuffle only when the sentence asked for it.",
+      "evidence": [
+        {
+          "resource": "repo://src/music.ts#L722-L790",
+          "version": "repo-lines-v1:sha256:2f7f70e48c531bad95d899a0eb9c64170359dffca1e6a32c59fa196b2e90da6d:eyJzZWxlY3RlZExpbmVDb3VudCI6NjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRhN2IxMjcyYjhmNDAxZTgyNmU3ZmZkMjdlOTAyNzVkNDE5OWU5YmQwMjIwMTExNTYxMjlkNDY5Y2Q3MDMxM2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFjMjJlM2M1ZDNiZDZlNjBmNGQ4ZTQzYTk4MjAxYTliYWE4OTM0M2VlZjFlZTgyZWViZTBkYWI4MWM1Nzg0N2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ2NjBmZGRlMDBjNjg5ODJjNWY4M2Q2ZjA3Njk4MDE2NzQ5NGMyYjIxYjc5ZjdlZTYzYmVkNDgxMDI3MDI2YzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZkZjMxMWZjMWJlYThjZGM3ZTc1YmM3MmZmOGQwMzkyZGNjNjAzNzI1NzU3YjIyMjBmNDExNDc5NWU4MDliOTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a5fe0880cb1b4a2fad18e0789db866cf",
+      "statement": "Media transport declines play, queue and listen so music handles those sentences, and a bare stop with nothing playing is left to the previous route.",
+      "evidence": [
+        {
+          "resource": "repo://src/media.ts#L139-L230",
+          "version": "repo-lines-v1:sha256:e691dc9e1bc7141774cdef5b294d11114676a750071773800d3088ee49f88188:eyJzZWxlY3RlZExpbmVDb3VudCI6OTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExNTQ4NTc2YzdjNGFlZmMzMmE0MTI3NzU2MjM1ZTg1YTQ1NzlkNTY2YTg3ZGRhZmIwNzQ1YWYzM2MxOGIxNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhkNzliYzc0OTNiZGYwMGRiMTFmMmVjZWZjOTI2ZGUwYjliNmNhY2Y1MjFjN2Y3YTM0YWMzMDQ4MjBmNzZkNDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU2YzBjMGZhOWI5OTY2YTk5NGUwZDQ4NGJiMGNkYzYwMzc0NzUxYjVhMDk5NTJhMmZhY2ZjYTdiYzczMmI5MjgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdmOGYzNjRmOGRhODExODE4NWI0N2ZjZTU5YTEyZTc4Y2E2YmNhMzQ4M2MzMGQzOTQyYzRjNWFmYzVjMTU4MjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9de8607dfdb64fb99e98a9727ce594c1",
+      "statement": "Timers canonicalise one split per duration and replay it from the STARTED ledger, while HassTimerStatus is never called.",
+      "evidence": [
+        {
+          "resource": "repo://src/timers.ts#L299-L340",
+          "version": "repo-lines-v1:sha256:5388a52e0c2e43e5b9f8a159e0656b0ec9bc894f05c45c249835c77b3b3bc178:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhNjJhNWFjNjYxY2VmODViMGI0MzljMTJkN2UxOGJjOWFmNTM1YTMzN2UzZDY1NGRjZWIzNDU1MGIzNmM0NjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRkOTQyNmViMGFjMGJkN2VmOWYyYjFlMjZlNmY5NjBjOTg0Y2RkODE4OTgxZjExZTgxNWM0MjllYzJmYzdlNjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVmMzJmYjU3NmNlMzhkZDc4ZjVmM2JiMzVkMGY3YmRkZTJmODRhZjk2NWI1MWY2NGRlMDEwYWI2YzBkZDk3YWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZhYTFhNzk2N2FhMzYwOGQ1NTVlOGU0Y2QwMTA2YmViNzAwNmRmM2U2MGQ4OTMyOGM3NzRmN2Q0Nzc1NDQwMjQifQ"
+        },
+        {
+          "resource": "repo://src/timers.ts#L99-L120",
+          "version": "repo-lines-v1:sha256:17ef8e0df0645c7039d36e08b94741a2444b26635e56f6a749917bbc7d1bd668:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU0NGJiMDVjMDI5NzFlZjU3NzU3NjM1NmE0NmYwMmNkNjkwNDEwNDcwYzU5ODUzMmFhMjY3NGIwYzFlMzk2ZDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhMWQxYTYzMzkwMjI5Yzc5ODM0N2U4M2EwNDA1NDQxYzk0MDAwMzUyODRhZDE2OGMxYmY2Y2RmMWQ3MGEzNzAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY2ZmM0ODkxNjY1MWIxZDUwMTMwZTU4NjMyYmIzZmZmNDNmMGVlZWRkOWQ3ODQ5YjM1YzU5YjM1ZDM1ZjYwOTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk1NGZhMzg3MDRlYjhiMDIxZDcwNjc5YjUyMGU1NTUxMzQxMDYzMjU1YWFlMWUzNzY1ZGY0OTk1YzdiYTVlN2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b33c6935292c422c9e6a8cdc7608886a",
+      "statement": "Reminders convert durations, clock text and indices into the values the ha_reminders integration validates, and keep the spoken title's case.",
+      "evidence": [
+        {
+          "resource": "repo://src/reminders.ts#L190-L320",
+          "version": "repo-lines-v1:sha256:ced47a244598404e33e8ed8a4328b2fa536c81ed5ca7c98c997623c70ff7da32:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJlOWNmMzA2MzJkYTQ4ZGJhY2MxMWRjZjQ0YmMxNmYwMTM4YTIwZWIzMDhhNGEyZDk5MDRjZGIxYjk0NDgwMGIzIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0NWE1YzE1YWJjM2NkYTdmNDhmOTAxYWY0MmQ0NTBlNWI5ZjA4ODYzMGZmNjE1ZTgxN2VjMzNkNGIxYTUzNDFlIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI5MTUyNjQ3NGU3OWY5MTdiZDVlNTkyZDM0MjIyNTU2MjRlZjQxMjc2NjViOTI3MzllMDhhOGY5YTQ1YmUyMzFiIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiI5YjQ5NDQyYjVlMzRkOGQ2ZDRiN2M1OTEyNzAxNThlMGRmZWFiYjBkZTI5MGNiOWZkNjU1ZGQ2N2I0MjdmNzNlIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_9be8484882fa4da4833e79ad84009d20",
+      "statement": "State questions are answered locally only for a unique decisive match, otherwise HassGetState is called or the turn is forwarded.",
+      "evidence": [
+        {
+          "resource": "repo://src/answer.ts#L151-L199",
+          "version": "repo-lines-v1:sha256:576ce1b18bcf8b12cc71790be8b670049fb64e20b9d023f7d577bf70d8cd7c93:eyJzZWxlY3RlZExpbmVDb3VudCI6NDksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI1M2FlYzdmYzYxOWNmYzkwNmRjOTA0M2E3OTM3MGMyMzVmNTgyYmRmNzU1NzEzNmMxOTY4MDcwODBiMzNiZjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1MTY4YzJhODZjMWE4YzkxNDIwZDgxZjdkODIxODc3ZmY5YTMzZWViOTI0NDE3ZTA5MTM0OTQyN2EzODg5OWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlkYzUyYmI2YWE4N2QzYmRjY2NiMzc1YzI3YmM5MzY4NGIxMTRlMDVjZDg5ZDZiYjQyNDY0ODdhNWIxYmYwZWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE0NWNiZmVmNmFlNmM3YjI5MmQyNWI5Nzk1NjkzMGM0MWVmYTI1OTQ4NDdmNDdjYjczODMwY2E1MWM0YWYyMmEifQ"
+        },
+        {
+          "resource": "repo://src/router.ts#L299-L312",
+          "version": "repo-lines-v1:sha256:676e6565a1d06a846682b50eb39179ee26f9d090923dae5d68001e6afaba9334:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk0MzFlYTk3MjQwYjFlOTE3MWVmMWNmOTkwM2I5OGUwMmQyOTM5ZDk3MTM5NzdhOGY0OTY4YTI1NTc4NWVhODYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhiN2RkOTZkZmM2NTg1MmZjYzMwYTUxOWNjMTQ3MjRjYTg5NTFjZWY5NTg1MDlhNDNiMDcyNjgyNGNmNTExMDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3MmEzMjgzOTNhNzY4MWE5NGJmYjkxMzNlMjRkOWVlMmZkMzBmYWNhMzVjM2RkNGUzMDRlYzYxODk2M2FkYjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdkZGEyZTVkMTgzZjc1NWQyOWYzNjIwZjBjYjJkZDgyYzY5MzFmYWYyZTBiZDM1NjU3MGMzYjNlOTU0MGE4MWUifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-16T15:09:02.577Z"
+  }
+}

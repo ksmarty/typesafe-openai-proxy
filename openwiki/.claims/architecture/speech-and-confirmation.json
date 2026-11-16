@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:e8e61750913b99bedca156965e50f80d09febff071dd83f2d58903071d3edef7",
+  "claims": [
+    {
+      "id": "claim_32415965a82540a18e0ed26aa8eeb218",
+      "statement": "Speech is resolved per call: a silent rule yields nothing, a custom rule interpolates its sentence, a speak rule defers to Home Assistant, and no rule defers to the afterTool default.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L1091-L1110",
+          "version": "repo-lines-v1:sha256:1bdf53b331bda2d2263d733e5170b8cc0fd8bbfff04d63b4d1e5531178c5f2f2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlODkyZThkNTliYzE1ODljNzZkMWMzMTcyNTQ2MjIyM2JlNGQzMjg3MGNiMTdmYjg4ZGRkZmNjNDc5Y2Y3M2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZDExY2FmNDNlOTdlZjM2OWU2YmVlZDFhMjY4YmQwNTgzOGYyOWI5ZGQyNTRiZjY5YmE2NDg4NDE0NzIzNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ0Mjc5ZjkwMGUzZTU3YmMxYzZkMzliZmMxN2FmYTNmNTJhNzhkYTY2MGVjMDgzMjc0ZDc1ODg2ZmY3ZGRiMzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNkYzJmMTUyZjYyMzA1YmM3ZGFhMmU3N2NkNWZmZDUxODJlMjYyMDMwYmY3OWM0NWYwOGJiZmRmZTEwNDI4OGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a592255b039f455b99017d0aeddccb6e",
+      "statement": "Rules match against the tool name, the domain.action pair, the domain and the action, with todo.* treated as a prefix and first match winning.",
+      "evidence": [
+        {
+          "resource": "repo://src/speech.ts#L24-L60",
+          "version": "repo-lines-v1:sha256:2f58d155ba91a13f55b94c25616a252e5c8d5c4981cb7226ed33722646e68817:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY0MGYyMjU2Yzc4ZTJjNDg1MDE5MjM0ODUyOGFkMmRkOWIxNzAwOWRmYzFmOTNhMjNmOTI5MmJmZTgyYTAyNjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE1Zjk2ZjNlYmVjMTY2NGQzODYwNzUyYzg4NzEyNjcwNTIwNGRlMzJmY2RhNTI1YTZiMDIyODVjZTZhMDQ4MWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjViNmY5YmViODBkOWE2YWZjM2M5MTljZGQyMGJlNmNlMzVhOTgyMjU2NWY1OTUwY2Y3N2MwMmU0ODk3YWY1MWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc5Mjc4NGE3ZDIzYWIyODA4MTMzYjFjMjc1OTljNmJiNDI0ZmIzMzUzMjhlMDcyNmM4YTQwNWUyMjM5ZDE1YWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_476d35e6995644b3a74637f538739a63",
+      "statement": "speechFor prefers Home Assistant's own speech, then intent slots, then the language template, and stays silent when no issued call explains the result.",
+      "evidence": [
+        {
+          "resource": "repo://src/respond.ts#L388-L453",
+          "version": "repo-lines-v1:sha256:7b4e16a8ca53c784056bf495b5a02c89c2f75769fbf135bb6edff96f4de757ed:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEzZTc0NDJhOTZjMzRjMGE2MGY0ODViMDRiMTZhZjE4NzIzMjk5MjI2MTAxNTIzYjJiODIxZDJhOTg4ZTdmMjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVlYjc4ZWYxNDg2MWJjYTY4ODZhNzUxM2Y0MDZjMGFkYzA5ZDFlNjU2MWJjOTBkOGVjMmYzYTM1NWQ4YzhiNTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1ZTc0YTczNTA5MzQ5ZTc1MmM0M2U1N2M3ZjE1NWU2ZDU1OTE2MjNiNTEwNTEwZWM5NGMzZTFmNzg5NzBlM2MifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ec31a201e5314c2492dda770e5d37299",
+      "statement": "Only trailing tool messages count as a speech round, and each result resolves through issuedCalls before the model's own announced calls.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L1011-L1043",
+          "version": "repo-lines-v1:sha256:5c067b4a89851975c3728539cb7af57043951062a784d0de64a0f412cdf544d1:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhZDJiZTc5NjViNjcyM2JjNTQ4MjBlYzJlOWQ3NjFmOWM5ZGQ3ODI4NmM3MGQ4ZWUwYjNjZWNhNDI5Y2U2YTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZDExY2FmNDNlOTdlZjM2OWU2YmVlZDFhMjY4YmQwNTgzOGYyOWI5ZGQyNTRiZjY5YmE2NDg4NDE0NzIzNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFjMjhkMDk1NThlYzZlOWE5M2I0MDE3YTAzZWFkNWU0ZDUzNjM0MGQ5YWRhNjU0YTdlOTU1MTY4NDI1ZWRiNjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJkMTdhMTkwMjc3YWQyZDM5ZmE0NWJjMTk2ZDk3Y2IwYTcxYjQyMDgzNjVjZGEyMjg5ZDAxMmU1ODY3NWYwNzkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d795a6d7d11644ef84d564f6b515f3f0",
+      "statement": "Turn history is kept per session with at most 12 turns and a two-minute lifetime, so a speech round can be nested under the sentence that caused it.",
+      "evidence": [
+        {
+          "resource": "repo://src/state.ts#L71-L112",
+          "version": "repo-lines-v1:sha256:1163a7837685e223f758d3b81a6743410a2bf5fe8df095faaacb784d09e566e9:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI0MWY3OWU3ZGI4ZmJlOTYwNGUzODdkYTVkMDFhN2IzZDhjYTUyY2ZhYjNlZDRjZTY3ZTM0YWU3NGVkNGFhOGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQyMmQyMTgyMTJiNWQ0YTQwNDE4YTg3Y2YyMmU4OTY1MGJhZDk4N2NjMDA1ZDliZjI2NzdjNzk2ZjlhNjllYTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkxZTBkN2U3OTAzMjA5MWU3YzVkYzlmYjZjNDFiMGUyYjJhNWQwMWM2ZWUxYTgzNjViY2VjZjllMTlkMThhNDAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_36d9ca16610845f68f0367b8e4d0f5bc",
+      "statement": "A speech round's answersTurn is taken from the issued call's turn id, falling back to the most recent turn for the same session and sentence.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L1055-L1064",
+          "version": "repo-lines-v1:sha256:929781d292ec679f03930efab554737d5a7b38e0ca3afd49e3f3e469cfc7c28e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFjZWRmMGQzNDlhYWRlMjlkYzA4YjM3M2ZkYWFhZWZiYThjYWQ4OGQyZDMyNzk0ZWNmOTNmYTE2NjFhYTA2MjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzYjFlNzU5ZTMyNzZiYzE4NTYxY2JiMjQ0OTNmMDYyZmE1YjJhYWNjYzQ0NmU1OGIyNjExMTQ0NGMzODJjZjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUyZGQ3YTA4YzM4NDgwNjAwNTY5MWZjOTg2YjA0ZTU4YjVhYjk5NzBmMzNiZGQ0YmM1NDM0YjRlZmIzMDZiOWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNjZjc2MjljMmFjMmM0MzgwNzRmZGQyZGUzNTNmNWZmNjcwMTE1NTBkMWU0MGQxMWM2YjQyNDBmNTNlYWMyNzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c62be67821ba4f26ac2f95f599dd02be",
+      "statement": "Unlock, open, disarm, lock and cover domains, garage-like device classes and a high no-utterance risk score mark a call as risky.",
+      "evidence": [
+        {
+          "resource": "repo://src/router.ts#L129-L141",
+          "version": "repo-lines-v1:sha256:0cb8e294afaaeba3360d415531e3db709d268c9b5fa99de64824e5576b2bcd50:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3NzcxM2YzMzdiNzNmMzM5NDNkZjg4ODlmMDg4OTJkYjYxOTRlYzhiOGM3MTE1ZjUzODQ5ZjIxMGE4ZTU2MjkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIyZTY3YmUwZjVjMTgzY2M5MmNmYTE4MWZhZGM1NGZhMTdjNDY0MGIyMGQ2MTFmMTNiMzU1ZWJkYjEzMGFjOTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1NjM2MjcwOGI0NDRhNjFiMDM1N2ViNDMzZThhNTU4OTUwZDJmYmI2NGFkM2I5NDEwMWQxYzE0ZGVlN2I0MjYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_aa32f924af7849a69106d20760e42848",
+      "statement": "A risky plan is held for speech.confirmSeconds and executed only when the next sentence matches the yes pattern, while a no answers Okay, cancelled.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L1291-L1298",
+          "version": "repo-lines-v1:sha256:b0ab68ccc11611208b9b761291fda5fdae8c9ac54da2094b62d5996487864243:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzk5M2NmOWM1ODlhZDMwNjBlMjY5MGQ4NjkxMTlhZWJmMWM4MjdjNmU5ZDhiNzgyNjNiNTc2MWE2NzM4OTZiMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMTc5MmY4NDdiYjIxY2IyOTJkZDA5ZjdmYTZlN2NhYzRhOGMxNGQ5N2QzODk2MzNiM2QxNTIwZWExNGI1YjFkYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmUzNDI0ODE1MDQ5NDk3M2ZmNWE0ZjBjNDNlYzEyODk5ODZhM2M1YWRiMjExZWUzNzdmZWQ2YmVhMmFhMWM2NiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjNmMzZlZGZmY2U0YmE2ZGUyM2U1MjdmMzk0NGVjOGVkZWI4MDE5YWI0YzUyNzExOWJkZmM4NGNmN2YzYzAwNCJ9"
+        },
+        {
+          "resource": "repo://src/respond.ts#L455-L456",
+          "version": "repo-lines-v1:sha256:0f77ed42a59684c60d3f801974e9ad524691716874e2d7d59eeb6525092dd4e5:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTAyNjU1YWNlZmE5Y2E3ZmU2MWRkM2ZmZGY1NjQ4YmE5MTZlODk3YmExYjAzN2JiZTNkOGVmZDBlNmU2MTU3NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMjlmOWY3YjFjNzZiNGZmNDg4ZDIxYmNhODc1YThhOWRlZTQyMTJmMGMzMmFiNTQxNWM0MjEyN2FmYmE1MzQxZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjZhMmM1NzhlODI3NTgzMDdhMzQwYTViNTNjMDhjMTA0ZTc2NGU0OTljZTA4YWFlN2QxZDVkMDI4YjJhZWUyZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTAyZDZkY2UzZjlmNTI0MTcwNjU2Y2QxMzkwNzE3MjRjNDA0ZjM2MjIxNjY1MzdhNzZlNDUxMzFjZTM1MGQyYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_0ab2ce83ca464fc182490f4b521768b3",
+      "statement": "Expired confirmations, old issued calls and stale turns are pruned, with both maps capped at 200 entries.",
+      "evidence": [
+        {
+          "resource": "repo://src/state.ts#L120-L152",
+          "version": "repo-lines-v1:sha256:149f8dd333a058eb86683d19d24556f2f2c9ca867ea949f8946f4e14423ca282:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRiOWJkZDgxOGU0ODY1OTlhZjIxNDkzY2FhOGY5OGMzZjVmYzEzZDFmODNhMGViNTM1ODFiODA2YTMyYzAxMTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyOWY3NTBjNDEyNjViMTkzYTM4ZWYwM2QyNjA3YWEwOTdjMTVmOWUzNDhhMmVlOWI2NGQ1YzNlMWQzMTVlNGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMyMzlmNDljMjYyNzAwYWVkNDYxNGU1OGVjODQ1MzRkYWVlYWM5ZDkxN2I0NmU0MGE3ZjdmMjBmZmJhOTJiZDkifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-16T15:09:02.577Z"
+  }
+}

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:d58203acb185d8060419049c799e51c16ebd8be51d68d21810ade19d4adeca7a",
+  "claims": [
+    {
+      "id": "claim_2dff6241b09946b285bddf45dbfd85b9",
+      "statement": "/health returns ok, routing.enabled, the backend, whether the fast path is ready to decide, and the catalog entity count.",
+      "evidence": [
+        {
+          "resource": "repo://src/server.ts#L568-L580",
+          "version": "repo-lines-v1:sha256:94cffdcfba9c800876cbccc8df214d7f16fdac8ba468e7df84b1be9b7d75b29b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2YjA0NDkxNDY5NzIyZTgzNjNhOTRlNDA0NDUzOGUwMTNhMmEyMTdlMzZiMWU1NjhiYTYwYWNiN2I0YzhmMmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyYTM2MTMzMzY5NDI2OTNmZTM5OGVkNjVkMDNlNmJiYjI4MzBjNDllYzkzZmYxNmRjZjFmNTE1YWQyZjQ1YmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUwM2U1ZmE5MTM1YTg4ZDY5OGVjNzVkMDZjMWI2ODI4NmFjOGM5OWE4ODIzY2EwNjcyMGYyOGY1NzljZWVjYWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cf6cfbb62b95432a9351a804a47fcc7c",
+      "statement": "/v1/models lists typesafe-router plus the configured decision model, and /v1/chat/completions is the POST endpoint for a chat request.",
+      "evidence": [
+        {
+          "resource": "repo://src/server.ts#L589-L603",
+          "version": "repo-lines-v1:sha256:5300fd62a4e78e2abf9e6f08e050f63b0cc40625fb3547751b52df5b220dfbd2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxMmQ4YmNiYzgxNDdiODdjMDc5NWI2ZWVlYTdiMzNiY2VjMDJiMjMxMWQ3NzE5MzNkMzA3Y2QzODExNDgyZjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyMmE0ZDhkZTZjNWMyN2FjZWNlMzlkNTc3ZTdhMzgxY2FjMWI3MDk4YzMyZWVhOWMxODQ1MWYzM2FiNGJiNzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcxNjVjM2UwZjk1NTljNDAyZGVmMzA1ZDU2ZmU3MjI3Y2ZmOTdmMWQ3ZWM0NTY3NGRmYzE4ZDFkNzZjMjEwN2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE3YmNmYjg3NmY3NTlmOTEwZTU5OTFiZTBhNzIzYTZjM2RjMDAyY2Y0MGUxNGEzZmJhZjUyMjFiMTRiODhjZGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_777121d131df4031989aba507b437dbb",
+      "statement": "Every /v1 route requires the configured bearer token, and an empty apiKey accepts any client.",
+      "evidence": [
+        {
+          "resource": "repo://src/server.ts#L105-L110",
+          "version": "repo-lines-v1:sha256:6ddf8476dd673f5b92e5fb0df03cdb3d576e0dddbddddac5e0c6dd7ad5edcede:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTIwOGE1MWI2ZjZhYzE4Yjc4Y2RiNzA0NmMyNTA3ZWI4OTM4MDk4ZTY3MDhkMzIwOTFiNDEwNDgxN2Y3ODhmNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmI1ODBlOTY0ZjgzYTQ3M2Y0M2Q0NDM4NDYyOTQ5ZDY4YjU2MDBmZGE3ODdmMTYzNzQ1ZDAwZGU4OWNiZjM2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2JjNTE0ODNjNWMwYjlhNDQ2MGRhNmEwMjg2ODk1MWFlYzE5NmY2ZGY5OGRhNTk3MTg2ZTYxMjc4YTI5YjNmZiJ9"
+        },
+        {
+          "resource": "repo://src/server.ts#L582-L586",
+          "version": "repo-lines-v1:sha256:819afa3175201bebdb59dcf2adbaccfce6525c739841ddf0dfc28ae57dc54c32:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiODI1NDZiZTNhNzBlNzBhY2RhYzljYzY3OTBhZmI1ZDU1YTg2MTAzYjBiMjdlZjdmOTE3ZDQ3MGEwNTEzZjFmMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmMxMGQ4NzVhMjE1NTg2YjU5OGMzNTQ2NjY3NTM3NDZjZTljMzc2YzZmMWFjNjQ3NWRhNjQ3ZDYxNjA2MjlmOSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMTg5N2ViZTFmZDBiNjdiN2JlMWZhOTFiYWQ5NDhmYjZhNmRmNmVmZmRiYWIzM2E1NDI1NDJiMjc2N2Q4YmNhYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjQwZTk1ZmY0ZmM3OGMyNDc4YTY4MmVlOGM3N2IwMTdlNzE2MGYzYjI0MTQ0YWIyMmI4MmExZWQ4Mjg2OTk4ZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_4762b75b66b049a299d46a35b8758df2",
+      "statement": "The trace, request log and stats are persisted to history.json in the data directory and restored when the server starts.",
+      "evidence": [
+        {
+          "resource": "repo://src/history.ts#L18-L33",
+          "version": "repo-lines-v1:sha256:42b430b2e9fc1706a6fcbe4a95a2620e96c405c1c1723545c0a580030a2c0165:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3MGE5NmMzZDY3OTlkODBlY2YxY2JmNWI1NzI1YmI2NTEzOWU0OWE1MjRiNGJkYWRkNWU1YThmNDQzNWIyNWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2YzVjNmY0YTc3NjY5ZmRlN2U4ZGE5YjRhZDAzYjUwNWU1NjU2ODYwMDA5NzY2ZGU2M2ZhNjAzNjJlZjFkMGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1ZTJmMWY0MTA1NmRjOWVlNzVjYjM1NTg5MjliMmY2ZmY1ZjYxZWRlNWM2M2EyOTk2MTFhMTFiMzNlNTE1YTEifQ"
+        },
+        {
+          "resource": "repo://src/server.ts#L709-L710",
+          "version": "repo-lines-v1:sha256:c6e3a4008a33ce94ad0af779c889006e4c50377dba441a67a23c5e951a5474dc:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTQzYmI0MDkwYjVmOGY2ODc1NzliNjNhYjhhZjk5YmU4MjA5NzYxODlkNGEzOTIwYzViMmRlMGQwMGU5NGI2NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmJlOWIwODQyZmE0NzQzNWY2NDk5NDIxNjljYzIxNDVjYmI4NThhYWJlZjRhYzA0YzE3ZjJmOGFmYzllODBmYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODM1MzU4MDJjYTVlNWMyMzY3YjczYjQ3NzY5YzM1MjgyY2RjZjNhZmM1OGUzOGE1YzgwNzgzNjg0MjhjN2YzNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDUxMmQ1ZDAwYmMxZTNlYzk2YTMxZGFjNWUyOGVjM2M5OGQ4MTdhMzNmYmRhOTNkN2QyOTA5ZWMyODFiYzBlYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_5e71c0178cfe4464ae4dad32b5dd2d25",
+      "statement": "loadConfig applies defaults, then config.json, then environment variables, so an environment value wins over the saved file.",
+      "evidence": [
+        {
+          "resource": "repo://src/config.ts#L459-L476",
+          "version": "repo-lines-v1:sha256:7bd263993ba9a60e426761d4d9a5903a39214a3a11a959410cb8490c721d6c3a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ5MTJiYzgwOWVlNTg3OWZjOTRjZGRhNTQyZDUwN2JjNWNhOTIwOWZhYWQxMzAwYjc2MzY5NzVkMjBiMTY0MTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmZDhjM2ZiMjliYmRkYjU2MmI5NmNhNTU4NzQ2YjUyNjZkMzM4ODBmZTBmNTI2NDk1NDI1Yzk5OGY3ZmE0NmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNiMGE3YzZjODc1NGJiYjAwMjdlYmI3YWEzYzZmMjM5NmE3Nzk1ODc5MmNlMDZhMmIzOWI5NGU1MzlmMzBiMzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI0ZTU2YjVjM2U5OTJkYjdiMmNlNTdjMDFlYmJjY2Y2ZGU1MWJkNjU5YjhmZDI0ODY0ODhhZmY2OGIwMTg2ZDQifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-16T15:09:02.577Z"
+  }
+}

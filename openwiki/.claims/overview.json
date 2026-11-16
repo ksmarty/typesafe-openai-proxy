@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:f3ee0a5ed219924a544f1e27d36ed563db9070e1c38033ebf57c38442979df0a",
+  "claims": [
+    {
+      "id": "claim_36434d5f6c7f4dbba09c5ee75af94a7c",
+      "statement": "runPipeline is the entry point that decides a request, taking its tools from inventoryFor and its catalog from the active configuration.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L274-L286",
+          "version": "repo-lines-v1:sha256:477d83dc91befe0e9d1d944d0f7f81373729d2042505eaac7e037d7b85292048:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3MTY1Y2Q5NmNkMDc5MmY0YjhmYjIzZTY5YjQwNzZlZGU1NDk0MjQ4YTg5MGM5ZGI4YTYyNDhkZmNjZTQzNTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwYTFhYjgwZGY4YjgyNWNiN2YzMTljOWQ2OTI1ODU1NGY0NzY1ZTJhOGMzODdlZTQyZDQ2M2NiYjM4NDlmNWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM1ZjFlZmRjODk2NmQ1ZjIzNTJjNmU5MDRhMWIyYzhhNzY4YzZmOTM5ZDIxNDdkMjIxYWFkNGZkMmY5MWM4MWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_91162e36601242c988eca6bba92f404a",
+      "statement": "route() applies confidence gates and returns the plan; anything that fails a gate becomes a forward.",
+      "evidence": [
+        {
+          "resource": "repo://src/router.ts#L143-L160",
+          "version": "repo-lines-v1:sha256:9f9843a305bb0149f2fd6ac822e180532c56996f18a3732cebfd9ba5cdc5df2a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4MGU0YzVjYjQxY2I3YmRhZDM4NjJlNGUzNjU0OWRkMjFkM2ZiZmNiZTYyMmFjYjgxZWFkYWQ3ZTE5MmNlMGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyNDU2NWE3ODY5MTVjZjdmMjdiZDM2NzMyMTc3NGRmMjk2NGMzZDgyOTk2ZGI0ZWMyN2E1YjNlZjYxYzNhZmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM1YzFlNGJmYWM2NDVmM2Q4YWQ5MjY5OWEyMjgwMDkxNWM2YTljNmE2Y2Y5NmQ3YzA1NmVhNWFlNTljMjMwODEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI2NjljZjZmYjJhNjMwMjk4ZTRhNTc0NWY0NmQwZGUzMWMzMWViNjg3YmU5NjQ3MDU2NWRlZDliMWQ5NzEwOTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a991db9dc4824fb2b8d098ff0472a626",
+      "statement": "A request that brought no tool schemas is forwarded without invoking the decision backend.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L294-L300",
+          "version": "repo-lines-v1:sha256:1e94a90922aab0a2826d0c17056cfd58f112e0034fc5d1e17ca2ba760b9d296c:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzViMGUxN2I5MmE1NmQ3ZmExYTFkZjJjMjdkZjdhYzI4NzUwZGEyOWQ4ODkxNGQ4YzZmZDFhNmY1MGQ3NTM1OSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNGJiMzIxYmViYmZiYzgyZjk0ODkwZDA1MThjZjU1ZmVkYzI3Y2Q1OGM1MGJiNTI3ODM3YjljMmZhYTBkYmJlMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYjVkN2NiMmU3NWVjOGZhM2UwMTc3YjYyMWEyODAyODFhZDA0NDg3NTBlMTZhOTU5ODg3ZTc3OGFmYjZjNzA3OSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNGI5NzBkNTFmNzIyNjU5ZGIwMDBlM2Q4YTUzODc5YWI5NjcyYmRhNGNiYTRiN2RmMTI4YTM0NzhmODNkMjU0NiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9dbb0208c87b48b1b3a07d7fb0665186",
+      "statement": "fastPathStatus reports whether the fast path is ready and why, which the dashboard shows and the pipeline consults.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L251-L252",
+          "version": "repo-lines-v1:sha256:f410312cdfa0cf1bfa48ab1c7243e79ee1d6d2d73bad93b9c457129b4af5e54d:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzZjNmU2MDlhOTI4ZjhlYjMzMGFhMzY5NzExMTRiM2FhNGNmOWZjODQ2NDEzMWY1ZGQ1ZjkzYzljYjczNTM0MiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMmMxOTE5Njk3MWNlMGY3NGFhNTE1ODZjNTFmYWNmMWRjYzEzNTVmYWIwZmMwNTQ1YjhkMmUyZDVjN2ZkY2VlMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTJkODg3NGM0NjhkZjU5ZTdkYjEwYmMwN2UwMzRkOWRhY2ZmMjEwNzU4ZDc5NThiNGRjNDJhYzEyZTE5YmNmYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMDVmM2Q4NjFkZTcxYWQzNDY5ZTczZTUzMmYzMGJiODk1YzZiNTM5NGVmZjIwN2Q4Y2RjMTliMTc3OTdlMTIyOSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-16T15:09:02.577Z"
+  }
+}

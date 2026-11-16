@@ -1,0 +1,140 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:bdaed1384bd55193f2deadc11ae224d505a76e7e3e5b2383676ff4dafd898a08",
+  "claims": [
+    {
+      "id": "claim_087c19898523474ca9c73d63a77b37a0",
+      "statement": "App owns the current view, the status payload and the advanced toggle, and polls getStatus every 4 seconds.",
+      "evidence": [
+        {
+          "resource": "repo://web/App.tsx#L48-L74",
+          "version": "repo-lines-v1:sha256:4a0f158e8cf21f28aa361fd04b1c9197e6cae743ce2afe670798306f8ab54e2b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYzYmJiNzM1NDRiYTgyYjVkOWZlNTJiYmE5YmE1ZTFmYTQxMDQwNGUwYjA4NmFjYjZkMjk3Yzc2ZWRmZjlmMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFmMTkwMTZjZWZlNWI4OGRmNDY2N2U1OTE1MTYxNjg5OGZlZTAzZDU3OWU2YWMyOTkxMjc0MWRlODg1MmMxZTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg1NGI4MWJhYTJlMTNhODg4NTliOTRmYmRkMjY3M2RlODk5OTNlYzgyNWI1NzQwMDMwZjZiNTY4NjJmZjJlMWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_09b93cec992b4e7ca45b86ea90e6c4d8",
+      "statement": "Hash writes are wrapped in try/catch because a sandboxed iframe throws SecurityError on history.replaceState.",
+      "evidence": [
+        {
+          "resource": "repo://web/App.tsx#L84-L96",
+          "version": "repo-lines-v1:sha256:9614f98a117606bb247e2c596eb5726ccb1f7536e1717a183d38d03b6f56aec1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhZGFkN2QyMzZlODA3ZTRmYTVmMDZkNTBjZWY4YzBkODgyZDc5NGIwMzE0NjI5ZTA3MTExNTI5ZDkyZDYzN2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmM2MyZmNiNjBlMGY0YjJjOWNjMTRjNmJhM2Q2ZWVmNjI3NjM3NmExZTAxMWQ3NDZjYjU1MDhhMDBiNDk4ZDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY4YzRkZTAzZWE2ZWU4MTE3NjNiMWNlZGZhNjA5MDE3MmM4MTZmZWQxNjE3N2Q1MzVjZDI0YThkNjQyYjQzMzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU0M2EyYjNmM2E5NGZhNmY3ZTRmOTZlNTA0OGFiZDJjYjE3MjU5MDA5ZGNmZWIwZGJhYjc2MjdlODFkZWE0MzcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a5eb838353e24454b49a906cf2928c53",
+      "statement": "The API client resolves calls against the page directory and retries at the origin root when a prefixed URL answers 404.",
+      "evidence": [
+        {
+          "resource": "repo://web/api.ts#L97-L117",
+          "version": "repo-lines-v1:sha256:457536785bfe59f1da231584b1df754d5160bd433db35239cd9e006f5a007132:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5YmU2MjA3NzIwMDA4NjgwZjZlMTMzYjFjMjNjOTkxMDU0ZDE4Yjc0NTNjYmM1MzNkMDhiYWE0YTg1Y2MxMWEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2YjE5MzQyODVkZjVjOTQ4NWZmM2ZlODc0ZmE4NWFkMGIzMWNiZTIwNzRkYmQxZDBjNmUzNWI2YzE2MTY3MWUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyMjhiZmUxZjk5NDhjOTFmZTg3N2JiOWM3YTlhNmMwMWQ2YmZjNjU5YjlkYTlmNmE3MDMwNmYxYjJkYTcxMzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFiMGM0MmY4ZWEwYmMwZGY0MjdiN2U1OTBjMGUzOGJjYzkzZDMwNTA5M2E5NjRkOGI1M2MwNzcwN2NjYzlhM2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8502b55685874cda91545e899cfadcf3",
+      "statement": "downloadDebugBundle fetches /api/debug/bundle as a blob and downloads it as typesafe-proxy-debug-<timestamp>.json.",
+      "evidence": [
+        {
+          "resource": "repo://web/api.ts#L184-L199",
+          "version": "repo-lines-v1:sha256:0e67bc648d1ebd4884a09e66a3385578fa19f42104e9fbb0da4d11a75d0f6b8a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0NDczYzYwNDEwZWQ4ZWU0NGFhZTIzMDExZjY2NjNiOGI3NWM4NjU4ZjVhZDU5N2Y5ODIzOTIwMTZkODI3OTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzZDM1YWZmNmM3YjI5YzA4YzA4YmQ3ZGQzOGYxZTQyMzA1MTk3OGNmODg5MTE2ODliYjRkMDRlOGNjYWQxZjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJhMWZlYjc4YTcyMWU5N2UwZWRjYTdjYjVlOTBhZmJiZDdkZmQwYzkwZDMxNTFjNDhjYTk1Mjk5YTZmYmNmM2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE2ODY2NWEyYmU4ZTRlMDI1NjUxZGI5NGIwYWFmOTAwMmIwNmY3OTVjMWY2YTNkYWEyNzFjOWFlZTMxZDcxYTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6544e9019c6f490f98321d201f5af337",
+      "statement": "Settings fields are rendered from the schema by FieldList, which dispatches on SettingsField.type for slider, templates, rules, checkbox, select, number and password.",
+      "evidence": [
+        {
+          "resource": "repo://web/fields.tsx#L608-L683",
+          "version": "repo-lines-v1:sha256:378987a213f16a66d9319901fff9bfc67d6d6edcf09e4fb72f89e9eb2ef96064:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjZWVkOTY5NGY2OTQ4MTkxNmRmNzUyNWQ3NjJiYjkwNjI5MWFmNDFlYjU2Zjg0NDZiMjI0MTYxMGMyNGZiMWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3MjE2ZThlOWMwYTFhNjhkMDZjMmZiYWE1ZmQyMTM5NDgyYjhlZmQwYTE5MzE1YjkxNWU2Y2NlODQ5ZDg5ZGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMxMjNkM2VlZDZmZjhlZjJlMDBiOTQ0N2MxZmRmZGNhOTc0NThiODgxMTk5MGMzMzAxMzkyMTI0MjQzNTM1MDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjNDE3YzZiOGU1Nzk1YTJiYzM3MDg5YzAwNzExMjViOTczMTdkYjVmY2M5NDAzOWZlMzNlMjk2MTY5YzE5YTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_304b58a9d3f848d2a360fcadd4f149da",
+      "statement": "SettingsView compares saved and draft config with JSON.stringify to drive the unsaved chip, and a save replaces both copies with the server's response.",
+      "evidence": [
+        {
+          "resource": "repo://web/SettingsView.tsx#L140-L186",
+          "version": "repo-lines-v1:sha256:56e43273a8c13e2787da83e88b7d66b6b7ff72e16904f197baffafa006dcc5dd:eyJzZWxlY3RlZExpbmVDb3VudCI6NDcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0NjZiNDA2MzVhOTI4MjA1NGJkMzA2MzhiOGE2YjM1ZGJiMTEwMDM0NWNkNmZiZDljYjBhODgzZTI5MWY1OWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUxM2I1NzY2MWRhMzY5Zjk0ZWIyNWFjYzFhNWIwODkxMTg2ZjAwNTc3ZjA3NTEyM2Q4Yzk3YmNjY2ExZDhjN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRlZTk2NWE3ZGRkOWYwYTYxMDQ1MTNiMmZkOTEyNWYwYjRkYjdhYjk0NDI3OTA1OGY4ZDMyMzQ3NWE0YmJmZTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0796ef38c95b47f0b2950e37c726759a",
+      "statement": "Resetting settings is per group by default, calling resetConfig(group?.id) rather than resetting the whole file.",
+      "evidence": [
+        {
+          "resource": "repo://web/SettingsView.tsx#L182-L188",
+          "version": "repo-lines-v1:sha256:4de362323c0310baf63407c2aeb2fee6389fc5328d43bd022e290c69247c05b6:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTFkZjg3YTQ3MzE2YzcwOGM1NTAyMDk4ZTlhZjZjNDQ1MzRlYjgwYmVhZGNmNjA2MzAyOGVmY2E4NTkzN2FiZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYTZmYzk5NWNkMWY3ZDZkZTEwNDIwMTE1MzMwNTE0N2VhZmQ0OTlmNDQ0YzM2MTI1Y2RmNjAxNDIyYWJhNDE4NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWEzZTM5MDY5YzNkZDgzYTExODhkNjc5OGYyZGE5OGUxNmI0NzMwYzRjZmEzZGEyMjY3YjcwOTAxNmQzN2Y5ZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_62daf3e449434f0ea6706a974b2e860e",
+      "statement": "The monitor groups a speech round under its turn by answersTurn, sorting each group oldest-first and leaving an orphaned reference visible.",
+      "evidence": [
+        {
+          "resource": "repo://web/MonitorView.tsx#L600-L627",
+          "version": "repo-lines-v1:sha256:420fa9f9f9998532e46545dca980731b69dbfcfc8017cb7a94cd713edcfc2281:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU5NjZmYmZhODg5OThkYTc0NjU2YzUwMTk0OTU2YzI1ZjA4NDk0NTc2NjBjMDA5ZmU2M2QxZTlmYTlkYzkzMWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjMGM0ZTk3ZmRlY2M2NmIxNjhkMzk0MjYzNjI2ZmE0NjQyNWIwMDNkMTE4ZWI4OTI5OWY2MmI5ZmQyOTc4ODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk2NjE3YzU5NWQxYzc0NjA2MDlmMGMyZGMxMDVlNDg1MmU0OWIwMWY4OWI2NTQzNDhhYWU1YWVmYjE0ODVmYzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQyYWMyOWFjZGJiZDdhY2Y5ZjEyZjAyODY4NjUwN2E2ZGYxODRlY2ZjMzVlZWQ3MDU0YmIxYzdmMWE0NTY5YTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e55462dce32e44368e7edd1f03dbd204",
+      "statement": "TraceRow keeps the utterance out of the AccordionSummary and renders it wrapping in the body with overflowWrap anywhere.",
+      "evidence": [
+        {
+          "resource": "repo://web/MonitorView.tsx#L339-L345",
+          "version": "repo-lines-v1:sha256:0e29430274a95a303abcb988686879aff7884df98b68e37aa9a71f4044405633:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYjY2YWYxZTk1ZGU4NjkwYmQxZTJhMDhkZjczZDIyMWEyMjZkYWYwOWRkNDExYzA0N2ViY2VlZTlkY2EwMjRjMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNTM4NDM3NWIzMDkyYzBlYzVhMTNhNzlmYzBkM2ZhMWIxZGNlYjdmMDlhNWUxZDY1NWRlNzc5ZTkyYzc2NGMwMyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODliMTZmNGU3NTFjNTMxZTM0N2FlY2U0OWIyZDk0MmE0ZWQyYjE1ODc5ZjZjZTc5M2M4YTU4YTU5YWFhNDZmYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTFmOTk5OThkZDUyOTc4ODYxMzY0ZGNiZTBhYTg2MWE4YjY2MmYwNmYxNmYyZjhlMjdhNGEyNjU0YWI4NDZhZCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_a1c9d33aa235462baa7628556b7283ee",
+      "statement": "Offered tools are rendered as wrapping Chips, twelve at a time, with a toggle to show the rest.",
+      "evidence": [
+        {
+          "resource": "repo://web/MonitorView.tsx#L408-L458",
+          "version": "repo-lines-v1:sha256:b3646892eee30732db7cdf766bdd56967681588007a1c02d2d369756241af457:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0YjQzN2ZkYTk5Y2ZhMWJiYzA3ZmEwMmYyYzQ2MjAyMGM5OWRhZTJkNmRkYjMzYTY0NWFlYzQ1MTFkYjY1YjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlZmY3MjU0YjQ1ODQ4ZDBmY2U2ZTMyMDYzYTQxMjhlODViOWYxODU5ZTkyMzZiYWUzNjc1YTQ1MDA3MzcyZDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJmZmI3NmQxNDZhZTBmMWNjNjdkMTMzZTA0ZjIzYTQ1ZDc4ZDAxZmE3ZWRhMmViZTc1M2EwY2FhNzhmZjFiMzQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIxYzJhNzNkNzJlZmViOGE0Nzg5Yzk3YmRiYmU1OWFmMzE2NTM1NzQ3NGMyMDExZmM2MmMxM2VkY2VhMjc0MDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cad87e3114dd472abea8f6c72e59d1b1",
+      "statement": "A forwarded row shows upstreamReply under \"What the model server answered\" and upstreamCalls under \"Tool(s) the model used\".",
+      "evidence": [
+        {
+          "resource": "repo://web/MonitorView.tsx#L460-L486",
+          "version": "repo-lines-v1:sha256:cb339e383069928b7f2a0534e301c40300c7a6c90f6471aa22ea35e842b4005e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3YzI3MTQ4MjNlNjQ4ZmIyNzY3NDUyMDVmZGU3ZWFiOTUwM2MxOWQyZThjOTQyY2Q5NmIyOWJmZjI5NGNjNzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5ZTQyNDA4ZTQxMWNhMzQyYzIwYjJkM2QzNDZiYWQzZjE4Mzk4YjZhODk1NjM2ZjFlZDNmYjU4NjE1YmU1NzYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImExN2IzYmU5ZTYyNjU1YWRhMWZkMzQzZjk2Y2M1NDMxZjVlY2U1YmYxNDFmNmUzMjg0NDE4OTVjYjBiNDRmYTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2NGUyYmM5NWE0ZWYxZjI5NWI4YjU2YmNkNmQ4MjIwMmY2YWRlNGRiNDgxZTdkZTdhY2I3YWJjMWE3ZTI2YjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_de28504617604bd390eafd8e6fd8e406",
+      "statement": "The debug bundle route assembles meta, environment, masked config, status, catalog summary, trace, request log and notes, served as an attachment with no-store caching.",
+      "evidence": [
+        {
+          "resource": "repo://src/server.ts#L261-L313",
+          "version": "repo-lines-v1:sha256:41207df77b9c2e4741e8b51821b32bc0c68dbb241deff837380bb6b9023aa7a8:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNmNDE4ODE2ZDU4MTU2NDZjMjJkZGM1ZTgxNTk4MGUxYTVlNTk3OTA4MGIzNzEyZGYzMjkwNTU4M2RmNmY4NDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIwMWE4ZThkNDMyNTE0N2Y4YWMxZjFlM2FiMjA3OGZjZmI2YTRkYTZmMDRlZmMyOWRkOWNkMzg1NjZhZWM3MTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMzNWNjYjhhN2VhYWM3MTkxYTIwNzU2MTgwYWJmNTIyZjMwNzYwNjMwNGQ1ZDlhOGY3ODI4MDI2NjMzMzI1NDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_d7dfa5f7fab144e7af77750074b130c8",
+      "statement": "Requests for /debug/bundle are skipped when logging request lines.",
+      "evidence": [
+        {
+          "resource": "repo://src/server.ts#L555-L567",
+          "version": "repo-lines-v1:sha256:d31287ff9956c073abb6c655bf44fc26bbfb7a9662f6f5187f91a28a7dbeeca1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4ZTlhMmRiMzNlYTU0ZWMwOTQ0MTA2ZGVmYzdjZWVkZjg5YmI2MjllMjQyODFiNTQyM2NiNWY4MzkzZDBiZWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcxN2FmMTEwMWM5N2I3YzJmNTI1NDA3ODJlNjM0Y2M0NDQwZjBlOTcwMzQxZTUyZjk3NTIzMTFkNzhiN2Q3ZDAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk1YWU1YjljMjAwNjZiMTNjNTVhODg0MWIxMzJiM2YwYThmODAyMDk3MmZhMDgxN2QxYzJmNjIyZWFiZTg2Y2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkN2E5OWM3ZDM3Y2JjYjJjMzc5MDhkNGRlYjY4MWE0NWIxNDBkODgwNDNhNmRlMzUzZDdmNWFhNmNmYTIzZWYifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-16T15:09:02.577Z"
+  }
+}

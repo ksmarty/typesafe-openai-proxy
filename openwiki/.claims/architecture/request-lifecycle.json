@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:fb9a397df90843508cb4cde95fd385443c1de4991cdd1189f2ef815023f709b1",
+  "claims": [
+    {
+      "id": "claim_0fc2fbecd9354d109c9f710708db91aa",
+      "statement": "The proxy only decides when the request names the typesafe-router model or decision.autoStart is on, and a backend with a base URL is configured.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L931-L935",
+          "version": "repo-lines-v1:sha256:8350956e3731ee0d1d9488fb8ee141192704258247cca331953ef4f48fe5fbe6:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDhkZWUzOTQwNTQ4YTRhZDU4OTQ4NDA4MjUwZDgwMzIwZDM1ODk3ZDI1YjI1ZjkzYWJhZDc3ZGU0N2VjOGVkNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmMzNjMzMzBlNTZiNTIyMjNjM2RhZWFkMjc5MTUxZjY0ODgzMzg2OWU5MGZjYTM3N2E1YWIwOTk2OWM0MGIzNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWMwMDU1NmU2ZmVjMzhhYjk0ODQzZDNiZDYzMDY0NTJkNzYyODAxMzc1NDNiMGIxMWZjMGQwY2E4ZDU3NThmYyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODY2MjAwODkyZGIxOTVjMjhmYTBhNTg1MDk5ZmVkZmRiM2Y1YzAxYjZmZTI3ZTVhY2VjZDQxMzE2MDY2ODQ2YSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_28af686d0c974f86bea548a6ea59f775",
+      "statement": "POST /v1/chat/completions reads the body, parses it, remembers the top-level field names and hands it to handleChatCompletions.",
+      "evidence": [
+        {
+          "resource": "repo://src/server.ts#L601-L622",
+          "version": "repo-lines-v1:sha256:734909f8b99cbc40cd84f96d52b2435bfd8a8fab413d99f6cafbecf1fd27fe02:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyZGFmZDVjMDJlZTQyYTBjOTVjODUyZDNjMjA0NTYwMDY4YzRjYmQ4M2Y5MjBlNGU0ZTJiNDU0YWJmMjM0YjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4MDA1ZDU3MTA2YTM2MmViMDAwZGFmM2RhNDY3NGM4MmI1MThmZjVhMmUyZjY3ZWU4ZTc1N2EzMzNjMmFmNjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjcxNjVjM2UwZjk1NTljNDAyZGVmMzA1ZDU2ZmU3MjI3Y2ZmOTdmMWQ3ZWM0NTY3NGRmYzE4ZDFkNzZjMjEwN2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlmYTJkM2VkMmIyMmY0OWU1MzA0M2YyNjQxYTg0NmNkNTQ3MmZlMzA1Yjg3ZmI3YmM4YWFjYTZlOWVlMTlkMzAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_53e863df76514a1da07ff7f1912cdd4c",
+      "statement": "runPipeline starts with fastPathStatus, the offered tool inventory and the device id before any reader runs.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L274-L290",
+          "version": "repo-lines-v1:sha256:d8f2ab5b444989c9995b671257a701f986ff4238b9c048cc4c0649e7ab169ef7:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3MTY1Y2Q5NmNkMDc5MmY0YjhmYjIzZTY5YjQwNzZlZGU1NDk0MjQ4YTg5MGM5ZGI4YTYyNDhkZmNjZTQzNTciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkZmFlNzAyYjFjZjg3MzdlYjA5N2E2MTM1OWQyZGMzODExZmIwMjI3OGQ3MGUxMWQ5OTU0ZDhjZGI3NGQwMDYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwYTFhYjgwZGY4YjgyNWNiN2YzMTljOWQ2OTI1ODU1NGY0NzY1ZTJhOGMzODdlZTQyZDQ2M2NiYjM4NDlmNWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1ZDdjYjJlNzVlYzhmYTNlMDE3N2I2MjFhMjgwMjgxYWQwNDQ4NzUwZTE2YTk1OTg4N2U3NzhhZmI2YzcwNzkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a5875f2a10854dc38b1851fa39056d66",
+      "statement": "A decided plan is executed by a route switch that emits tool calls, speaks text, arms a confirmation, or forwards upstream.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L1277-L1316",
+          "version": "repo-lines-v1:sha256:1fb463462c3b8eafb0569e66691886fb80b6792e4780cb3ec836ff0b72dc6db5:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxZjAxZjIzZGY4M2MzYWQ4YTU1OGZmMjVlNjJhYzZkNzZlMWI4Y2U0NTgwZTMwN2EzYjUyM2QzMGJiMzg4YzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk3ZDg2MzJlNTRlOTI5OGFiYjk1ODcyN2UyZDUxNDA4YWJhZjEzNjYwMzUzNzkxMDE0MGFiZjY1YjMwYWI2MTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM3OTI5ZTkxZTBmOTljM2U4MjVkZTY5YjQzNWZiNjQ4NGQxYjBhMWRmMmY0NjU2MWFiZjFhMjlmMDQxODhiODgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1c07f73f0e144a4a853c807a8586c733",
+      "statement": "emitToolCall records every issued call in issuedCalls with its action, targets, tool, args and turn id before responding with tool_calls.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L1325-L1347",
+          "version": "repo-lines-v1:sha256:1c2ec8c1c58639ff6efc58229306d43010953132cff4a76a41f5dfd128664722:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRjMzlmNmQ0ODYxMTQ2MzZmOWU4NWFmYzU5MTU2MGEyMTg1ODcxYWFkNTUyNGNhZmM1YTlkN2FiM2ZiNWVjMzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVhNGY1MmUzMTJiMDUwODE0YmNiOGQxNTYwZTM3NjM2YjdkY2YxY2QyNzFhOTJkOTVjN2YzZWRhYzdiMzYzZTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ2M2Q2ZTllZTI2Njc1NDk0MTczZTg3NGI2ZTFhZGVkOGFjNDI2ODMxOTQ4NGUzMjc5NjFiN2VkMzAxN2Y5YTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_db760b5372024e649dc7a23c4f8e2363",
+      "statement": "forwardUpstream streams each upstream chunk to the client immediately while copying it into a capture buffer of at most 512 KB, then parses the answer.",
+      "evidence": [
+        {
+          "resource": "repo://src/respond.ts#L166-L259",
+          "version": "repo-lines-v1:sha256:e0f96d7cea33a26b252c9a5409ae7c41d5e3d13699ed313a4e1532b1ffe5e22a:eyJzZWxlY3RlZExpbmVDb3VudCI6OTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA5NzQ1MzVhMTUyZWEwNjkwNWNiYjljMDhmMTE3YzQzY2MyNDI5ZjA2OTcwMDEyYzUyOTUxYmY2Mzc0YzNjZDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUwNjg1YjVmZTlmOWI3ODgyODU0MTEzODJkZmM0NTM1OWYxZjgxZTU1NjUwNGUzMmU1M2NmMDUyOWZkZjc4MzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE5NzhmOGM4ZGEzNmEyMmJmZGYzZDBkNzgyYzg4YzU3ODQxODhlMDQzZDE2ZTNiNzMzZWIyM2E5MzNkNGI1NmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6bb16edf4d084da68dbc550c7b23ef1d",
+      "statement": "Forwarded responses keep the upstream status and content type and are sent with cache-control no-store.",
+      "evidence": [
+        {
+          "resource": "repo://src/respond.ts#L229-L251",
+          "version": "repo-lines-v1:sha256:3f280a88b0480729ec15fd6ae326b8f6f4d7165d148f278f207bbfe31373e8fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhMDg3Yjc3MWI1ZDVlY2QyYzc2NzJmOTJlNWY4YTQ2NjA2YWM2ZjBkZjZiOTM5ZjhhODYxYzQyNzJiYjQyNzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU3YjZkOWMwYzIxODNhOTYxNjIwZDIyOTgwNjM1MzM5ZTZiNjg0ODliZmY0Y2FjNzNiNzc2OTQyZTUyNTAxNjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYyNjcwMGMyNDBiNTRlNTAyODA4ZjMzYWI0NWE1MTVlNzk3NzJlNzY2NjI3N2RlZGY1YjE4ZTkxOGZjYzU1N2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk1ZTI1ODJkZGJmYmQ4Y2JiZDJjZDQxYmVlM2ZmNWYzNWZmODIwOTNhOGQwNTc3OTAyZjJmNjZiNjk2NDI4YjAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_acc2efaeb1e94fca822587118c4a52b6",
+      "statement": "recordForwardedAnswer patches upstreamReply, upstreamCalls, upstreamStatus and error onto the trace row that started the forward.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L906-L914",
+          "version": "repo-lines-v1:sha256:03e8618eeda041d5508902ce9c3d539de09a4157c3cf088c3be1c3b73f72df28:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDZlNDQ2YzM1ODUyMWM1NjJmM2I5NWQ2YjVmNWYzY2E4Zjk2MGJhZjcwMmZhYTIzZmVkNzc5Zjg0ZjlkNWYyYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTI2Y2UxOTQ5M2MwOTFkYWZjNGRiZjQ4M2IxODkzY2Y1ZDg4MmJmN2FjZDhkYThjMDIzMThlZGQ2NzAyYzVlMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZjQ2MzdkMGYzNzZkZDg4ZWJhNmM1Zjg4YmVkZTQ0Yzk1OTQwY2JkM2QyMjQ2YmMyMzE3YmQyMjgzNWU1MzMzZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_9b0105ff362842a19fd541e33c11dc8c",
+      "statement": "When the decision backend is unavailable the proxy retries with the heuristic backend and either reads the turn locally or forwards it.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L1234-L1270",
+          "version": "repo-lines-v1:sha256:45e7f5693e761cc4293f1bf6b944fd6a871c723c5a1f33fde03ebcf4e540fbee:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhlZGJmODM4NzUzNjg5NjZmMzEzYWU2Mzk1MzljNDAzNzAwNDViYTUzZTJlMmNlZTkzYmI2N2Q1ZGExN2I5ODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliNjJmNjBkODU5MGE1NzljZjQ2ZjhkNjczNzhjNGM1NzJiOTYyY2VjY2RiOTBjN2E1ZjdiNDJiOTYwNzgyYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjE3OThiMGJlZDVkNmFlOTIzY2YyYzdiNDQzYzg3MWI0NDA2NTgwZWQ5Y2M1ZDE3YmYyYTU2MmE5NGEwNThiNzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZmOTJmMWRmODc0NmM4ZmRiNmZmMzYyM2RlMzQ2YWNjNzdhNzViMDE0ZGM4NGIzYTU2MjliNDI2OTE1Mzc4NGIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0781b815639042038e7d44c5a91a3510",
+      "statement": "A speech round configured to let the model answer gets its own forward trace row so the forwarded answer has a row to attach to.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L1065-L1083",
+          "version": "repo-lines-v1:sha256:8b53fa5204ef1ea02d9c33f0a29917fb0ac972af9848f54a3899fdce43b36f14:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwZTc4MGY2ZDVhNDQ1ZWYzYzk1ZTkzODRjNTVhMjY1ZWI1MmM0ZTJjNjExMGZmNzQ2MTZhM2EwZmM1YTc5NjUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFlYmNiMDA3MjhlNzVlN2JmOTQ4YTEzMmYyOTlkNDA5MjllNjRiMjU5MjMwZWRjM2M4MmI1NTBmYTEyYmNiY2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZiM2UwYTUxY2FjZjU5ZTA3NTg2ODkxYmEwYTc2ZjM3Nzk1ZmRmMDMxMGE2ZmZkYWMwYmNhYTgzNDM0ZTdjOWQifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-16T15:09:02.577Z"
+  }
+}

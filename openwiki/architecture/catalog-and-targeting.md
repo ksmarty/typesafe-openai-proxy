@@ -5,6 +5,16 @@ openwiki_generated: true
 verified:
   - by: openwiki/0.9.0
     at: 2026-11-16T15:09:02.577Z
+sources:
+  - id: openwiki-source-c28b716c91b31ea74e600c17
+    resource: repo://src/answer.ts
+  - id: openwiki-source-fc514c46479a691784dc5d9c
+    resource: repo://src/catalog.ts
+  - id: openwiki-source-b05e4ad2e039ef48fe663f01
+    resource: repo://src/questions.ts
+  - id: openwiki-source-637f5f1f4bab04e4b4448919
+    resource: repo://src/systemone.ts
+generated: { by: "v1", at: "2026-11-16T15:09:02.577Z" }
 ---
 
 # Catalog and targeting

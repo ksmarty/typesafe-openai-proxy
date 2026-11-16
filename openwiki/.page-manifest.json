@@ -2,14 +2,70 @@
   "schemaVersion": 1,
   "pages": {
     "/openwiki/architecture/catalog-and-targeting.md": {
-      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
-      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700",
-      "pageVersion": "sha256:52a37cffbf9e2e71b82d0f8c65193a1998fa24c7034c71eafc80d8c43569490c",
+      "pageVersion": "sha256:3dac3cb82c405c3bf93dd78eba1596ec1a5bbbf4624afb72686b87b28d2899d9",
       "completedBy": "v1",
-      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2"
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700"
     },
     "/openwiki/architecture/decision-and-gates.md": {
-      "pageVersion": "sha256:f03c9d14d22a7465284c47419266fa6801b59747903c9bf6f5bedb167fe9a36d",
+      "pageVersion": "sha256:ca61975f0f75b7943e2612a5062fd334a023db3ea62780a9ca5edea0a0059365",
+      "completedBy": "v1",
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700"
+    },
+    "/openwiki/architecture/fast-paths.md": {
+      "pageVersion": "sha256:f80f57a6ae9a56db81b834e4bbf8aac5494a9b0e46ded108ee25e86a6f2a8212",
+      "completedBy": "v1",
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700"
+    },
+    "/openwiki/architecture/request-lifecycle.md": {
+      "pageVersion": "sha256:fb9a397df90843508cb4cde95fd385443c1de4991cdd1189f2ef815023f709b1",
+      "completedBy": "v1",
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700"
+    },
+    "/openwiki/architecture/speech-and-confirmation.md": {
+      "pageVersion": "sha256:e8e61750913b99bedca156965e50f80d09febff071dd83f2d58903071d3edef7",
+      "completedBy": "v1",
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700"
+    },
+    "/openwiki/architecture/state-and-persistence.md": {
+      "pageVersion": "sha256:b9ac587fca115f623cea8777dc5b6170072edd77786dbf6bf1c1d6a9c31bdadc",
+      "completedBy": "v1",
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700"
+    },
+    "/openwiki/configuration-and-deployment.md": {
+      "pageVersion": "sha256:ad4e6e852c6e9b1f25bf48d009b05d9b959079a4aa5c6b7b486693740ba54c0a",
+      "completedBy": "v1",
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700"
+    },
+    "/openwiki/dashboard.md": {
+      "pageVersion": "sha256:bdaed1384bd55193f2deadc11ae224d505a76e7e3e5b2383676ff4dafd898a08",
+      "completedBy": "v1",
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700"
+    },
+    "/openwiki/overview.md": {
+      "pageVersion": "sha256:f3ee0a5ed219924a544f1e27d36ed563db9070e1c38033ebf57c38442979df0a",
+      "completedBy": "v1",
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700"
+    },
+    "/openwiki/quickstart.md": {
+      "pageVersion": "sha256:d58203acb185d8060419049c799e51c16ebd8be51d68d21810ade19d4adeca7a",
       "completedBy": "v1",
       "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
       "gitHead": "981617e3587b7757a7969a69d78380154473466c",

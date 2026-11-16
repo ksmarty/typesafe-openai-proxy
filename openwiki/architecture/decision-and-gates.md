@@ -5,6 +5,22 @@ openwiki_generated: true
 verified:
   - by: openwiki/0.9.0
     at: 2026-11-16T15:09:02.577Z
+sources:
+  - id: openwiki-source-fc514c46479a691784dc5d9c
+    resource: repo://src/catalog.ts
+  - id: openwiki-source-2b68006c6421e01c95988dcc
+    resource: repo://src/config.ts
+  - id: openwiki-source-32df914360d92c28e9283cc8
+    resource: repo://src/decidecache.ts
+  - id: openwiki-source-8c630d0655d2170e7b1bb86c
+    resource: repo://src/history.ts
+  - id: openwiki-source-d62dc78a6b92f64549736a16
+    resource: repo://src/pipeline.ts
+  - id: openwiki-source-9da6594296f4b30b9cdfad4c
+    resource: repo://src/router.ts
+  - id: openwiki-source-637f5f1f4bab04e4b4448919
+    resource: repo://src/systemone.ts
+generated: { by: "v1", at: "2026-11-16T15:09:02.577Z" }
 ---
 
 # Decision backend and routing gates

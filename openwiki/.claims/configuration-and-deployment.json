@@ -1,0 +1,164 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:ad4e6e852c6e9b1f25bf48d009b05d9b959079a4aa5c6b7b486693740ba54c0a",
+  "claims": [
+    {
+      "id": "claim_21a5995e0b4f407c9ce4658f6a3f2e65",
+      "statement": "defaultConfig() supplies every setting, including server.port from PORT or 8080.",
+      "evidence": [
+        {
+          "resource": "repo://src/config.ts#L377-L438",
+          "version": "repo-lines-v1:sha256:0365e9353181ce0825a02519d10ac4f79c426c5de26e1f4a6f38d1ba83469481:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhZDI3Mzc1OTc0OWY0YmJhZDUwY2M5Yjg3ZDUwNDgzNDVlNjFkZjI5MzZjNGZlYzIyZWVhZDI0ZTg2MTYxZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBlZTNhZDE0MGQxZDczY2NhMDk0Nzc1YTRhMmY2ZGY5NTljOGY5N2ZlODc1MTA5OGQ2ZmExMGY4ZTFmMDFkMGEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3YTc2NzAzZDdhMDc2NjZhMTFjZjc5ODBiOGI0M2I2ZWZkNDFmYTRlMzEzZmM5MjM3NjM4ZjgzZWUzYmNhNmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_befb38f44d574cb297e51d8c34aea799",
+      "statement": "Configuration is layered as defaults, then config.json at DATA_DIR/config.json deep-merged onto them, then environment overrides; an unparsable file falls back to the defaults.",
+      "evidence": [
+        {
+          "resource": "repo://src/config.ts#L440-L475",
+          "version": "repo-lines-v1:sha256:eee4906c64f7296fe82422878871b705430cf18247e3294f05e5a31194aa624a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY0MzI2Mjc2MWQ4MWYyOWZiN2YxZDNkNGE1MDI0ZjQyYTc3ZWFkMGI0ZTY4MGMyZDE5MDM5OGY5YjE4NjI2YzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkyMDQwZTA5NWE5NGUyYWRhNzRlNDIxZjM3MTg3NTFhOTFhODEwYmZkNjZmNDhmNGU5MzljN2I3NDgwZWI2NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI5ZDI3MmUxY2Y4ZTM2ODY3NzM5ODMzNmMxMDQ3N2Y3ZmYzNWUxODMwMDg0OTFlMzg2NDZlNGZlYjgxY2MwYWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_934b1460bd4e4d55a69da17aa72d8d8f",
+      "statement": "saveConfig restores any password field submitted as the mask, drops values the schema cannot read, clamps numbers, and writes config.json.",
+      "evidence": [
+        {
+          "resource": "repo://src/config.ts#L588-L611",
+          "version": "repo-lines-v1:sha256:d84c05645d60299a9751ca4ba561777b43ac7f32e823a1bd80eba2a5b4193db7:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyMGRjYzI2MmYwY2Y4MjRmZTg0ODhhODU1MDYyNjI0ZTA0YTY1YTFiZDVmODFkZTg3NWJiMDQ5YzczMmI3N2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM3MTIyNWU5MzlhNmJhMjZjZTk3OTljZDkxNWZhOGQ5ZGE4OWI1NDhhNDUyYWM3OTAyNGZmMTA1Y2I4MjBmMzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA1OTEzYjYwMzQ0MjkzOGU1ZjcxMmE0ODNiNmU3MmU4OGM4ODY0NTYwMDc1YWYyMjk5YjMwMDRjZGY5NDVmYjcifQ"
+        },
+        {
+          "resource": "repo://src/schema.ts#L779-L796",
+          "version": "repo-lines-v1:sha256:95ebc67ed3bb2b239b58d91f731c2e98ada80b2517ed09428f28cb27714c0c01:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmM2ExZmNlODIyODI3MGUyYzg2NzM4YTRmNmFhYWY5YjIyZTM1MDRiOWIzOTgzYjJiYTBiNTgyYjRjNTQ1MzYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4N2U4YmMwNTFhYWE4YzkwYmM1Y2JiOGE3M2QyZGE5NmY4NDQwMDczNDY5MDlkZmJjNjRlOTRlZTM4OTRiNzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY3ODJhODE3MTc0NTY4NzhmYTJjZTczNzg4NmUxY2RkY2ZhNTQyZGUzMDIwMThhMjI3YWIwN2JmYTU0Mzk4ZDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5d7715c93f1e4ef999f8ce623aef88c5",
+      "statement": "resetConfigPaths resets only the named paths, so resetting one settings page cannot wipe a token or URL from another.",
+      "evidence": [
+        {
+          "resource": "repo://src/config.ts#L638-L655",
+          "version": "repo-lines-v1:sha256:42fee44231e1d51ca2c84f64f957f321d250631bc11e68a721cffb7f60628900:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxNTVlODkwYzJkZWIwNTA5NzEyNjVkZWMwZTI4NTE1MzNjNzUwYWIzYzFjN2UzODM1MTdiNWM4ZDY5YjFkNDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjNWUyM2EwNTBiYmNmYWY1YjIxNTA3NDUxNTE1ZTFlNDc1NWU3ODU5YmJmNzVjZjNiZjkzMDNmOWMzZmEwYmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJjOTgyYzVmMDE0NTU4ZjE3NmVlZWIyN2M2NzdkNGFjZjA4YTc1ZDI2YTEyY2Y1Njg0ZjY4ZmYzZTg2MDNjOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ4MzJjODkzYjg1Yzk4NTk0MDRkMzhmMmIwZWJjZDAwNTY4OWIyY2FkMjQ0MzdkY2VkZDQzMzE0NjZkMTI5NTMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5c5cca37dbe34fdab9a5c60a922887c7",
+      "statement": "applyEnv maps environment variables onto the loaded config, accepting 1, true, yes or on for booleans.",
+      "evidence": [
+        {
+          "resource": "repo://src/config.ts#L477-L530",
+          "version": "repo-lines-v1:sha256:a0a155a007b8a4aef7a5f1ecd499463f0a34779448c1e8bba3ecc9a5d5cc5f2e:eyJzZWxlY3RlZExpbmVDb3VudCI6NTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJhOTdmZTQzYjUyYjFjZGY3OGZkZDM5Y2QxZTE4Yzc5Y2M4ZmFmMWY2YWFiNDQ5YzBhY2Y1MDk3NTgxMmIwYmQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImExYjA1MmM2MTEyY2JmMjBmNWIxNDUxYjE1Yzk5MzZmZDdiZGNmMDFiYTgyNTQyMDY2MGUxN2E4NjRiYWVlMmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQwNzQ4Zjc1MWRjMjYxNGE0NzVkZmViMjdlNjRkODk3YzE3NzRjYjEyZjJmM2QwYjQ4YTVhMzRhMGJjY2IzODYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmYTg0MGQwMDNhMWE1OTRkMTBlMjNmM2E3MTBkODkxNDI1OTUxNTA5ZDQwNzZlY2JhMDFiYzBkOTdiOWE1MGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_86e7a336f9ad4e8893f650cfb8e8a646",
+      "statement": "The debug bundle reports environment variable names, withholds the values of keys and tokens, and prints base URLs.",
+      "evidence": [
+        {
+          "resource": "repo://src/server.ts#L154-L168",
+          "version": "repo-lines-v1:sha256:7c1d4db99917ebd5c918a09c38fdc411769f4efc8e9bbd80cce972af30e53710:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNGRlMjgwNjI3NjVkMzQ2MGY1Y2Q3NDBmYjMzOWZmZjE4MWU3ZWNjMTk4NDY0M2M4YmVmM2I5ODEyZGY3YjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU4ZTEyZWYwZDc1MDUxMGEyZDE5OGMwMGFkZWMxZTIxZjdiYzc5ZjQ4NjQzMTVkYWY1NWQ2M2U1YTY3ZjA1Y2QiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI2ZTEyNTUyZjUxOWI4MzlhZGUyMzZkOTBjNzJjYjIzYTkxZWUxZDI2ZDQzODJkNTc4MjNiZDBkZWFhNjJiY2QifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_02f5bb3593674725a781b1d6a20b02eb",
+      "statement": "Bearer authentication applies when server.apiKey is set, and secrets are masked to a prefix in every exported copy.",
+      "evidence": [
+        {
+          "resource": "repo://src/server.ts#L105-L110",
+          "version": "repo-lines-v1:sha256:6ddf8476dd673f5b92e5fb0df03cdb3d576e0dddbddddac5e0c6dd7ad5edcede:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOTIwOGE1MWI2ZjZhYzE4Yjc4Y2RiNzA0NmMyNTA3ZWI4OTM4MDk4ZTY3MDhkMzIwOTFiNDEwNDgxN2Y3ODhmNCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZmI1ODBlOTY0ZjgzYTQ3M2Y0M2Q0NDM4NDYyOTQ5ZDY4YjU2MDBmZGE3ODdmMTYzNzQ1ZDAwZGU4OWNiZjM2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2JjNTE0ODNjNWMwYjlhNDQ2MGRhNmEwMjg2ODk1MWFlYzE5NmY2ZGY5OGRhNTk3MTg2ZTYxMjc4YTI5YjNmZiJ9"
+        },
+        {
+          "resource": "repo://src/server.ts#L301-L302",
+          "version": "repo-lines-v1:sha256:9c6152c342b9ae6f9aa1ca973c3ccf5c856d49b84bc54cca7759a0f5fc3fe28c:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYzBlYjVjNDBmODY4NmIyZmU4MGM3M2Q4NWM5MzdmNGM0NzExMjJmYjgzNmQ5N2M1NTMyZDVhNzhiNThhZGVlYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZTQ4NGFlZmRhZmNlMDhhYjdhOTQ4NDRhODhhNGJhOWUxOTBkODdlYzJmZDhkZjAxZDkwMDYwN2ExYTQzZDhmZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMzU5ZTAwNTNjODk0MjAyNmZlNTRlMGU2MzU4NGM3ZGI1NjJmOTdkNDg4MDgyMGFlNTA3NzRjYTQxNDQzZDllYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDIyZDZiZTAyMjNmMTVjYTYxYTY2Mzc0NGZhNjE1Y2I0MmNjYjg0Zjc1M2NkMjFhYWRiMDdiNzhiMWVlOGEzNCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b65c19bf4fe84bee9c57b37d5ac9e334",
+      "statement": "The data directory holds config.json, catalog.json, decision-cache.json and history.json.",
+      "evidence": [
+        {
+          "resource": "repo://src/catalog.ts#L778-L786",
+          "version": "repo-lines-v1:sha256:a5b9670ba24f8d85cbb8348555f6c1d5011daba90dca028217c8845079a3e65b:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNzA1NTZlMzVkNzc5ZmRlNWMyN2IxN2ZmMzFiZDM0NWMyZjdkMGU3ODdhM2M2MmNhZWMzZDg1ZGNlZmFjNGJhYSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmU3ZjBjNzMxOTI5YzE3YmZlOGFkNjM5NGM5ZGU5YjE3OTYxNWIwYTNjYzMyZGQzMDNhZjcyYThkMjJkMDg3NCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzNhYTY0NDAxM2E1ZTI4ZjZkY2ZkZjI3NDI5ZDg0ZGEzZWE0YmYxODcwNjZkOGFiN2VkMTI0YjU4MWVmMDcwYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDg2NGNkZmE2M2FhZmJhZTNhY2ZiOGRkZTI4NTVkMzE0YTgxYjRiMDViNjZjNzY4ODUyYTBlYTU0MGUzMjFmMSJ9"
+        },
+        {
+          "resource": "repo://src/decidecache.ts#L25-L33",
+          "version": "repo-lines-v1:sha256:845230baaf4b15e59a92dd7d9ff1539dfc2aec38f9f10a9618d02e795af13223:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjA3OGRkZDU2NjdhNmYwNjNiNzY4YTZlYzAyZWFlY2E3MjFkZjZkMmUzMTM0MWQ4ZjAxZTJmNGI0MjI4ZWJhZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzM0NjFjN2Y0OTFiYWM0NGEyNGM0Y2IyYTUyZjVhZTZiMDBmNDQ3ODE4YzZlMDczMDBkNTNiZGIxOGM5ZTdlZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDc1NjA1NjllZWI0MzEzOTc5ZmM0M2FjNDVhOTc0MTQwOWFjOGY1Nzc3Y2RiMGJiYTgyODA4MGMzYjM0MjQ1MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmVkNjAzMDVlNzE3MjdhZDg2NmZjOWIyYmE0NTkwMjAyMzcxMjJiYzUwMGY1MmYyMDQxNTAxMThhMjdhOTU1NSJ9"
+        },
+        {
+          "resource": "repo://src/history.ts#L18-L33",
+          "version": "repo-lines-v1:sha256:42b430b2e9fc1706a6fcbe4a95a2620e96c405c1c1723545c0a580030a2c0165:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3MGE5NmMzZDY3OTlkODBlY2YxY2JmNWI1NzI1YmI2NTEzOWU0OWE1MjRiNGJkYWRkNWU1YThmNDQzNWIyNWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2YzVjNmY0YTc3NjY5ZmRlN2U4ZGE5YjRhZDAzYjUwNWU1NjU2ODYwMDA5NzY2ZGU2M2ZhNjAzNjJlZjFkMGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1ZTJmMWY0MTA1NmRjOWVlNzVjYjM1NTg5MjliMmY2ZmY1ZjYxZWRlNWM2M2EyOTk2MTFhMTFiMzNlNTE1YTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cac0de854ff54a5baa123d9961567a3a",
+      "statement": "The image is a two-stage build: Node 22 alpine compiles TypeScript and bundles the dashboard, then the runtime image ships dist and public with no node_modules.",
+      "evidence": [
+        {
+          "resource": "repo://Dockerfile#L1-L18",
+          "version": "repo-lines-v1:sha256:5b214f6f28eca060c3bc1c2f3af1689f9707a8d5f50110d299022db098083c7d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjZWM0NGM1YjQwNjk3MGNkMGI4ZWE5MmQxNzZlNDU2MTkzYmRiZTQ0NzM5NDdjYzMzOWUzZDFjMjRjYzYxZDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYyZDgwMmNiZTgxZWJhZWE5YzZiNGViZmFiZGM2ZWViNGJiNmY4ZDZiODMyYTk5YzNiYzBkZDgxMTUxMzkyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAyYzQ3ZWY5Y2ExOGY5NTg3MTY1Y2QwOTI1YTJkYjc1ZjkyNTE4NmJkNDMwODkyZDlhZjUyYzFlZWNkODgzNWMifQ"
+        },
+        {
+          "resource": "repo://Dockerfile#L19-L35",
+          "version": "repo-lines-v1:sha256:286f7228d46493d217e3feaa26e72731640d58d5e88669211e2f86d70cc02f39:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJmYjE3M2RlNDFhN2IyOTVmNWE1YTU3MjUxNzA0N2ZmMDhiNGFiMjc1MmQ5YzJjMDdlMTFhNDllMDZjN2JhMjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiM2YyMjgyYzgwMzM5ZGViMTcyOWE0MjQ3ODVkODlkOTY3MzVjZTZjYzgyMThiMmQwNjg0ZTkzN2M4YmE2Y2MiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdhYmIzODYxZmFlNGExYTBmMDYxMWRjNTg0NGVlYzUyZjNlZmU5Y2IyMDZiNTBiNjNhYjRmZTI1MDBiMjBhNzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6175f1cb508444b8b2cf2252586a053c",
+      "statement": "docker-compose mounts a host directory at /app/data, which is the only required volume.",
+      "evidence": [
+        {
+          "resource": "repo://docker-compose.yml#L1-L18",
+          "version": "repo-lines-v1:sha256:b2540a2b1df3a9e7a782e7792120b64659e61a6f0a6e890c3747e1b26e354494:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhNzNmY2NkYzk5ZWE4MzU5NjdjN2RlZTdlZmJlZDFmM2NhODcyNjBkOTI5MzE4NTBmZGQ2NmRhOGNiMTJmMWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxOGYyYjNmMGQ0Yjg2ZTgzNGQ5Y2MwM2IzZjVlMzYxMGU3YjdlNTA4MDllMDIxNDQwMzM1M2E2NDVjOTg2NjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_293af03dd4bf47428a1cb0e1d5ca1327",
+      "statement": "CI typechecks, tests, builds and builds the Docker image without pushing on pull requests.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/ci.yml#L1-L50",
+          "version": "repo-lines-v1:sha256:7077b23a3cdf9e3460e42437f6b3311aed6773dbcee6f554c591c3f3b7744594:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2ZTFiMzJmYTA5MDc5YWUyZjAwMDFmZmYwZWNhMjdiNDk4NTk1N2Q0ZWI0ODU3OTI5YjNjZjA1OGZhYWU1NDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjI1NWY5YmJhZjliZTIyZDg1MDRkZTFhMWZkYThjYjQ5NThjM2RkM2Q5Yzk0YWZhNTEzMDJiMmU4OTgzZjNmZWYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9a880ba1f5c04c1fbeaeee59042c1ca8",
+      "statement": "A push to main bumps the patch version and tags a release, then dispatches publishing because a tag pushed with GITHUB_TOKEN starts no workflows.",
+      "evidence": [
+        {
+          "resource": "repo://.github/workflows/auto-increment.yml#L1-L30",
+          "version": "repo-lines-v1:sha256:f49e5514a3a37e5506aeff002964e5b2564eb9cf5a16122c5594a2a3ae2e31c5:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQwMjMwYWE2ZWM0NTk5NzFlZTY2ZTIxMDA3NTUyMjkxYmYxZmJhMWRiMTI0NDRiNzczZjJjMWI5OGUwMjcyZjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAxMmEwMzliNTBmMjZjM2I4MjBlNDNkNGY3MmU0MTA4OTA5NTM5NGIyZGNkMGU5MDI3ZmIxYTA1Yjc0MjQ4YjYifQ"
+        },
+        {
+          "resource": "repo://.github/workflows/docker-publish.yml#L1-L20",
+          "version": "repo-lines-v1:sha256:092fc2c30ab98d6f5f90eee691e6dd1c7686ea4432212c6b72a27466b87f638e:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY5M2JiMDZhZjBkMTljMWVjYjk0Y2E1OGVkODNlZGY5MTg5YjI1YjE0ZDIxYzljODcyNmQ5ZmM3NzQwZDEzYWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwMTIxNTkyMjExODQxNjBlOThlMzlhNWFiMGI2NjdhMzMzN2ZhYjdjMDllZmJmOGUyMjc3NzY4NTk5MDNkZjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ5NTNhM2NhZDQyZGNmN2E3ZmE3NWM5MmMwNjc1MTg0YmM4ZmY4NTc5ZjBmZTk1YTE5NjRkZTJlOTgxMTA0ZDgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ccb94fe680c24d18a39cde6066482f3c",
+      "statement": "Scripts cover dev, build, start, typecheck and test; Node 22.6 or newer is required and tests run on Node's built-in runner with tsx.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L1-L30",
+          "version": "repo-lines-v1:sha256:65d8ad1edf411fa8eaeff29f6ee9abd2a6c1ec763e0408c07e133ca60b9d0f98:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2ZmIwOGZkYTFhY2I5NTdiNjExNmJkMzc4MTFhMWZlNDFhMDE2MTFjMDYzMWVkYmY3ODZkNjg4OWEyN2E1NWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJkZmJkNDAzMTVlM2ViMzg1Y2EzMmI5YTZmNGQ5OWQ2NDI0OWRlMmU0MzcyZDVmYWNmODNmYzlmMjFmYzQzZjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY0MGJlMjM3MzRkZjQzNTI2YjdiMWNlYThlNGE4N2E5ZmUzYWYyNGQ1ZmQzNjdlMzQ4YmI1MDg5MGEzODQwOGIifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-16T15:09:02.577Z"
+  }
+}

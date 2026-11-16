@@ -1,0 +1,122 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:b9ac587fca115f623cea8777dc5b6170072edd77786dbf6bf1c1d6a9c31bdadc",
+  "claims": [
+    {
+      "id": "claim_ac0b1faeb59445af8fee9b4ed1ca91e7",
+      "statement": "rememberTrace trims the trace to max(10, routing.traceLimit) after unshifting a new entry.",
+      "evidence": [
+        {
+          "resource": "repo://src/state.ts#L184-L191",
+          "version": "repo-lines-v1:sha256:13ebd2279d3a600ec916087ddee8cfcc300bf2c6a32405eaa0f3bfbe255103b7:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNjkyMWI2YjBjZjc5NmM5YTBmNDU5NmY3ODI1YjgyOTk5Y2RkYzFjNDdkNTQ5NTlhMzdhNDQ4MjUxYzY5NmZlZiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWY5NjRjNzYwMTU0ZTMwYWQ1NDIxZTc3YzVmMjI4ODMwMmZiNGUzOTA0ODhkMGZhMjI2MzViODdmMzFmY2I1ZiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYzI3NTQ3YTBiODEzYTgwYjg4MGZkNDNlYTNjYzc2NDEzODMwYjY3Njk5MmU3M2FjZTIzNDRkYzQ5MDMzZDg3MyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_2adb07af77104c4bb7a41c2a2f202b4c",
+      "statement": "updateTrace folds a late patch into an existing entry by id and returns without action when the row is gone.",
+      "evidence": [
+        {
+          "resource": "repo://src/state.ts#L193-L198",
+          "version": "repo-lines-v1:sha256:60487e3f8a1f365d3757e8111afb4f9778cda9b180d3c1deb2b54094269a6961:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDBiM2NjYjViZDJmY2E3M2NiOTNlMTBlOTY0ZTljMTI0NzA2MTgzMTFhYjUxOThlY2NmZTRkOWNlNDcyNTU5MyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOGMyODgzMGViZjZjZGQ4NWJlZTk4ODc0NTY4ZDRkNjRiMmIyNDU0YWEyNDQ5N2U4ODVkYzM2YTVhZGJhYTg3MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmJhMGNhMWY5NmY2MDgyODdjYTBkYmUwNmU2NDQyYzdjNTJiODA5ODBkNTcyNmEzMmQwOGY2Y2NmNDAzNDI4MCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_36812142937640d9932a3a1cc383f09b",
+      "statement": "rememberRequest prepends to requestLog and caps it at 50 rows.",
+      "evidence": [
+        {
+          "resource": "repo://src/state.ts#L162-L169",
+          "version": "repo-lines-v1:sha256:8aabfd237e16c19cd0178a5d9e5225d34e90d1ab92dbc02feccca00ff174f79a:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMDFiYTQ3MTljODBiNmZlOTExYjA5MWE3YzA1MTI0YjY0ZWVlY2U5NjRlMDljMDU4ZWY4Zjk4MDVkYWNhNTQ2YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWVhYTQ0ZThlNjVlMWI2MmM1N2ViYjJiMGUzOWUxMTA4ZThiMDJjMDk4NGZjN2VjNTM4MzY1ZjljOGNlNmZjMCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNjJlOGVhNGUzNDJiODM3Y2YyN2RlZDY3ZmMyY2YyM2M2OGE4ZjY4NDIzNWY0Y2M0ZGVlNmNhZGI1NTBmOTJmYyJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_b0a6154b9a7e4e789e328f2b2e56f156",
+      "statement": "restoreHistory only replaces trace and requests when the saved file had rows, and copies stats only for keys already present with finite values.",
+      "evidence": [
+        {
+          "resource": "repo://src/state.ts#L206-L224",
+          "version": "repo-lines-v1:sha256:4574873a88210380ffde7165c61b46c5d1b52266f5057879a602692676076ef1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3ZDMwNzg1MDA4ZjJhODg3YzU0NWRkNDVhMjg3NGY0ODVjN2ZiMTJmZDExOTVlMTdhNTQ0ZTgzZmMyYzk5MjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYyZWUxOTNiMjQwMTc3ZWE3Nzc5ZGY0YmJjNjQ1OTZjOTc2N2Q2ZDc0YWViODJmNzY1NzE4YzhlNjU0OTBjNTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImIwY2MxMDIzYmU1YWRkNGE0NTdjYTdhMjhlNWZmZGRlN2ZjMzc2MzVlODIxOGRmNTcwZTcxMjFhYzgyMjEyMmUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_e4508ef11358400aa174864493e7b011",
+      "statement": "History is written to history.json with version 1, a 1500 ms debounce and caps of 1000 trace rows and 50 requests.",
+      "evidence": [
+        {
+          "resource": "repo://src/history.ts#L18-L33",
+          "version": "repo-lines-v1:sha256:42b430b2e9fc1706a6fcbe4a95a2620e96c405c1c1723545c0a580030a2c0165:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg3MGE5NmMzZDY3OTlkODBlY2YxY2JmNWI1NzI1YmI2NTEzOWU0OWE1MjRiNGJkYWRkNWU1YThmNDQzNWIyNWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2YzVjNmY0YTc3NjY5ZmRlN2U4ZGE5YjRhZDAzYjUwNWU1NjU2ODYwMDA5NzY2ZGU2M2ZhNjAzNjJlZjFkMGMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1ZTJmMWY0MTA1NmRjOWVlNzVjYjM1NTg5MjliMmY2ZmY1ZjYxZWRlNWM2M2EyOTk2MTFhMTFiMzNlNTE1YTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b7f8660e63e143218e206c00fd5260b7",
+      "statement": "readHistory returns null for a missing file, unparsable JSON or a version other than 1, and filters rows through isTraceEntry and isStoredRequest.",
+      "evidence": [
+        {
+          "resource": "repo://src/history.ts#L66-L89",
+          "version": "repo-lines-v1:sha256:55b18d5e446d12f93439c16d37431c4004beccb1ca06e995466e00530bd31581:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUwYmZjNWFlOTFlZGQ0YzljZTE5N2Y5NTEwMzA2ZTRkNzlhYzFhZTc4YzVlNGUzNjZiMzZhNGFkM2MzMmQ5NmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5NjZiOTk1MTQ0Mzc4ZmYzNjRlNTA2MjZhNDNlMjQ3Yjg5ZjI1MWM0NjNkY2NkYWZiNjVhNDhlYTIyY2RlNDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU0YTlhOTg1OTZmZWQ4MTc2NzdhNjdiYWQ4YmE2MGY2OGQ1OTliZDY5MzU5ZGNkZDM0ZTQ3OGQ0NmEwZDY0ZjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_f431ab1d3b344b1da5a93115665aa7d5",
+      "statement": "saveHistoryNow writes a temporary file and renames it into place, creating the directory first and ignoring any error so a read-only data directory cannot fail a request.",
+      "evidence": [
+        {
+          "resource": "repo://src/history.ts#L101-L122",
+          "version": "repo-lines-v1:sha256:01177572eaae604cc70281ae5b27dd69157824d5ec162a399c833efe67127eb2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5NjI5YjA3ZjI2YzI2MTJmOTRlOWZmYTc0MzI4MTJhNzgwMjlhNjhjZDkxNjFhMTJjNDgzMDRiYjM0NzgwNTYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM0YmM4ODUwYTVmNDMzNmNiMWRkYzUzYzVmMDBmZTc5NmVmMmQ4MjFjOTU4NDk2ZTY1N2FiY2ZjM2QyN2I2MjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmYTVjM2U5N2VmZGI5YTZiYTIwZDViNDQyYzgyYmY1YmI4Y2M2NTQ5MDFlZmY5NWQ3NTZlNjBkYzdiODMwMjcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_6b08822a01e04bf98a46ef2cc48d7e83",
+      "statement": "The server restores saved history at boot, flushes it on DELETE /trace, in shutdown and in the exit hook.",
+      "evidence": [
+        {
+          "resource": "repo://src/server.ts#L322-L327",
+          "version": "repo-lines-v1:sha256:270423850660cda56ceab20a29baadf3aa2fc8738d605279ead30b943a973ebf:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZGI2MDNlMjljYTJlNzAyNWM1MTNmZTZjOTUzNjFmOWFlZTA0NTQyNDU4YjBiZWM5ZDA0ZTYwNTNjZjVhYjhhNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZGZhYzRlNDM2MzBhYmY2OGMzYTRhNzU3M2ZkNGM0MzAwOGJhNzk4ZGQ3NmMzNzU5ZWVlZjUzZTZjZmY4ZDJlNSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjA2NjA1ODljZjU0YmJlNjE1ZjcwOWI2OWUyOTkzMWQ0MWNmYmI3ZDg4MzkwYTdmN2Y4NDc5NDdkYjA5MzAwMiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNDYzYmE5ZTZhODgwZDE2ZWVlZTg3YmY3YWJiNmU4MWE1NDgwYWNlMjVkN2JlYjBmYTA2MWU3YjIxNzkyMGQ1NSJ9"
+        },
+        {
+          "resource": "repo://src/server.ts#L709-L710",
+          "version": "repo-lines-v1:sha256:c6e3a4008a33ce94ad0af779c889006e4c50377dba441a67a23c5e951a5474dc:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTQzYmI0MDkwYjVmOGY2ODc1NzliNjNhYjhhZjk5YmU4MjA5NzYxODlkNGEzOTIwYzViMmRlMGQwMGU5NGI2NSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNmJlOWIwODQyZmE0NzQzNWY2NDk5NDIxNjljYzIxNDVjYmI4NThhYWJlZjRhYzA0YzE3ZjJmOGFmYzllODBmYyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiODM1MzU4MDJjYTVlNWMyMzY3YjczYjQ3NzY5YzM1MjgyY2RjZjNhZmM1OGUzOGE1YzgwNzgzNjg0MjhjN2YzNyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZDUxMmQ1ZDAwYmMxZTNlYzk2YTMxZGFjNWUyOGVjM2M5OGQ4MTdhMzNmYmRhOTNkN2QyOTA5ZWMyODFiYzBlYSJ9"
+        },
+        {
+          "resource": "repo://src/server.ts#L714-L725",
+          "version": "repo-lines-v1:sha256:6ada192828a57d6cfd6e857f962781a9d9e5ca32024e3b0550209e9ffd68feb3:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjZjJiN2JmYjczYzY3YTRmOWVhNzBhZTZlMzFiNjRjOGE5NTk5NmExOTM0Yzg1M2E3NTg2YzQwODdkODAwNWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU5Nzk1YTcyM2M4ODk3NTViM2I0OTk4ODFhNjY0NTI1Nzk3Yzg0ZWNkNzZhOGViZTk5ZTAyMWFjOTRkNWIyNjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ1MTJkNWQwMGJjMWUzZWM5NmEzMWRhYzVlMjhlYzNjOThkODE3YTMzZmJkYTkzZDdkMjkwOWVjMjgxYmMwZWEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjFjYTRmNTI1Zjc3YTY0NTIyNTU2ZGJmMDU4OGM2ODkwMzM5MTc1OTlkNmViYWVjMDExZmRkZDI5YjBiNTIwMjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_aedce5e8b98f432290398aa3a7cd7146",
+      "statement": "Decision cache persistence uses decision-cache.json with a 2000 ms debounce, at most 500 entries and the same temporary-file rename.",
+      "evidence": [
+        {
+          "resource": "repo://src/decidecache.ts#L25-L33",
+          "version": "repo-lines-v1:sha256:845230baaf4b15e59a92dd7d9ff1539dfc2aec38f9f10a9618d02e795af13223:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjA3OGRkZDU2NjdhNmYwNjNiNzY4YTZlYzAyZWFlY2E3MjFkZjZkMmUzMTM0MWQ4ZjAxZTJmNGI0MjI4ZWJhZCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMzM0NjFjN2Y0OTFiYWM0NGEyNGM0Y2IyYTUyZjVhZTZiMDBmNDQ3ODE4YzZlMDczMDBkNTNiZGIxOGM5ZTdlZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDc1NjA1NjllZWI0MzEzOTc5ZmM0M2FjNDVhOTc0MTQwOWFjOGY1Nzc3Y2RiMGJiYTgyODA4MGMzYjM0MjQ1MCIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYmVkNjAzMDVlNzE3MjdhZDg2NmZjOWIyYmE0NTkwMjAyMzcxMjJiYzUwMGY1MmYyMDQxNTAxMThhMjdhOTU1NSJ9"
+        },
+        {
+          "resource": "repo://src/decidecache.ts#L86-L102",
+          "version": "repo-lines-v1:sha256:5b87cf4dd09e10c65686224cc7c9962705e7c2ffb7692ffcb9304d1c593f0a22:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYzZjUxNDAyMDc4OTYyNDU5MzhkYzE1YTI5NjFhYzMzNzYzNjg5Mzk3OWI0ZmVjNGU4MDgwOWU5OThlMzVlYTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM4OTQzYWQzYzdlMzdmMzYzNzJkY2NhOWVjNDM2ZWIzYTFlMTYyNTk2MGI4M2JkNmRjOGVjMzMyMGQ3N2ZlZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQzNDJjNDAzMjYzM2E5YTE4N2Q5NzcyZDJjMjg1OWJjMmVmNWQ4MGM0NTNmMzE4ZGZjNzc5OTI4ZDU3NTU5Y2YifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ee48539cbda849eda84d016c766c47da",
+      "statement": "issuedCalls and pendingConfirmations are pruned on TTLs of 10 minutes and the confirmation expiry, with each map capped at 200 entries.",
+      "evidence": [
+        {
+          "resource": "repo://src/state.ts#L115-L152",
+          "version": "repo-lines-v1:sha256:4a904fae1f935a6408db45dfae2867e584dd0d4e862f98b665f7581e755aabfe:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1ZmI2YmYxYmE3NDJhM2UxOTBkNDBmMTlkMWI0MDViNjE1Yzc1OWVhYWI5ODg5OTkwOTYyMmI0N2ExOTRkYTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyYjNhZTM5NmEzY2UxNmRhY2U2YmVhN2MyYmIxZTY2NzFiMDY2YjMzY2EyNjE0MjJlNjYwZDMyM2VlYjE4NTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjMyMzlmNDljMjYyNzAwYWVkNDYxNGU1OGVjODQ1MzRkYWVlYWM5ZDkxN2I0NmU0MGE3ZjdmMjBmZmJhOTJiZDkifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-16T15:09:02.577Z"
+  }
+}
