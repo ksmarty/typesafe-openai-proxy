@@ -196,6 +196,21 @@ sequence:
           {% endif %}
         {% endfor %}
         {{ pure.ids if pure.ids | count > 0 else every.ids }}
+      # Somewhere to fall back to when nothing is playing, no room was named and no default is
+      # set: a speaker that is actually there, preferring the ones that only play. Without this
+      # a house that is quiet and unconfigured answered "No speaker to play on."
+      fallback_players: >-
+        {% set out = namespace(pure=[], other=[]) %}
+        {% for p in all_speakers %}
+          {% if states(p) not in ['unavailable', 'unknown'] %}
+            {% if device_id(p) not in assist_devices %}
+              {% set out.pure = out.pure + [p] %}
+            {% else %}
+              {% set out.other = out.other + [p] %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ out.pure if out.pure | count > 0 else out.other }}
       area_players: >-
         {% set every = namespace(ids=[]) %}
         {% set pure = namespace(ids=[]) %}
@@ -215,6 +230,7 @@ sequence:
         {% elif default_speaker and default_speaker in all_speakers %}{{ [default_speaker] }}
         {% elif area_players | count > 0 %}{{ area_players }}
         {% elif playing_now | count > 0 %}{{ playing_now }}
+        {% elif fallback_players | count > 0 %}{{ [fallback_players[0]] }}
         {% elif all_speakers | count == 1 %}{{ all_speakers }}
         {% else %}{{ [] }}{% endif %}
       primary_player: "{{ (target_players | first) if target_players | count > 0 else '' }}"
