@@ -130,9 +130,9 @@ fields:
 variables:
   # The Music Assistant config entry: Settings > Devices & services > Music Assistant.
   ma_entry: "01JFK4K4QSXSF53AY4M5TBK4TS"
-  # Where music plays when no speaker is named and nothing is playing yet, e.g.
-  # media_player.office_satellite. Empty means use default_area.
-  default_speaker: media_player.echo_dot_2
+  # Optional override: play here no matter which room was spoken to. Empty means work it out:
+  # the room the satellite is in, then the first speaker there that is actually on.
+  default_speaker: ""
   # A room to fall back to, e.g. Office.
   default_area: ""
   # Play the artist's Essentials playlist when there is one.
@@ -161,7 +161,8 @@ sequence:
       result: "{{ {'ok': false, 'error': 'Nothing was done.'} }}"
 
   # ---------------------------------------------------------------------------------------
-  # Which speakers: the one named, the house default, the default room, or wherever music is
+  # Which speakers: the one named, this house's override, the room it was spoken in, or
+  # wherever music already plays
   #
   # A room can hold a kiosk that hears you and a speaker that plays. Both are media_players in
   # the same area. Two facts separate them: the listening one hosts an `assist_satellite`
@@ -184,6 +185,23 @@ sequence:
           {% if d %}{% set out.ids = out.ids + [d] %}{% endif %}
         {% endfor %}
         {{ out.ids }}
+      # The room this was spoken in, without being told: the satellite running this very call
+      # is in `processing` (or `responding` while it speaks), and an idle one is not — so its
+      # area is the room that was asked in.
+      heard_area: >-
+        {% set out = namespace(area='', other='') %}
+        {% for e in states.assist_satellite | map(attribute='entity_id') | list %}
+          {% set s = states(e) %}
+          {% set a = area_name(e) or '' %}
+          {% if a and s == 'processing' and out.area == '' %}
+            {% set out.area = a | lower %}
+          {% elif a and s in ['listening', 'responding'] and out.other == '' %}
+            {% set out.other = a | lower %}
+          {% endif %}
+        {% endfor %}
+        {{ out.area or out.other }}
+      # What to treat as the room: default_area wins, otherwise where it was asked.
+      wanted_area: "{{ (default_area or heard_area or '') | lower }}"
 
   - variables:
       named_players: >-
@@ -211,9 +229,9 @@ sequence:
         {% set live = namespace(ids=[]) %}
         {% set pure = namespace(ids=[]) %}
         {% set every = namespace(ids=[]) %}
-        {% if default_area %}
+        {% if wanted_area %}
           {% for p in all_speakers %}
-            {% if (area_name(p) or '') | lower == (default_area | lower) %}
+            {% if (area_name(p) or '') | lower == wanted_area %}
               {% set gone = states(p) in ['unavailable', 'unknown'] %}
               {% set listens = device_id(p) in assist_devices %}
               {% set every.ids = every.ids + [p] %}
