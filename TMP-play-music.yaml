@@ -411,7 +411,8 @@ sequence:
                     'playing': (essentials_hit.name | default(want_query)),
                     'kind': (('playlist' if essentials_hit.uri | default('') else want_kind) or 'auto'),
                     'on': speaker_names,
-                    'mode': want_mode} }}
+                    'mode': want_mode,
+                    'note': (('No Music Assistant speaker is in ' ~ wanted_area ~ ', so this is the nearest one that is switched on. Give the player an area in Home Assistant to make this exact.') if (wanted_area | length > 0 and named_players | count == 0 and area_players | count == 0) else '')} }}
           - stop: Done
             response_variable: result
 
