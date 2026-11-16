@@ -132,7 +132,7 @@ variables:
   ma_entry: "01JFK4K4QSXSF53AY4M5TBK4TS"
   # Where music plays when no speaker is named and nothing is playing yet, e.g.
   # media_player.office_satellite. Empty means use default_area.
-  default_speaker: ""
+  default_speaker: media_player.echo_dot_2
   # A room to fall back to, e.g. Office.
   default_area: ""
   # Play the artist's Essentials playlist when there is one.
@@ -163,11 +163,13 @@ sequence:
   # ---------------------------------------------------------------------------------------
   # Which speakers: the one named, the house default, the default room, or wherever music is
   #
-  # A room can hold two kiosks — one that hears you and one that only plays — and both show up
-  # in Home Assistant as a media_player in the same area. The one that hears you also hosts an
-  # `assist_satellite` entity; the one that only plays does not. That is the only difference the
-  # script can see, and it is the one that matters: music belongs on the speaker, not on the
-  # tablet that is listening to you.
+  # A room can hold a kiosk that hears you and a speaker that plays. Both are media_players in
+  # the same area. Two facts separate them: the listening one hosts an `assist_satellite`
+  # entity, and a device that is off shows `unavailable`. So a match is ranked:
+  #   idle or playing, and not the one listening  (the speaker that is here)
+  #   idle or playing                             (the speaker, whichever device it is)
+  #   not the one listening                       (the speaker, even if asleep)
+  #   anything that matched                       (last resort)
   # ---------------------------------------------------------------------------------------
   - variables:
       all_speakers: >-
@@ -185,44 +187,56 @@ sequence:
 
   - variables:
       named_players: >-
-        {% set every = namespace(ids=[]) %}
+        {% set here = namespace(ids=[]) %}
+        {% set live = namespace(ids=[]) %}
         {% set pure = namespace(ids=[]) %}
+        {% set every = namespace(ids=[]) %}
         {% for p in all_speakers %}
           {% set label = (state_attr(p, 'friendly_name') or p) | lower %}
           {% set room = (area_name(p) or '') | lower %}
           {% if want_speaker_text and (want_speaker_text in label or (room and (want_speaker_text in room or room in want_speaker_text))) %}
+            {% set gone = states(p) in ['unavailable', 'unknown'] %}
+            {% set listens = device_id(p) in assist_devices %}
             {% set every.ids = every.ids + [p] %}
-            {% if device_id(p) not in assist_devices %}{% set pure.ids = pure.ids + [p] %}{% endif %}
-          {% endif %}
-        {% endfor %}
-        {{ pure.ids if pure.ids | count > 0 else every.ids }}
-      # Somewhere to fall back to when nothing is playing, no room was named and no default is
-      # set: a speaker that is actually there, preferring the ones that only play. Without this
-      # a house that is quiet and unconfigured answered "No speaker to play on."
-      fallback_players: >-
-        {% set out = namespace(pure=[], other=[]) %}
-        {% for p in all_speakers %}
-          {% if states(p) not in ['unavailable', 'unknown'] %}
-            {% if device_id(p) not in assist_devices %}
-              {% set out.pure = out.pure + [p] %}
-            {% else %}
-              {% set out.other = out.other + [p] %}
+            {% if not gone %}
+              {% set live.ids = live.ids + [p] %}
+              {% if not listens %}{% set here.ids = here.ids + [p] %}{% endif %}
             {% endif %}
+            {% if not listens %}{% set pure.ids = pure.ids + [p] %}{% endif %}
           {% endif %}
         {% endfor %}
-        {{ out.pure if out.pure | count > 0 else out.other }}
+        {{ here.ids if here.ids | count > 0 else (live.ids if live.ids | count > 0 else (pure.ids if pure.ids | count > 0 else every.ids)) }}
       area_players: >-
-        {% set every = namespace(ids=[]) %}
+        {% set here = namespace(ids=[]) %}
+        {% set live = namespace(ids=[]) %}
         {% set pure = namespace(ids=[]) %}
+        {% set every = namespace(ids=[]) %}
         {% if default_area %}
           {% for p in all_speakers %}
             {% if (area_name(p) or '') | lower == (default_area | lower) %}
+              {% set gone = states(p) in ['unavailable', 'unknown'] %}
+              {% set listens = device_id(p) in assist_devices %}
               {% set every.ids = every.ids + [p] %}
-              {% if device_id(p) not in assist_devices %}{% set pure.ids = pure.ids + [p] %}{% endif %}
+              {% if not gone %}
+                {% set live.ids = live.ids + [p] %}
+                {% if not listens %}{% set here.ids = here.ids + [p] %}{% endif %}
+              {% endif %}
+              {% if not listens %}{% set pure.ids = pure.ids + [p] %}{% endif %}
             {% endif %}
           {% endfor %}
         {% endif %}
-        {{ pure.ids if pure.ids | count > 0 else every.ids }}
+        {{ here.ids if here.ids | count > 0 else (live.ids if live.ids | count > 0 else (pure.ids if pure.ids | count > 0 else every.ids)) }}
+      # Last resort for a quiet house with no default: somewhere that is actually there.
+      fallback_players: >-
+        {% set here = namespace(ids=[]) %}
+        {% set live = namespace(ids=[]) %}
+        {% for p in all_speakers %}
+          {% if states(p) not in ['unavailable', 'unknown'] %}
+            {% set live.ids = live.ids + [p] %}
+            {% if device_id(p) not in assist_devices %}{% set here.ids = here.ids + [p] %}{% endif %}
+          {% endif %}
+        {% endfor %}
+        {{ here.ids if here.ids | count > 0 else live.ids }}
 
   - variables:
       target_players: >-
@@ -234,8 +248,8 @@ sequence:
         {% elif all_speakers | count == 1 %}{{ all_speakers }}
         {% else %}{{ [] }}{% endif %}
       primary_player: "{{ (target_players | first) if target_players | count > 0 else '' }}"
-      # Only a deliberate "on every speaker" joins anything: grouping a voice kiosk with the
-      # speaker kiosk would mirror the music onto the tablet that is listening.
+      # Only a deliberate "on every speaker" joins anything: grouping the kiosk that listens
+      # with the speaker would mirror the music onto the tablet.
       secondary_players: >-
         {{ target_players[1:] if (group | default(false) | bool) and target_players | count > 1 else [] }}
       speaker_names: >-
