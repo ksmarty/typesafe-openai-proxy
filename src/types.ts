@@ -325,4 +325,17 @@ export interface TraceEntry {
   answersTurn?: string;
   /** The reply the assistant actually sent for this turn, so the row shows what was said. */
   said?: string;
+  /**
+   * What the model server wrote when this turn was forwarded to it.
+   *
+   * The response is streamed straight to Home Assistant, so it is tee'd on the way past:
+   * without a copy the Monitor could say only that a request was forwarded, never what
+   * came back. Capped before it is stored, because a long answer does not get more useful
+   * once it is in a trace row.
+   */
+  upstreamReply?: string;
+  /** Tools the model server asked Home Assistant to run, in the order it asked for them. */
+  upstreamCalls?: { tool: string; args?: Record<string, unknown> | string }[];
+  /** The status the model server returned, when it was not a plain 200. */
+  upstreamStatus?: number;
 }

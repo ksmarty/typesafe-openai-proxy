@@ -111,7 +111,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'decision',
       title: 'Decision model',
       description:
-        'The typed, calibrated model that decides each request. Nothing is decided until one is configured — with the backend off, every request is forwarded and installing the proxy changes no behaviour.',
+        'Decides each request. With the backend off, every request is forwarded and the proxy changes nothing.',
       fields: [
         {
           key: 'decision.backend',
@@ -166,7 +166,7 @@ export function settingsGroups(): SettingsGroup[] {
           key: 'decision.cache',
           label: 'Reuse a decision for the same sentence',
           type: 'checkbox',
-          help: 'An identical command against the same set of exposed entities is answered from the last decision, with no model call. Nothing expires on a clock: adding, removing or re-exposing an entity invalidates it, and entity state never does. Questions are never cached.',
+          help: 'An identical command against the same exposed entities is reused. Changing exposure invalidates it; questions are never cached.',
           advanced: true,
         },
         {
@@ -223,7 +223,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'catalog',
       title: 'Home Assistant catalog',
       description:
-        'Where the entity list comes from. With a URL and token the proxy reads the registries and live states over the websocket; without one it parses the entity list out of the prompt Home Assistant sends.',
+        'Where the entity list comes from: the websocket registries, or the entity list in Home Assistant’s prompt.',
       fields: [
         {
           key: 'catalog.haUrl',
@@ -265,7 +265,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'upstream',
       title: 'Fallback inference server',
       description:
-        'Anything the proxy will not decide is forwarded here untouched — this is the server hass_local_openai_llm used before the proxy existed.',
+        'Anything the proxy does not decide is forwarded here untouched.',
       fields: [
         { key: 'upstream.baseUrl', label: 'Base URL', type: 'text', placeholder: 'http://llama:8081/v1' },
         {
@@ -279,10 +279,7 @@ export function settingsGroups(): SettingsGroup[] {
           key: 'upstream.apiKeyFromDecision',
           label: "Use the decision model's API key",
           type: 'checkbox',
-          help:
-            'Both servers are often the same provider — OpenRouter for the decision model and the fallback. ' +
-            'Turn this on to send the decision key here too, without copying it out of a masked field. ' +
-            'A key typed above still wins.',
+          help: 'The same provider or fallback. A key typed above still wins.',
         },
         {
           key: 'upstream.model',
@@ -290,8 +287,8 @@ export function settingsGroups(): SettingsGroup[] {
           type: 'text',
           placeholder: 'e.g. gpt-4o-mini',
           help:
-            'Used when a request names the proxy model (typesafe-router) or names none. ' +
-            'Without it, a forwarded request asks the server for "typesafe-router", which it does not have.',
+            'Used when a request names typesafe-router or names no model. ' +
+            'Without it the server is asked for “typesafe-router”, which it does not have.',
         },
         {
           key: 'upstream.timeoutMs',
@@ -345,7 +342,7 @@ export function settingsGroups(): SettingsGroup[] {
           key: 'speech.templates',
           label: 'Templates',
           type: 'templates',
-          help: 'Per language, with {entity}, {action}, {state} and {options} substituted. Done, clarify and confirm surround an action; yes, no, state and unknown are how a state question is answered — “is the door locked?” is told “Yes, it\u2019s locked.”',
+          help: 'Per language, with {entity}, {action}, {state} and {options} substituted.',
         },
       ],
     },
@@ -353,7 +350,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'music',
       title: 'Music',
       description:
-        '“Play Taylor Swift” names no speaker and no media type, and both are worked out here: it plays on the speaker that was spoken to (or the one the sentence names), and a bare name is an artist, which every provider plays as their top tracks. “Play Don’t Tap The Glass by Tyler The Creator” is an album. Music Assistant is asked first when Home Assistant offers its play service, because it resolves a name against every provider you connected; then a script of yours that takes a media id and type, which is what people write when the generic service will not start music on their speakers; then the player’s own play service, which takes the same name and media type; and Home Assistant’s media search last. A room whose only players are televisions plays on the television that is already on, and a service that takes the room can play in a room where nothing is exposed.',
+        'Chooses the speaker and the service: kiosk script, Music Assistant, your play script, the player itself, then Home Assistant search.',
       fields: [
         {
           key: 'music.enabled',
@@ -371,7 +368,7 @@ export function settingsGroups(): SettingsGroup[] {
             { value: 'script', label: 'Your own play script only' },
             { value: 'assist', label: 'Home Assistant’s own media search only' },
           ],
-          help: 'In order: a Kiosk Satellite music script (recognised by its action, query and kind fields, and asked first because it knows where its own tablet plays), then Music Assistant’s play service, then a script of yours that takes a media id and type (a “Play Music” script is what plays when the generic service will not), then the player’s own play_media, then Home Assistant’s media search.',
+          help: 'Tried in order: kiosk script, Music Assistant, your play script, the player’s play_media, Home Assistant media search.',
         },
         {
           key: 'music.enqueue',
@@ -401,7 +398,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'media',
       title: 'Playback and televisions',
       description:
-        '“Pause”, “stop”, “next song”, “volume up”, “turn the TV off”: the player is not named, so it is the one already playing or the one in the room the sentence mentions, and Home Assistant’s own media intents do the rest. Music Assistant registers a media player for each speaker, so pausing that entity pauses Music Assistant. Volume moves in a relative step (louder than it was, not a level), a bare “stop” only acts when something is playing, and two players that are equally plausible is forwarded to the model rather than guessed. The television on and off needs the word “TV” in the sentence, so “turn it off” stays a question for the model.',
+        'Playback commands act on the player already playing or the one in the named room, through Home Assistant’s media intents.',
       fields: [
         {
           key: 'media.enabled',
@@ -415,7 +412,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'reminders',
       title: 'Reminders',
       description:
-        'ha-reminders adds five tools to Home Assistant: create, list, complete, snooze and delete. A reminder sentence says everything they need — “remind me to take out the trash in 30 minutes”, “remind me to water the plants at 7 am”, “remind me when I get home to unpack the shopping”, “snooze reminder unpack the shopping for 10 minutes”, “delete reminder number 2” — so it is classified here and the integration’s tool is called directly, with no model round trip. What was said is converted into the slots the integration validates: “half an hour” becomes 30 minutes, and “at 8” becomes the next 8 o’clock. A reminder that names no time is left to the model, which can ask the follow-up question.',
+        'Reads reminder sentences and calls ha-reminders directly, converting times into the slots the integration validates.',
       fields: [
         {
           key: 'reminders.enabled',
@@ -429,7 +426,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'timers',
       title: 'Timers',
       description:
-        'Home Assistant keeps timers itself, through the intent integration’s own timer intents, and a kiosk-satellite registers as a timer device so its timers ring on the kiosk that heard them. A timer sentence says everything those intents need — “set a timer for 10 minutes”, “set a pasta timer for 8 minutes”, “add 2 minutes to my timer”, “pause the pasta timer”, “cancel my timer”, “cancel all timers” — so it is classified here and Home Assistant’s own tool is called directly, with no model round trip. Several timers work at once: “set two timers for 10 minutes” and “set timers for 5 and 10 minutes” become one call per timer in a single turn, and “cancel the 5 and 10 minute timers” cancels both. A question such as “what timers are running” is left to the model, because only Home Assistant knows which timers exist.',
+        'Reads timer sentences and calls Home Assistant’s timer intents directly; several timers can be set or cancelled in one turn.',
       fields: [
         {
           key: 'timers.enabled',
@@ -443,7 +440,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'listening',
       title: 'Listening',
       description:
-        'A voice assistant hears the whole room, and everything the fast path cannot call is forwarded to your model server, which answers whatever text arrives. These settings decide whether a sentence was addressed to the assistant at all: a remark between two people is answered with the silence text instead of being acted on.',
+        'Decides whether a sentence was addressed to the assistant; remarks get the silence text instead of an action.',
       fields: [
         {
           key: 'listening.enabled',
@@ -458,13 +455,13 @@ export function settingsGroups(): SettingsGroup[] {
           min: 0,
           max: 1,
           step: 0.05,
-          help: 'Below this confidence the turn is forwarded as normal. 0.75 means the sentence has to be plainly a remark; raising it to 1 turns the judge off in practice.',
+          help: 'Below this confidence the turn is forwarded. 1 turns the judge off in practice.',
         },
         {
           key: 'listening.local',
           label: 'Read it here when no model answered',
           type: 'checkbox',
-          help: 'Covers the turns no decision model sees: a pass-through install, the backend switched off, or a model that is unreachable. The built-in reader only silences sentences that are plainly remarks.',
+          help: 'Applies when no decision model saw the turn. The reader only silences plain remarks.',
         },
       ],
     },
@@ -472,7 +469,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'routing',
       title: 'Routing gates',
       description:
-        'A gate passes only when the answer clears its own threshold and the top answer beats the runner-up by the minimum margin. Everything that fails a gate is forwarded, so raising a threshold only makes the proxy quieter.',
+        'Each gate needs its threshold and a margin over the runner-up; anything that fails is forwarded.',
       fields: [
         { key: 'routing.enabled', label: 'Fast path enabled', type: 'checkbox' },
         {
@@ -490,7 +487,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'clock',
       title: 'Clock',
       description:
-        'The proxy answers “what time is it?” itself, in the words a person would use — “five twenty-two”, and “five o’clock” on the hour — with no model call. It never says a.m. or p.m.: the reply is spoken aloud, and the part of the day is obvious from the moment you hear it.',
+        'Answers “what time is it?” in spoken words, with no model call and no a.m. or p.m.',
       fields: [
         {
           key: 'clock.timezone',
@@ -505,7 +502,7 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'weather',
       title: 'Weather',
       description:
-        'Questions about the weather are answered by the forecast service itself, in the words it wrote — “Light rain on Wednesday, with highs dipping to 6 °C” — in the language you asked in, with no model call. Nothing is fetched until an API key is here, and a question the proxy does not understand (a room, a device, another city) is forwarded to your model exactly as before.',
+        'Weather questions are answered in the forecast service’s own words, in the language asked, with no model call.',
       fields: [
         {
           key: 'weather.apiKey',
@@ -552,7 +549,7 @@ export function settingsGroups(): SettingsGroup[] {
           type: 'text',
           placeholder: 'follow the request',
           advanced: true,
-          help: 'Empty sends the language of each request, so an English question gets an English summary. The reader that recognises a weather question is English, so pin a language here if you want the summaries in another one.',
+          help: 'Empty follows the request language. The weather reader is English, so pin a language for other summaries.',
         },
         {
           key: 'weather.style',
@@ -565,7 +562,7 @@ export function settingsGroups(): SettingsGroup[] {
             { value: 'temperature_first', label: 'The temperature first, then the summary' },
             { value: 'natural', label: 'Said the way a person would' },
           ],
-          help: 'Only the wording around the summary is written here. The summary is always the forecast service’s own words, so the answer stays right in every language it writes. “Said the way a person would” frames it in a spoken sentence and varies the phrasing between answers; it has wordings for English, Dutch, German, French, Spanish, Italian, Portuguese, Swedish and Danish, and falls back to the summary and the temperature in any other language.',
+          help: 'The summary is always the forecast service’s own words. “Said the way a person would” frames it as speech in nine languages.',
         },
         {
           key: 'weather.cacheMs',
@@ -610,8 +607,8 @@ export function settingsGroups(): SettingsGroup[] {
           type: 'password',
           placeholder: 'empty accepts any caller',
           help:
-            'Set this and the same value must be the API key in hass_local_openai_llm. ' +
-            'Generate makes one here — copy it before saving, because afterwards only the first 12 characters stay visible.',
+            'Set this and hass_local_openai_llm must send the same value. ' +
+            'Generate makes one; copy it before saving, because afterwards it is masked.',
           generate: true,
         },
       ],

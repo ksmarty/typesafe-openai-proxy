@@ -142,6 +142,26 @@ function bodyForUpstream(rawBody: string, request: OpenAIChatRequest, active: Co
   }
 }
 
+/**
+ * What came back from the model server.
+ *
+ * `forwardUpstream` hands the bytes to Home Assistant unchanged, and this is the copy the
+ * dashboard gets: the text the model wrote, and any tool calls it asked for. It is parsed
+ * from the stream as it passes, so streaming still works.
+ */
+export interface ForwardedAnswer {
+  text?: string;
+  calls?: { tool: string; args?: Record<string, unknown> | string }[];
+  status?: number;
+  model?: string;
+  error?: string;
+}
+
+/** A long answer does not get more useful once it is stored in a trace row. */
+const REPLY_LIMIT = 4000;
+/** Enough to parse the response without holding a whole generation in memory. */
+const CAPTURE_LIMIT = 512 * 1024;
+
 /** Hand the request, untouched, to the inference server hass_local_openai_llm used to use. */
 export async function forwardUpstream(
   request: OpenAIChatRequest,
@@ -149,7 +169,7 @@ export async function forwardUpstream(
   response: ServerResponse,
   /** Overridden by the tests; the server always uses the saved configuration. */
   override?: Config,
-): Promise<void> {
+): Promise<ForwardedAnswer | undefined> {
   const active = override ?? loadConfig();
   const options: ChunkOptions = {
     model: request.model ?? 'proxy',
@@ -165,7 +185,7 @@ export async function forwardUpstream(
         'Open the dashboard → Settings → Fallback inference server and set its URL.',
       response,
     );
-    return;
+    return { error: 'no upstream base URL configured' };
   }
 
   const url = `${active.upstream.baseUrl.replace(/\/+$/, '')}/chat/completions`;
@@ -198,30 +218,148 @@ export async function forwardUpstream(
         `The inference server returned ${upstream.status}. ${text.slice(0, 200)}${hint}`,
         response,
       );
-      return;
+      return {
+        status: upstream.status,
+        error: text.slice(0, 300) || `inference server returned ${upstream.status}`,
+      };
     }
 
+    const contentType =
+      upstream.headers.get('content-type') ??
+      (request.stream ? 'text/event-stream; charset=utf-8' : 'application/json');
     response.writeHead(upstream.status, {
-      'content-type':
-        upstream.headers.get('content-type') ??
-        (request.stream ? 'text/event-stream; charset=utf-8' : 'application/json'),
+      'content-type': contentType,
       'cache-control': 'no-store',
     });
     const reader = upstream.body.getReader();
+    const captured: Buffer[] = [];
+    let capturedBytes = 0;
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
+      // Tee rather than buffer-then-send: the caller still sees the answer as it arrives.
+      if (capturedBytes < CAPTURE_LIMIT) {
+        const buffer = Buffer.from(value);
+        captured.push(buffer);
+        capturedBytes += buffer.length;
+      }
       response.write(Buffer.from(value));
     }
     response.end();
+
+    const raw = Buffer.concat(captured).subarray(0, CAPTURE_LIMIT).toString('utf8');
+    const answer = contentType.includes('text/event-stream') ? parseSseAnswer(raw) : parseJsonAnswer(raw);
+    return { ...answer, status: upstream.status };
   } catch (error) {
     stats.errors += 1;
-    respondText(
-      options,
-      `The inference server is unreachable: ${error instanceof Error ? error.message : String(error)}`,
-      response,
-    );
+    const message = error instanceof Error ? error.message : String(error);
+    respondText(options, `The inference server is unreachable: ${message}`, response);
+    return { error: message };
   }
+}
+
+/** A non-streaming completion: one JSON object with the whole message. */
+function parseJsonAnswer(raw: string): ForwardedAnswer {
+  try {
+    const parsed = JSON.parse(raw) as {
+      model?: string;
+      choices?: {
+        message?: {
+          content?: unknown;
+          tool_calls?: { function?: { name?: unknown; arguments?: unknown } }[];
+        };
+      }[];
+    };
+    const message = parsed.choices?.[0]?.message;
+    return {
+      ...(typeof message?.content === 'string' && message.content.trim()
+        ? { text: clip(message.content) }
+        : {}),
+      ...(parsed.model ? { model: parsed.model } : {}),
+      ...callsFrom((message?.tool_calls ?? []).map((call) => call.function)),
+    };
+  } catch {
+    return {};
+  }
+}
+
+/** A streamed completion: `data:` lines whose deltas accumulate into one message. */
+function parseSseAnswer(raw: string): ForwardedAnswer {
+  let text = '';
+  let model: string | undefined;
+  const partial = new Map<number, { tool: string; args: string }>();
+  for (const line of raw.split(/\r?\n/)) {
+    if (!line.startsWith('data:')) continue;
+    const payload = line.slice(5).trim();
+    if (!payload || payload === '[DONE]') continue;
+    try {
+      const parsed = JSON.parse(payload) as {
+        model?: string;
+        choices?: {
+          delta?: {
+            content?: unknown;
+            tool_calls?: { index?: number; function?: { name?: unknown; arguments?: unknown } }[];
+          };
+          message?: {
+            content?: unknown;
+            tool_calls?: { index?: number; function?: { name?: unknown; arguments?: unknown } }[];
+          };
+        }[];
+      };
+      if (parsed.model) model = parsed.model;
+      const choice = parsed.choices?.[0];
+      const chunk = choice?.delta ?? choice?.message;
+      if (typeof chunk?.content === 'string') text += chunk.content;
+      for (const call of chunk?.tool_calls ?? []) {
+        const index = typeof call.index === 'number' ? call.index : partial.size;
+        const current = partial.get(index) ?? { tool: '', args: '' };
+        if (typeof call.function?.name === 'string') current.tool = call.function.name;
+        if (typeof call.function?.arguments === 'string') current.args += call.function.arguments;
+        partial.set(index, current);
+      }
+    } catch {
+      // A malformed keep-alive line is not a reason to lose the answer.
+    }
+  }
+  return {
+    ...(text.trim() ? { text: clip(text) } : {}),
+    ...(model ? { model } : {}),
+    ...callsFrom([...partial.values()].map((call) => ({ name: call.tool, arguments: call.args }))),
+  };
+}
+
+function callsFrom(
+  calls: ({ name?: unknown; arguments?: unknown } | undefined)[],
+): { calls?: { tool: string; args?: Record<string, unknown> | string }[] } {
+  const described = calls
+    .filter(
+      (call): call is { name?: unknown; arguments?: unknown } =>
+        Boolean(call) && typeof call?.name === 'string' && Boolean((call.name as string).trim()),
+    )
+    .map((call) => {
+      const tool = (call.name as string).trim();
+      const raw = typeof call.arguments === 'string' ? call.arguments.trim() : '';
+      if (!raw) return { tool };
+      try {
+        const parsed = JSON.parse(raw) as unknown;
+        return {
+          tool,
+          args:
+            parsed && typeof parsed === 'object'
+              ? (parsed as Record<string, unknown>)
+              : raw.slice(0, 1000),
+        };
+      } catch {
+        // The arguments were cut off mid-stream: keep what arrived rather than nothing.
+        return { tool, args: raw.slice(0, 1000) };
+      }
+    });
+  return described.length ? { calls: described } : {};
+}
+
+function clip(text: string): string {
+  const trimmed = text.trim();
+  return trimmed.length > REPLY_LIMIT ? `${trimmed.slice(0, REPLY_LIMIT)}…` : trimmed;
 }
 
 /**

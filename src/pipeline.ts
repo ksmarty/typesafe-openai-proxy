@@ -37,6 +37,7 @@ import {
   speechForLastTool,
   YES,
   type ChunkOptions,
+  type ForwardedAnswer,
 } from './respond.js';
 import {
   issuedCalls,
@@ -895,6 +896,23 @@ export async function runPipeline(
   return { route: result, entry, ...(readiness.ready ? {} : { bypass: readiness.reason }) };
 }
 
+/**
+ * Record what the model server answered against the turn that was forwarded.
+ *
+ * The response was already streamed to Home Assistant; this is the copy for the Monitor,
+ * so a forwarded row can show the reply and the tools the model used instead of only
+ * saying that a request went out.
+ */
+function recordForwardedAnswer(id: string | undefined, answer: ForwardedAnswer | undefined): void {
+  if (!id || !answer) return;
+  const patch: Partial<TraceEntry> = {};
+  if (answer.text) patch.upstreamReply = answer.text;
+  if (answer.calls?.length) patch.upstreamCalls = answer.calls;
+  if (answer.status && answer.status !== 200) patch.upstreamStatus = answer.status;
+  if (answer.error) patch.error = answer.error;
+  if (Object.keys(patch).length) updateTrace(id, patch);
+}
+
 export async function handleChatCompletions(
   request: OpenAIChatRequest,
   rawBody: string,
@@ -968,7 +986,8 @@ export async function handleChatCompletions(
     rememberTrace(forwarded);
     // Even with no fast path, the follow-up round belongs under this sentence.
     recordTurn(request, systemPromptOf(request.messages ?? []), forwarded);
-    await forwardUpstream(request, rawBody, response, override);
+    const forwardedAnswer = await forwardUpstream(request, rawBody, response, override);
+    recordForwardedAnswer(forwarded.id, forwardedAnswer);
     return;
   }
 
@@ -1027,10 +1046,6 @@ export async function handleChatCompletions(
     const silence = active.speech.silence || '';
     // A rule that says anything at all takes the round out of the model's hands.
     const ruleTookOver = ruled.some(Boolean);
-    if (active.speech.afterTool === 'upstream' && !ruleTookOver) {
-      await forwardUpstream(request, rawBody, response, override);
-      return;
-    }
     // Which turn is this round answering? When the proxy issued the calls, the call knows
     // the turn that issued it. When the *model* did — the forwarded case — the conversation
     // remembers its newest turn, which is the sentence this round is answering. That is what
@@ -1038,13 +1053,34 @@ export async function handleChatCompletions(
     // unrelated ones. A round with neither (a restart, an unrelated conversation) stays its
     // own row instead of being attached to the wrong turn.
     const ownerFromCalls = described
-      .map((item) => (item.message.tool_call_id ? issuedCalls.get(item.message.tool_call_id)?.turnId : undefined))
+      .map((item) =>
+        item.message.tool_call_id ? issuedCalls.get(item.message.tool_call_id)?.turnId : undefined,
+      )
       .find(Boolean);
     // A request replays the conversation, so the sentence this round is answering is its
     // last user message — the same link Home Assistant itself keeps.
     const replayed = lastUserMessage(messages) ?? '';
     const previousTurn = lastTurnFor(key, replayed);
     const owner = ownerFromCalls ?? previousTurn?.id;
+    if (active.speech.afterTool === 'upstream' && !ruleTookOver) {
+      // This round leaves the proxy without a row of its own, so the forwarded answer would
+      // have nowhere to land. Give it one, attached to the sentence it is answering.
+      const forwardedRound: TraceEntry = {
+        id: uid('trace'),
+        at: Date.now(),
+        utterance: replayed,
+        route: 'forward',
+        reason: 'speech.afterTool is "upstream": the model server wrote this round',
+        gates: [],
+        backend: 'off',
+        ...(owner ? { answersTurn: owner } : {}),
+        ...(request.model ? { model: request.model } : {}),
+      };
+      rememberTrace(forwardedRound);
+      const answer = await forwardUpstream(request, rawBody, response, override);
+      recordForwardedAnswer(forwardedRound.id, answer);
+      return;
+    }
     // A question is owed an answer. The quiet default is written for commands — nobody wants
     // the house narrated — but applying it to a question is how "is the door locked?" came
     // back as nothing at all. Only a round the proxy did not issue takes this path, so the
@@ -1092,7 +1128,7 @@ export async function handleChatCompletions(
     // be built: the model already holds the tool result, so hand the round to it rather than
     // answering a plain question with silence.
     if (!text && owedAnswer) {
-      rememberTrace({
+      const owedEntry: TraceEntry = {
         id: uid('trace'),
         at: Date.now(),
         utterance: '',
@@ -1104,13 +1140,15 @@ export async function handleChatCompletions(
         backend: 'speech',
         ...(owner ? { answersTurn: owner } : {}),
         ...(toolMessages[0]?.tool_call_id ? { tool: toolMessages[0].tool_call_id } : {}),
-      });
+      };
+      rememberTrace(owedEntry);
       const answeredAt = Date.now();
+      let answer: ForwardedAnswer | undefined;
       try {
-        await forwardUpstream(request, rawBody, response, override);
+        answer = await forwardUpstream(request, rawBody, response, override);
       } finally {
-        const entry = trace[0];
-        if (entry) updateTrace(entry.id, { upstreamMs: Date.now() - answeredAt, totalMs: Date.now() - entry.at });
+        updateTrace(owedEntry.id, { upstreamMs: Date.now() - answeredAt, totalMs: Date.now() - owedEntry.at });
+        recordForwardedAnswer(owedEntry.id, answer);
       }
       return;
     }
@@ -1141,7 +1179,7 @@ export async function handleChatCompletions(
   const utterance = lastUserMessage(messages);
   if (!utterance) {
     const shapes = [...new Set(messages.map((message) => `${message.role}:${Array.isArray(message.content) ? 'parts' : typeof message.content}`))];
-    rememberTrace({
+    const empty: TraceEntry = {
       id: uid('trace'),
       at: Date.now(),
       utterance: '',
@@ -1149,10 +1187,12 @@ export async function handleChatCompletions(
       reason: `pass-through: no user text to read in the request (${shapes.join(', ') || 'no messages'})`,
       gates: [],
       backend: 'off',
-    });
+    };
+    rememberTrace(empty);
     stats.requests += 1;
     stats.bypassed += 1;
-    await forwardUpstream(request, rawBody, response, override);
+    const emptyAnswer = await forwardUpstream(request, rawBody, response, override);
+    recordForwardedAnswer(empty.id, emptyAnswer);
     return;
   }
 
@@ -1214,7 +1254,7 @@ export async function handleChatCompletions(
         updateTrace(local.entry.id, { reason: note, error: error.message });
         result = { ...local, entry: { ...local.entry, reason: note } };
       } else {
-        rememberTrace({
+        const unavailable: TraceEntry = {
           id: uid('trace'),
           at: Date.now(),
           utterance,
@@ -1222,8 +1262,10 @@ export async function handleChatCompletions(
           reason: `decision unavailable: ${error.message}`,
           gates: [],
           error: error.message,
-        });
-        await forwardUpstream(request, rawBody, response, override);
+        };
+        rememberTrace(unavailable);
+        const fallbackAnswer = await forwardUpstream(request, rawBody, response, override);
+        recordForwardedAnswer(unavailable.id, fallbackAnswer);
         return;
       }
     } else {
@@ -1259,13 +1301,15 @@ export async function handleChatCompletions(
       // A forwarded turn is as slow as the model server is; measure it, because that
       // number is the answer to "why did that take half a minute".
       const forwardStarted = Date.now();
+      let answer: ForwardedAnswer | undefined;
       try {
-        await forwardUpstream(request, rawBody, response, override);
+        answer = await forwardUpstream(request, rawBody, response, override);
       } finally {
         updateTrace(result.entry.id, {
           upstreamMs: Date.now() - forwardStarted,
           totalMs: Date.now() - result.entry.at,
         });
+        recordForwardedAnswer(result.entry.id, answer);
       }
       break;
     }

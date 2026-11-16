@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:52a37cffbf9e2e71b82d0f8c65193a1998fa24c7034c71eafc80d8c43569490c",
+  "claims": [
+    {
+      "id": "claim_4ae00d1ef9d543e79a52c224f076ece6",
+      "statement": "The catalog is discovered from Home Assistant's WebSocket API first and the request's system prompt second; wsQuery sends the registry messages as one batch and matches replies by message id rather than arrival order.",
+      "evidence": [
+        {
+          "resource": "repo://src/catalog.ts#L431-L455",
+          "version": "repo-lines-v1:sha256:cec50436e2464ba2d4d7eb1b6cf8d8962bf24c015cd4d7bd6912693d48cb1be2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBiMjMwM2E3NTc5MjgzYzM0MjY2YzU2ZjFlM2U4NGY1NTM3OTZkNTM2NzE5M2U0ODY3MmYzZjU4ZmYwNmM0ZjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjMGVkOTY2NTgzZTE4YTZhMzdhYTc0Yzk2ZTU0NjBmNDk5ZWU1MjczMDYxZDIyMzY5M2UzZDhkMWIzNGIwMGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhmZWViMTZkNDExMGRhZThkY2M2YTM5YzhkNzA5ZDUzYmI2YjY1ODA0NjFhYTM1MzhkYTc0M2RkZWNhNjdiNWIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjlkOWFmZGNjYjJkMmNlYTBjZWY4OWU5YjYxZTM4ZmViZDVlYTFhMWUxYjIyN2VjY2JmOWJhMjRmNzNlN2FlNTMifQ"
+        },
+        {
+          "resource": "repo://src/catalog.ts#L84-L120",
+          "version": "repo-lines-v1:sha256:76a968b706b628798a9b500d9a39a6b9afe36a4900fe0115207048eef917de8b:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE1MzNiYjFiMTAyOGUxOWUzNTU3OWUzMDkzNzQ3MzNkZTVhOWM4ZTcxZTE1YWQwMGQwZjNhYTkxOGQwYzk5NGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ5MGU2NzdkMjQ4OWRkYzU4MzRmZjA5ODk4YzJkMmNmMWY2Mzg1NmI0NzI0NTAxYzEyYTUyM2ZkYzYzM2EzNzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdhOTk4NWZjMjk1ZTY0YmM0NGNhMWRkZmY1MTE0OTViMzgzOGRhYWQ0NzIxMDhlNGU3OTljMjJiNTdjN2JhNDYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1NjFlZTRlNWEzNWFkNDY1ZmNmYTI2OTM4ZmExYzI3OGE4NWM2YjNlN2EwZmJlMDA3ZjYyMGZmNGMwZjJkYjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2a1ee2f553cd4536a813863bf1b1b9c1",
+      "statement": "exposedToConversation accepts three exposure payload shapes and returns null for an unreadable answer instead of an empty allow-list, so the registry is listed rather than every entity being hidden.",
+      "evidence": [
+        {
+          "resource": "repo://src/catalog.ts#L333-L350",
+          "version": "repo-lines-v1:sha256:b81917a70d4bf9eb8000b175094d2880688db0444897b7c254f4a16ccba76af6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImUxYTM4YjAzNDEzMTQyYzljMTMxZTA5ZGY1ZWYzYmFlZDMyYzNmODM0ZTFjNzRmNjhkOTJmNTA1OTc0YjYwZjYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJiZjA4MTM2YWFkMDJkMjBjMTU5NDVkMzA5ZTc3ZDA3OGZjNmFlZDZiOGNkMzllOWVmYWY0ZGJmNDE2MTIxMjYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkOTcxMTRmMDMwNjhjNmU2Mzc0NjA5NTE0MTFhN2M4Y2M2Mjc0NjQzYjM1NGVkMzg3ZjFlMjI5ZGQ2ZTkzNTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE2MGQ0MzFlMmQ5NmUyZGU4MGNlNWQzNmIxMDEzMWI1M2FmZTY2NzRkZWY5NDQwNDIwZGY1MTMyZTRmZTYzZGUifQ"
+        },
+        {
+          "resource": "repo://src/catalog.ts#L508-L530",
+          "version": "repo-lines-v1:sha256:bf89ca7889197d52cfb7311c429f20b185676d9927f880f1ed925208e53edc92:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1NDY0MzE0Y2ZjNDkzYjk5ODliYmU1ZjUzYzhhYmU4NjA2YWQxMjVjOGIyNmViNTJmMDljMzlhZWYxZGRlNDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM1ODBlMjBiMWFkZDQ0OWI5MTA1YmFmMGQ0YWNmNWQyNGYyODlkZTU5ODhmMWY4Y2U4YzVmMTRjMTZjMWQwMTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjMwNjU1ODJhNjhkODA4MjQ4ZmYzNzA3ZmRlMzYzMmY0OGE1YzI3MjUwNTlhYTRlNGMwMzk0YWQ0M2U0Y2ZjYzEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg3ZTIxNzI4ZGJiNDAyODIwOTZkMmM2NmM1N2Q1NTY2ODcwNWZmMjQzNjFjMDE2ZjhmNjQwZGZmMzA0NTBmZDcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b98506af83cb4ec9a277a64bf2f63b8b",
+      "statement": "When catalog.exposedOnly is on, exposure is re-read on its own through fetchExposureMap so the dashboard's Check exposure result and the catalog agree; probeExposure reports the command, error, count, assistants and samples.",
+      "evidence": [
+        {
+          "resource": "repo://src/catalog.ts#L382-L410",
+          "version": "repo-lines-v1:sha256:604c515048d3cf0e8d59996889337d71f3d753ea0f37b301045eb9a951060677:eyJzZWxlY3RlZExpbmVDb3VudCI6MjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyMTE4YmE5NWRhNTFkZjI3MjQ0MzAyYjc3ZGY3MWM0NjNiZWJlZjJiZDM4YzI0Mzc0N2RmMDM3YTVmODRjODkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5MjNhNWQzOWZjMjY1NGQxY2Y4MGY1N2NlNzUxYmMzYzVlNDA5NDAxNjE3ZmFiMTA1NDk5NTBjNDM2NmI2NDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVkYWMzMzVjNTE5MTJiZTMxN2E3MDM4ZWNiNzI2Y2I2NjIyYzc0NDUzNWVmYjJkNWM5NGIzNzYzNWZjYjZiMDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjZDJmNTkwY2MzYzdhMDkwMzQ3ZDAzMDA5NjZkNzMyNTZhOTI3ODA2ZWUxMTM1NzYwMmU3MDI2ZTgyOTg1YWMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_367d2530924d4044a373b0d556fb3627",
+      "statement": "Only DOMAIN_PRIORITY domains survive, and sortEntities orders by domain rank, then area name, then name; the decision entity cap is applied after that sort.",
+      "evidence": [
+        {
+          "resource": "repo://src/catalog.ts#L30-L66",
+          "version": "repo-lines-v1:sha256:3c5365a98236576f69447e19ccf73ba77c2601cdbbbf406509ae3be0be06b982:eyJzZWxlY3RlZExpbmVDb3VudCI6MzcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyMmI5ZGQ4OTVmZjRkYWNjY2RiZDg3MmZhNDU4NzBhYzkzYzRkZTllZDIwNjFiZjQxNGZkN2IxOGU1NTRkYWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkMGM4MzBjMTU4MTI4MTBmODhjNTRjOTViMTZiODRlMjRjMzQ1ZThhYWNlOTE4NzZmZjA2ZDA3MjQwZjUzMDUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM0ZGNhYmNiNTg2YzU1NmFkNTFkNjA2Nzk2MjU2OGVkM2RhZTU1OGYwMWYxOWZkODg1ZGFkZmY2NGNiODc3NTgifQ"
+        },
+        {
+          "resource": "repo://src/systemone.ts#L76-L100",
+          "version": "repo-lines-v1:sha256:31c76e0f13e9f801426efc0f426312d3c68dd82d89f051b491d9ca4fbca6f9c8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA2NzBlZTMyMzRlOGU4YjUzZDUwNzFkZWQ5ZGViNjVmNDdhNGVjMjczODhhNzcxMDBlM2QyZmUzNjIyZDJlMzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhMDMwNTQyYjdhYjIzOGQ4MGRhODNkZmE4ZGQ1MzM3MDg3NGUzNjE5MzFlYTg5ZTM0ODQ5NzI2YThiYzQ2MDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNhNTQyNWI0YTRkNTMxYTMzZTM3OTFjZTU1OWFjNDM5ODZjNjBhN2FmNGY2ZDY2YjdmY2Q1ODQzZmYwNzFhNDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRjZDNmMTE1YjdkYTA3NTA3ODQ2ZDI4YzU2YzczMTVmZTJmZTVjMDg3NTU1Y2UwYjA3NjgzNDc0YjA2MTAwN2MifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0a9218f4b53e4553b88075efb4eb7946",
+      "statement": "getCatalog never throws: on failure it falls back to catalogFromPrompt or emptyCatalog with a note that Home Assistant is unreachable, so an outage degrades rather than producing a server error.",
+      "evidence": [
+        {
+          "resource": "repo://src/catalog.ts#L830-L850",
+          "version": "repo-lines-v1:sha256:82d423007dca473f95c4566533e8ca43a73db593a4ad0c13f0ebd70127c54b4c:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVkYWJlMWEyNDJhNmQ3YTE0ZjU4MmM1OTc0YTg2NTE1NGQwYzNmN2FiOWQ2NWZhZjYyNTgwMzQ0OTIyZTFiZjQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImRjOGI0NzQ3NGJiM2ZhNDBkODEwNzFjZWM2MTJjOTcwYTYwMzM4NWIzZTdjMmY5OTE3YzFjZGZjZWNkZjJmMjYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk2YThmZDYyZGM4NWYyYTY4NWMyYjRmZDUzNmZjZDc3MzU1ODZiOTNiYjU2MjFhYTRjMDgxZGZhOTE2NzRkMjcifQ"
+        },
+        {
+          "resource": "repo://src/catalog.ts#L911-L935",
+          "version": "repo-lines-v1:sha256:887cd1659d1f05aa0dea566e19c7569bb10f48bda87fa9162a53ebfec6335fb2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ2ZWMyYTI2YWU0OWU0MDQ2ZmI4ZjA0MmIyMjI3MTFjYTA5MDk5YzI3ZTg3ZjAyZDI3YzI4ZjE4MGU3ZGZmOGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEyYjQwMDQ2MWY4Njc0ODVjMzYyZThhMGMwMmQ5MTAyMWIxYjA0ZTIxYTZhMjg2NjhkMjEwNTEwZmNmYTc3NmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ5YTBhYmUwZjJiOTcwMGU2Y2I5OTQxZDIxMWFmMGFiOGNjOTI2MGIxOGMxMDc2MjI4OTNmMDhhNDg4ZDNhZjMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_73ab6c12b1894c04b5498d9a6d35df56",
+      "statement": "homeSignature hashes sorted area ids and sorted entity ids, so adding or removing an entity invalidates the decision cache while an unchanged rebuild does not.",
+      "evidence": [
+        {
+          "resource": "repo://src/catalog.ts#L928-L940",
+          "version": "repo-lines-v1:sha256:a9f571bf4e6061b47dcb45f0349cbffbb39eaddd436ab7807d2e4d9b9e3cb6fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4ZWI5N2VhODQ0YzZjYTI4MWRiODNlM2VmNTJjYjFlZDE3MTQxMzYyZTIyZTdkZDQzMWRjNTdlZDkyMTBjMjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ2ODE5NGM0NWU3OWUwNjUzMmRiZDNmOGIyZjFjYzk3ZjNlOGEyNzBjMjA2Y2YyMGMyMWQ3NGZlOTkyYjUwZmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4OWRmOTk2MWIxZTZhOTk4OTZmMDgwOWVjZDQzNzMwYzUyMmNkYTEwNDhkZGYxZTAxZDc3NGI2NGM0MjJlMjYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5393224c5e0542c0ba27ba695ec941f4",
+      "statement": "mentionedTargets collapses a device named inside its own room into one area target, and uniqueEntityMention returns undefined on an equal-length or shared-name tie instead of picking one.",
+      "evidence": [
+        {
+          "resource": "repo://src/catalog.ts#L1084-L1110",
+          "version": "repo-lines-v1:sha256:e07937d0f7535a8c235ee9141a14ff7aaa6125ead1ab13ecd7880883eb51c3cf:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjhhMjIyODRjZDJmYjkxODczMmU2MmJkOTZiNTIwMjQ3NTBiNGJlOWZhYjBkZTRlMTc2NGMyOTViNDE4ZjU1YjAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzOGY2NDRiNThmZWRjNTgzZmM0MDgxYWVmMzVkZDAxOGQxZmZhM2VlODg1YjkxOTgxNWEwMGQ3MjI3Y2Y2MTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkMGYyZDNhM2FhZGEyNzU4NjQ1NzhkMGE0MzkxNTYzOGQ1NDNmZWNhMmM5NDg1OGRiOTQxMjExZTg2Y2VmMmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNiNGNmODQwMzNjNDVlYzViNmQ5MDAxNDAwOWU2Zjk3NjViMmYyYjVmN2UxYjhiOTU1MDAzZjU5NjM1NzQ4ZDQifQ"
+        },
+        {
+          "resource": "repo://src/catalog.ts#L1158-L1175",
+          "version": "repo-lines-v1:sha256:4a1c767cf82df2ae7a94f742370b29b05765143fef0e25d9e26b5c73398d8952:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM4NTg4ZTMzYzY4NDQ0MTQ1OTVlMDJmMTM5ZWMyYWI3OTBhMzIyNjk2NWYyMDliNjk4ZGJjNDY3NjJlMzdkN2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyM2NiNGMxM2Q2Nzc1OWQ1NGY3NjcxZDQ0MDM0OTcyZDA5MDNhMzlkMDhhZmFlNzNiYjk4MWViOWFiMGRjZjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZkYTNkZThiMDVkZWVjNDc5MWM3YmY4MWY3NDBjMmIxNWYxY2M5NjkwZDY5MGY1OWI3N2EyMWUwZWVlMGY4YjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4ZDEzMmU1ODY4ZGNmZWE2NDRlMzk2MmViZjM3NWQzZDBkMjg3MGNhZTU0ODhkYzFmMmU3ODZjNWE1Y2U5YzkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9cf41d9e113f470c82957aa0d7f1b533",
+      "statement": "buildQuestions returns the question set plus maps from option ids back to entities and areas, describeEntity is the only prose rendering of an entity, and state questions are answered from the catalog when the intent is not offered.",
+      "evidence": [
+        {
+          "resource": "repo://src/answer.ts#L185-L210",
+          "version": "repo-lines-v1:sha256:0293703fbc6fca204b93e3b932b40fbb5d2546463c2902420c0127ac3d0491f4:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgxN2ZhZDVmZmM1MzIyZjNkZjg2OTZjNWFmZDE4NzU4OTU5ODNlMDcwOTIwZmI2MjAxODlhZDU2NWQyOTgxNDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkwMzYwZGM3ZWE4ZWFkNTQxOWE5ZDhkZDczYmZhZDVlNDc4MTI1Y2UwNjc4ZTkyZjMwODk3MmJlMTFmODI0ZjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ0MDA4YjBjODY2ZmE0ZjhiNzNlMzRlZDU3OWQ0MDlkMGJlZTkyODQyMGM1Yzg5NThjMDMzMTdiODQ2YzgzZmUifQ"
+        },
+        {
+          "resource": "repo://src/questions.ts#L178-L188",
+          "version": "repo-lines-v1:sha256:6faa28c1d22d2b4d230269a701060ecedd1472c856d5269b97a41efc379caa2b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVmMDhmOTQ0ZWQ4YzE5MDc2YWM3ZTM3NDE2NDBhOTMyODdmYWMyMDAyMWRjNmRkY2Y5MmMzNWRhZjVjNjUwN2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZkMjgwMTk3OWZjZTQzMTY5MGRlNmRiNDM2MDUyZGUzMDZmYWNkM2VhMmMwNWI3ODU4MmM2NzcwY2JmOWIwYmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc3MTU2YjAwYjAyYTc0ZGFmZDkxOGI0ZWVjZTViY2YxMjVjYzk2YjFhZmYyMWUwZDVjYjczOTUzMWQ2ZjA3YmIifQ"
+        },
+        {
+          "resource": "repo://src/questions.ts#L189-L220",
+          "version": "repo-lines-v1:sha256:1a48473804486fe3fe4299ed847e2aeb6a948c3268f96ed6cb7480c106e161d7:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM3MzAzNGU2NTI3NzE1OGU3NzlmZTRmZGJlZTZjZmU3ZTBlMTE2ZWQxM2IxZjM3NTFhZGUyNTZlNTcyMjJmNTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImViZjhiNjkzZTQ0NGQyOTI0NTcyMjdiZTQ3YTcwYmVjZGE2ZmY0MTZmZTM5YzhhZjZhZDY5YjhkNzc5MjhjM2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ3YmY5ZGVlMzU3MWRlYjEyZWY3ZmNlZWNiNmMwZmEwMTZjNTgxYTY4ZGJiNzJiOGM1ZmFmM2I4NGI5YzViMTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU0YWIwZWMyNjVlMGFjZjg1ZmE2ZTY1NGFiODE5MWZhMzc4NDVjMGRkMDFkYjg3NjE3YjUxNmI3N2VkNWFlZTEifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-16T15:09:02.577Z"
+  }
+}

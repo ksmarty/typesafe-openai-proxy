@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:f03c9d14d22a7465284c47419266fa6801b59747903c9bf6f5bedb167fe9a36d",
+  "claims": [
+    {
+      "id": "claim_380a307cee8748488f2aa94a4d45640d",
+      "statement": "A turn is decided only when the backend is not none, a base URL and model are configured for systemone, and either decision.autoStart or the typesafe-router model name opts in; decide retries three times with 250/750/2000 ms backoff and opens a 30 s breaker after three consecutive failures.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L250-L270",
+          "version": "repo-lines-v1:sha256:5835fb7b804645bb4a98f6d01b5545170458aa86f15db23d3a416b35fdf10dd2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4MDA3NTI3NzUyYjUwMDRlNGE0NzQ5NDIwYjA0NTQzZjY5NzhiZWI3NWE3YTQ0Mzk3Y2I0ZDM1ZDQzM2IyZGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMyYTU4Mjk3Mjg3YzZlZjM2YzA4ZGQ4ZmU5ZjJiZDU4Yjc3M2JhNjUwYTQ2Mzc2NzgwMzdiN2JkNzFhM2VjYjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFmZWQ0MDE4YzEwOTBiZjJlNzExYzI1MGVmODhjY2EyOTBlYzNmY2Q4YmVkMmNmMDk4YzMxNGEzNmEzOTExOTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYwYTFhYjgwZGY4YjgyNWNiN2YzMTljOWQ2OTI1ODU1NGY0NzY1ZTJhOGMzODdlZTQyZDQ2M2NiYjM4NDlmNWMifQ"
+        },
+        {
+          "resource": "repo://src/systemone.ts#L170-L220",
+          "version": "repo-lines-v1:sha256:e5211811048cadd452cda9c8e98bd8bc67092a94852ec19302977940a1f391ee:eyJzZWxlY3RlZExpbmVDb3VudCI6NTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliMjgzNjk4NGRjZjVhMmYyNDM4N2Q3MDAyZmZmMmE1ZDZhM2MwNDZkZjhmM2Q2OTcyNzM1MWFmNjY3MWQ5MzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJkNmViNmM0NmQ2ZjE1NzI3NTc1ZDFjM2Y3Y2JlMTNhNWUzOGI3MzE2Njg4MTA2YzRkMDVjMDJhOWNiMTU2ZDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU0NGYzNjQ3NThmMTJiYzc5MzdmMDI4NzEzZmVjYjRmYWI4ZTQ0ZTVhZGQzMGViOTUxNzk2N2FmMDM5ZjU3OTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk0OGUzZGMxMTQ4N2I5ZDU5MzA5YWExOGRkNWFjNmQxMWUwYmViZjM1ODYxZGZlMDYxODk1OGZjNjczMGM1NWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a8bc17ddb6f5460b8092783667df6026",
+      "statement": "When the decision model is unavailable the turn is re-run with the heuristic backend, keeping only tool, calls, clarify, confirm or ignore plans, and is otherwise forwarded with the reason decision unavailable.",
+      "evidence": [
+        {
+          "resource": "repo://src/pipeline.ts#L1235-L1260",
+          "version": "repo-lines-v1:sha256:d5c8ca6fef9df18a69cfa86cbcc0bdad97b85dd3e11a253589ce303791bb0598:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImViMWYyMjcwYWIyYzYyOGRhMWIwNjhiOThiOGE5YTkwZmRjOTRmYTEzNzljNDJiMGMyMzdjNWIwZjgzOTczYTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3YWNhYmI5ODljZTZiMTliZjdiMTFhMWVhY2E4MDFlZDJjOTM1NzZiODBhOWZjYjEzMzAxMWMyYzA1NjAxMGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjNiM2VkOWFkNTE0OWI5NWY3YmI5MDYyZDU3NmFmMjhjMmZhNmI2NGI2YTJkMzZiMTg3MjU3NzIxMWJhMWM2YzMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY0YjFhZThlYmRiNGQ5MTczZTQwMjcwMDU3ZDk5OTExYWZhZTM5MzIwOWE3ZjE2MDkwNmM5ZTliMGQyNGZjZjkifQ"
+        },
+        {
+          "resource": "repo://src/systemone.ts#L58-L63",
+          "version": "repo-lines-v1:sha256:9e8aedc6a4206cec8bea2d087e0df087a591574a0886a70c5597212ff315c9f5:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWUwZWMzZDk0Yjc1Mzg4N2UzY2ZmYTkyMGUwOGJiMzBkZjAxYTRmNTM1NDQ1YTMyNDY2OTAwZGNkN2I3MDE4MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZDAwMjBjZWJjNTBmNGI5Y2FmMjhkYjc0OGU0NGYwNGFlYjJjNDY5MGJjOTgwZmUwYmMyMjkyNmVhNmVlNWEyMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMjg1ZTc5NTQ2MmY1NGJlNWFmYjY2YmMyZjQyZTI4ZGM1Mzk1Njc0YjgyODM2ZjljOWZjZWIxYzcyZWVmZjRhZiJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_daf8de55086644aeacf22a527810e052",
+      "statement": "Every choice gate requires the chosen probability to reach its threshold and the top two answers to differ by minMargin (default 0.15), and each gate records its choice, probability, margin, threshold and result.",
+      "evidence": [
+        {
+          "resource": "repo://src/config.ts#L45-L64",
+          "version": "repo-lines-v1:sha256:a84f64da1498dbae098dafae0c32332c0becf399d45ed7ab3e3fbf84c123f5a1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ1NmJmMGM0YzdjZmY5ZGI4NmMyODg4MzIzYjUxZWMyZTBmZjVkOWE5ZTQxNWU1MDIwMWY5M2YxYjdiZjhhYTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlNjk2NjcxNDBlNzZhNWFjMzM4YmYyMDUzMzdjNzE4MzIzNTgwMGE4ZjgwNTE1N2Y5MWJkMTNhM2ZhYjMwZDEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUwYjdmYTY0MjI5N2QzZWNkMDI1MGE0MDg3ZTNmZjk0YzZiN2E0ZjBhNTlkZGQ5YWYyZjgxMDYwNTI2NzBhYWQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU0MzFiOWI3MTEwODBlOGUzOGYxZGI3ZmZiNDJhYjY4ZDJhZWY2NDAzZDNhY2FhNGY4NmU0MzI4NTI4NWEyMWEifQ"
+        },
+        {
+          "resource": "repo://src/router.ts#L71-L95",
+          "version": "repo-lines-v1:sha256:831b04acd5f2b82df40462e9fc0c7a4bb0dd4f141b78ce6194c6113659500f57:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4NTBiNzczMWJlZTYzMTEzNTAwYzg3Yzk4MjBiMDU3YzVmODkxZWRlZTBiNGIyNTZkZDM5ZThiMThjMzRkYjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIwN2YyNDRiOGM4YzEwYTk1MjEyNzA2NTUwNGQwOWZhZTJlNmNmNTgwODdmYTcxYzU0NWZlM2MxZmNlNmI5NmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc0OTVlZWZmNWQzNDQ5OTI0YWI1OTBlOTk2NzJhM2Q0MGExY2RhYjVkOGY5YzYwM2Y0MGM1N2EwZmYxOGZkMWEifQ"
+        },
+        {
+          "resource": "repo://src/systemone.ts#L325-L328",
+          "version": "repo-lines-v1:sha256:8127d7d974d8f22ba303397210e495652e9072321ac53d31a0e9e572a5fbfd39:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNDM1OGY1ZDgwNzk3YmFjNmY4MzJlMWI0Y2MzNGEwMjk0NGEwOGM4M2VmYzQ1ZTAxN2RjYWEzYmM5MjRmY2E0MCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDkzMGE5MjA3Y2M4MjhmYTlhNmZhNDU1YTdlODBiZTUzNTVmYzEzNjM2YWM4N2M3NjQ1NGVhYjJjNGE3NDBmYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZWRmNmFlMTBiZjE2Yzc5ZmVmOTRhYmY1OTY1M2QzMjQxYWQyYTc3MjliYjI4NTAwNTY1YjcwY2U2N2U0Nzc2YyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjIsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNmUwMTVjYmMwZjNmMTU4ZmUwZTM1NDdjMzU4ZWE5NDA1NmYwMjAzNWExOGRlNTkyY2I4ZWM1ODc2N2M5NzBjYSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_048b52d2066f4b40bd4c6e8789101e50",
+      "statement": "Explicitly naming an entity, area or domain lowers the command threshold from actTerse to actExplicit, while a failed scope gate is overridden when exactly one entity, room or floor name is found in the sentence.",
+      "evidence": [
+        {
+          "resource": "repo://src/router.ts#L156-L180",
+          "version": "repo-lines-v1:sha256:3ddb59ab73856425d2114cd992c93bf8c26be839cb61686f42a23de862b8031f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY1YTI1YTdkMTI5NTJhM2UwOTY5MjcyY2I1NmZlMGZhYTM5YzJjNzA0ZjA0ODc1MDBmZjVkYzAxMDc2NDJiYTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgwZmJiYTNmZDhjN2NkZGU4YjViYTY0ODdmMDc4Yjg0YjYzYjYzYzdlMGYzZDJjYjFmNTk0ZTQ4MmUzYTA5NWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM3MjYwYzg4YzNiYjE1MTJlZDkzNjhhMzA4ZDk1MDMyZjUyMTE0MTY1YmU0N2MyZDkwZWIyM2MxMmQ3OGQyODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3YzllYTA0NjEzOWMxZGE0ZTJmOGE3MDVkMjIyZmMyN2QyZmNhNjJiYTJkZTJhZWJiNDNlYmFkMjA4NzI4NDQifQ"
+        },
+        {
+          "resource": "repo://src/router.ts#L523-L548",
+          "version": "repo-lines-v1:sha256:ef5858b23ac0debfb8290761d5d3a6f398925e59e32037362ba7d562ee24969b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVmNWMyODI1MTg5MTY2ZWNlYWM4OWUxZTYyZThhODY4NTEyN2JhMDc3MzczZWQ4N2Q5YzU4NDE1Zjc2OTRhZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3ZTE0NDk0YmJiNzUxNjQ2MTYyZWI2MmViYzU3MjRiMDJmYzk5NTIyZTk2MGI2MDE0NDBjODFjZTQ5OTI5NTEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM0ZTE5N2Y3ZWVkMDhiZDBiNmNjMzQzYzk2OTY4NGJmMWE1MDhiMDNlZjIzZjdmZjIxZDM0ZGRmMTg4MTJhZjEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a31946b2c9154846a6aee0ac542bdf03",
+      "statement": "Routing forwards on a missing category answer, a compound or unclear request, or any gate miss, and otherwise produces cancel, query, clarify, confirm, tool or multi-call plans in that order.",
+      "evidence": [
+        {
+          "resource": "repo://src/router.ts#L143-L218",
+          "version": "repo-lines-v1:sha256:fad41b9fafb7e184fbea9a9e3be1741e6be810a5c8e7a4ab96f2a80fdaf5ed64:eyJzZWxlY3RlZExpbmVDb3VudCI6NzYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg4MGU0YzVjYjQxY2I3YmRhZDM4NjJlNGUzNjU0OWRkMjFkM2ZiZmNiZTYyMmFjYjgxZWFkYWQ3ZTE5MmNlMGQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjEyOGFjNzJjNTZiYTY1ZDFmNDJmYzVkM2E5OWViZTM3NGYyZjY2MjVjNzc4OTVjMGU4YTdmNjk0OTc0MGNlYTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM1YzFlNGJmYWM2NDVmM2Q4YWQ5MjY5OWEyMjgwMDkxNWM2YTljNmE2Y2Y5NmQ3YzA1NmVhNWFlNTljMjMwODEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg3ZmIwM2Q5ZTg1MDEzNGQ3MGY0MDU5MzJlOTk3OTljZjRkNzZjNWQwYjdiY2RmYzY3NmVjY2VlNDExYmMyMTUifQ"
+        },
+        {
+          "resource": "repo://src/router.ts#L511-L550",
+          "version": "repo-lines-v1:sha256:7039751cd1c0c67820dc24693ac90f5214f2c73278e82a4f9fe35f1164a5c9a6:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkwMTlhZmU3MzIyY2VlNWU0MmY4ZGFiOWEzZDY3OTg0MGJiNDZhMzlhZDgzNGJjYjNhN2M4MzMzNjU1NWI0NTAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxZDQ2MmQxMjliYTY4NDdkMjBjYTJmYjkwZjRiZmNhMTY2OGM3YzY1YzYxZTNlZjRmZGZmNzYzMDhkZGU4M2YiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkyMDQwZTA5NWE5NGUyYWRhNzRlNDIxZjM3MTg3NTFhOTFhODEwYmZkNjZmNDhmNGU5MzljN2I3NDgwZWI2NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBmZDgwNDkzNzViZjk4MDJmNzQ1MGI1NmZjN2RiZmQ1YzQ0MzMwMzYwMDgwOWNhNzEzYzJiYTMyMTkwMGRjY2IifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5d64a9cb7e4e499db9205b74f9c5ab9a",
+      "statement": "Risky actions come from fixed action, domain, device-class and noulRisky checks, and with alwaysConfirmRisky the plan is stored as a confirm plan whose pending plan is replayed on a yes; riskyAction and riskyTarget are declared settings that no gate reads.",
+      "evidence": [
+        {
+          "resource": "repo://src/router.ts#L130-L141",
+          "version": "repo-lines-v1:sha256:f9c390dfe0b761acd4db9602adb0a251ab07d47907c156c141db4cc894bd1551:eyJzZWxlY3RlZExpbmVDb3VudCI6MTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU2NTY4ODMwZjg3OGMyODc1YjY5MTdiZjlkNjQyNzYxNDRlZmQ1ODU1MTM4ODgyZmI3ZGZiZWE3MTM0MjY0NjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU3MGI4YTJjNmZiMDc5NmFmYmQ1NzJiZjcxOWQ5ZTkxYzAxYmZkZTYzMmNiYWQ1MGI1MWIxZjUxNDUzMmIzZjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI1NjM2MjcwOGI0NDRhNjFiMDM1N2ViNDMzZThhNTU4OTUwZDJmYmI2NGFkM2I5NDEwMWQxYzE0ZGVlN2I0MjYifQ"
+        },
+        {
+          "resource": "repo://src/router.ts#L824-L840",
+          "version": "repo-lines-v1:sha256:7908db39d4de2b7537d26002fee03c8faf12cc0c80fadf249c454f7bcee32a60:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRhM2NiYWExNDViYTNmZmExYzdlMjA4Zjk0YjNlZTVlMGNhN2JjNWJjMDIzYjBiYzJkZDM0YTJkNGJkYjZkNzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwODU2NjkxMTllZmRlN2Y5ODdiNzMzZWQ1NmUwM2M2ZWI5NTc3NmI1NjcxOTYyMTk5NzEyMThlYjMzMzFkYzciLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZmMjY4NjlmY2M2YTlmYWE3NzYxMGU1ZDNiNjk4ODYzNjc5YjY2ODY0ZTI3YTMwY2JjZTA1YmFlNzBmOTdmNDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2158dad6f8a547debf84b19ac52d596d",
+      "statement": "The decision cache key hashes model, base URL, lowercase utterance, language, spoken-from area, homeSignature and the question definitions; homeSignature covers area and entity ids but not state, and questions are never cached.",
+      "evidence": [
+        {
+          "resource": "repo://src/catalog.ts#L928-L940",
+          "version": "repo-lines-v1:sha256:a9f571bf4e6061b47dcb45f0349cbffbb39eaddd436ab7807d2e4d9b9e3cb6fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI4ZWI5N2VhODQ0YzZjYTI4MWRiODNlM2VmNTJjYjFlZDE3MTQxMzYyZTIyZTdkZDQzMWRjNTdlZDkyMTBjMjMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAxYmE0NzE5YzgwYjZmZTkxMWIwOTFhN2MwNTEyNGI2NGVlZWNlOTY0ZTA5YzA1OGVmOGY5ODA1ZGFjYTU0NmIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQ2ODE5NGM0NWU3OWUwNjUzMmRiZDNmOGIyZjFjYzk3ZjNlOGEyNzBjMjA2Y2YyMGMyMWQ3NGZlOTkyYjUwZmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE4OWRmOTk2MWIxZTZhOTk4OTZmMDgwOWVjZDQzNzMwYzUyMmNkYTEwNDhkZGYxZTAxZDc3NGI2NGM0MjJlMjYifQ"
+        },
+        {
+          "resource": "repo://src/decidecache.ts#L108-L140",
+          "version": "repo-lines-v1:sha256:2bebcc75f257ab4b8b3bc8764475ceda26a328c76e09bcc4f0bdd4c430d8cd0a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyMWI2NGIwZTYxY2FjZDc3NDJmYzJiMjMwNDlmYzQ0ZGZjMWUzYTlmZmJlODA0MWRmNjIwYjcxYmQzYjU0MzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxODY1YTg0YzM1OTAxNjBiZjI5MzcyMTQxMzQ5MGYxNjE3YzE1ZmIwZjRkYzllZGE3MmIxZWQ0YmJkOTU2NDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3YTZjMWQ3YzI2ZGRlZWU5YzEzMzdhODI5NTk4ZWI1NTRmYzllZGUyYzVlOTE5ZjhlYThhOGM0ZTViMTVjN2IiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc3ZjUxNWE3MWM4MTdlYjAxNmVlYTI1OTRlYzMzODMzN2JjNTE2ODZhYjg3YzI4MmU0MzQ0ODg4YTA5MDQ5ZWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_80d339226459496698e3cfe066f841b7",
+      "statement": "decision.historyTurns selects the last turns*2 user and assistant text messages (assistant messages carrying tool_calls skipped) for the model, separately from the dashboard trace persisted in history.json.",
+      "evidence": [
+        {
+          "resource": "repo://src/history.ts#L1-L40",
+          "version": "repo-lines-v1:sha256:cb1fada1408d4efa0825aa7ffb2a084a6aae0b6c1cb6ebd76ca2790676b8ffba:eyJzZWxlY3RlZExpbmVDb3VudCI6NDAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxODU3MTNjODZmMGY4ZTZjNDI5Nzg3OTZjOTZhZDRlNGZhN2FhNjEyNDc1YTllMTkzY2YyZDMzNGE3MjBkYzgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM4YzFhYTg4ODc3Yzk1N2FkODcwMTg4NDczY2Q5ODNhNjcxMjYwYmVhYTBkMjkzNjRhYjBkZjM4MTZhNDU5MmQifQ"
+        },
+        {
+          "resource": "repo://src/pipeline.ts#L158-L175",
+          "version": "repo-lines-v1:sha256:9ef5a22cf224d8dddb08702ed23ce0628d02e627f6bbec585ac9221a6629b9d5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3ZTI1Nzc2ZGU4MjNkYmU3ZmEyNWFkOWY2MWZhNjMxZmU2Y2Q5ZGY5NzkzMDlkZjBkMTJjOWY3ODM5ODAxZjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzMmQ4YTVhMGUzOWQwM2Y5MDFmNDgwOGM0ZmRjOGM3ODNhOTAwNjk5Yzc3NmQ2ZWU4OTJmNTY3ZDk3MTRkMTciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQyNzliNjgwNTIwZWQ1MjZkY2M0YzhhYTM3MzUyNzU5MGUyODE5NWU0MGZiZTYxMDdlMWU1YjQ5NWE0NTc3MzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzNzYwNWNkMjBjNmUzZDEzNjQzZDZlODRlYmUzYThhOGYyNjlmMWJlYTVjNmFkYmYwYWNjYWZjOTQxOWE0MjkifQ"
+        },
+        {
+          "resource": "repo://src/systemone.ts#L113-L117",
+          "version": "repo-lines-v1:sha256:e1589a77c828ece85e7f3d5448e4a6737b1a09b3d55875537cfa166621588a7d:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiOWQ5ODM1NDk5ZTViYTkxZjg3MjY3Yzk1MmI3OGVhZWRkNmM0NjZmOTViNjg4MWIwN2I0NmNjYWVjMGNkZjE0NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTYzMzViN2QzMDFmOWNjOWMyNWUyMjE2NzFiMGJiNThkNGYxYWY1NjJlMDQ4OTg0Y2I0OTQ0NWFjNDg0YjRjZCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiOWM2YjBkY2JhMGJlOWY5NzhhNWY0YzhjMjNiYWFjZDRhYmZiNTMwYTcyM2IzMDBhMTQ1MTU5NTU3Yjg1ZDVjYSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiM2RjNDAxZDU5ZjYwZDRmYTI1ODkzYTE3ZWU3OGZkNjM0MjBjZjVjNWVkNThiMWUzOTdiYjcwMTdiNmYwM2FjNSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.9.0",
+    "at": "2026-11-16T15:09:02.577Z"
+  }
+}

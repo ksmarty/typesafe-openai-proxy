@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "pages": {
+    "/openwiki/architecture/catalog-and-targeting.md": {
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700",
+      "pageVersion": "sha256:52a37cffbf9e2e71b82d0f8c65193a1998fa24c7034c71eafc80d8c43569490c",
+      "completedBy": "v1",
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2"
+    },
+    "/openwiki/architecture/decision-and-gates.md": {
+      "pageVersion": "sha256:f03c9d14d22a7465284c47419266fa6801b59747903c9bf6f5bedb167fe9a36d",
+      "completedBy": "v1",
+      "completedRunId": "2cfeaad6-deec-4bde-bb65-a8d514ea37a2",
+      "gitHead": "981617e3587b7757a7969a69d78380154473466c",
+      "sourceFingerprint": "sha256:fd310320e98404d033804d94a12db20f3dc521362fa55488caa052087173a700"
+    }
+  }
+}

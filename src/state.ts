@@ -1,6 +1,7 @@
 /** Process-wide in-memory state: the trace ring, counters and anything pending. */
 
 import { loadConfig } from './config.js';
+import { scheduleHistorySave, type HistorySnapshot } from './history.js';
 import type { Plan, TraceEntry } from './types.js';
 
 export const startedAt = Date.now();
@@ -20,6 +21,8 @@ export const stats = {
   decisionMs: 0,
   routable: 0,
 };
+
+export type Stats = typeof stats;
 
 export interface PendingConfirmation {
   plan: Extract<Plan, { kind: 'tool' } | { kind: 'calls' }>;
@@ -162,6 +165,7 @@ export const requestLog: SeenRequest[] = [];
 export function rememberRequest(entry: SeenRequest): void {
   requestLog.unshift(entry);
   if (requestLog.length > 50) requestLog.length = 50;
+  scheduleHistorySave(historySnapshot);
 }
 
 /**
@@ -182,12 +186,45 @@ export function rememberTrace(entry: TraceEntry): void {
   trace.unshift(entry);
   const limit = Math.max(10, loadConfig().routing.traceLimit);
   if (trace.length > limit) trace.length = limit;
+  scheduleHistorySave(historySnapshot);
 }
 
 /** Fold a late measurement (how long the model server took) into an existing entry. */
 export function updateTrace(id: string, patch: Partial<TraceEntry>): void {
   const entry = trace.find((candidate) => candidate.id === id);
-  if (entry) Object.assign(entry, patch);
+  if (!entry) return;
+  Object.assign(entry, patch);
+  scheduleHistorySave(historySnapshot);
+}
+
+/**
+ * Put back what an earlier run saved, so an image update does not empty the dashboard.
+ *
+ * Only numbers that already exist on `stats` are copied: a file edited by hand cannot add
+ * a counter the code does not read.
+ */
+export function restoreHistory(saved: HistorySnapshot): number {
+  if (saved.trace.length) {
+    trace.length = 0;
+    trace.push(...saved.trace);
+    const limit = Math.max(10, loadConfig().routing.traceLimit);
+    if (trace.length > limit) trace.length = limit;
+  }
+  if (saved.requests.length) {
+    requestLog.length = 0;
+    requestLog.push(...saved.requests.map((request) => ({ ...request })));
+  }
+  for (const [key, value] of Object.entries(saved.stats)) {
+    if (key in stats && Number.isFinite(value)) {
+      (stats as Record<string, number>)[key] = value;
+    }
+  }
+  return trace.length;
+}
+
+/** The in-memory state as it should be written to the data directory. */
+export function historySnapshot(): HistorySnapshot {
+  return { version: 1, trace: [...trace], requests: [...requestLog], stats: { ...stats } };
 }
 
 export function averageDecisionMs(): number {

@@ -38,17 +38,20 @@ import { jsonResponse } from './respond.js';
 import { secretOrStored, settingsGroups } from './schema.js';
 import {
   averageDecisionMs,
+  historySnapshot,
   lastRequestFields,
   pendingConfirmations,
   rememberRequest,
   rememberRequestFields,
   rememberTrace,
   requestLog,
+  restoreHistory,
   routableShare,
   startedAt,
   stats,
   trace,
 } from './state.js';
+import { configureHistory, saveHistoryNow } from './history.js';
 import { breakerState, listModels, resetBreaker, warmDecision } from './systemone.js';
 import { configureDecisionCache, decisionCachePath, decisionCacheSize } from './decidecache.js';
 import { ensureUiBundle } from './ui.js';
@@ -318,6 +321,8 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
 
   if (path === '/trace' && method === 'DELETE') {
     trace.length = 0;
+    // Write the empty list straight away, or the entries come back on the next restart.
+    saveHistoryNow(historySnapshot);
     jsonResponse(response, 200, { ok: true });
     return true;
   }
@@ -699,11 +704,17 @@ export function startServer(options?: Partial<ServeOptions>) {
   // Read back the decisions an earlier run saved: the key carries a signature of the exposed
   // entities, so anything stale simply never matches.
   configureDecisionCache({ persist: loadConfig().decision.persistCache });
+  // The dashboard's own history survives an image update for the same reason: it is the
+  // record you need when yesterday's turn is the one that behaved oddly.
+  const savedHistory = configureHistory();
+  if (savedHistory) restoreHistory(savedHistory);
   // Warm the decision connection too: the first command after a restart should not pay TLS.
   void warmDecision(loadConfig());
 
   const shutdown = (signal: string) => {
     stopCatalogWarmer();
+    // A debounced save would never fire once the process exits.
+    saveHistoryNow(historySnapshot);
     process.stdout.write(`${signal} received — closing\n`);
     server.close(() => process.exit(0));
     server.closeIdleConnections();
@@ -711,6 +722,7 @@ export function startServer(options?: Partial<ServeOptions>) {
   };
   process.once('SIGTERM', () => shutdown('SIGTERM'));
   process.once('SIGINT', () => shutdown('SIGINT'));
+  process.once('exit', () => saveHistoryNow(historySnapshot));
 
   return server;
 }

@@ -136,6 +136,20 @@ test('"their greatest hits" is still the artist', () => {
   assert.equal(readMusicRequest('play music by Queen')?.query, 'Queen');
 });
 
+test('a confirmation tacked onto the sentence is not part of the name', () => {
+  // "Play Taylor Swift. Yeah." is one request and one nod at the last answer; the satellite
+  // hands over both, and a provider searched for "Taylor Swift. Yeah" finds nothing.
+  assert.deepEqual(readMusicRequest('Play Taylor Swift. Yeah.'), {
+    query: 'Taylor Swift',
+    kind: 'artist',
+    bare: true,
+  });
+  assert.equal(readMusicRequest('play Taylor Swift, thanks')?.query, 'Taylor Swift');
+  assert.equal(readMusicRequest('play the song Bad Guy by Billie Eilish. Okay.')?.artist, 'Billie Eilish');
+  // A name that is itself a filler word survives when it is all that was said.
+  assert.equal(readMusicRequest('play Yeah')?.query, 'Yeah');
+});
+
 test('a speaker at the end of the sentence is a target, not part of the name', () => {
   const request = readMusicRequest('play Taylor Swift on the kitchen speaker', home());
   assert.equal(request?.query, 'Taylor Swift');

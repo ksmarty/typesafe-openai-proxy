@@ -315,8 +315,33 @@ function splitArtist(text: string): { title: string; artist?: string } {
   return { title, artist };
 }
 
+/**
+ * Words a person says around a request rather than in it.
+ *
+ * "Play Taylor Swift. Yeah." is one request and one nod at the last answer: the satellite
+ * sends both because listening continues, and a search for "Taylor Swift. Yeah" finds
+ * nothing at all. These are the nods, the thanks and the hesitations — never part of a
+ * name in practice, and cheap to drop when they trail the sentence.
+ */
+const TRAILING_FILLER = new Set([
+  'yeah', 'yep', 'yup', 'yes', 'no', 'nope', 'nah', 'ok', 'okay', 'alright', 'right',
+  'sure', 'please', 'thanks', 'thank', 'now', 'then', 'um', 'uh', 'er', 'ah', 'oh',
+  'hey', 'cool', 'nice', 'great', 'good', 'perfect', 'exactly', 'correct', 'hmm',
+]);
+
+/** Drop the confirmations and hesitations a person tacks onto the end of a request. */
+function stripTrailingFiller(value: string): string {
+  const words = value.split(/\s+/);
+  while (words.length > 1) {
+    const last = (words[words.length - 1] ?? '').toLowerCase().replace(/[^a-z']/g, '');
+    if (!TRAILING_FILLER.has(last)) break;
+    words.pop();
+  }
+  return words.join(' ');
+}
+
 function tidySong(value: string): string {
-  return value
+  return stripTrailingFiller(value)
     .replace(/\s+(?:for me|please|now)$/i, '')
     .replace(/\s+(?:on|in|at)$/i, '')
     .replace(/\s+/g, ' ')
@@ -357,17 +382,18 @@ export function readMusicRequest(utterance: string, catalog?: Catalog): MusicReq
   const reading = readKind(content);
   const split = splitArtist(reading.text);
   const query = tidySong(split.title);
+  const artist = split.artist ? tidySong(split.artist) : undefined;
   if (query.length < 2) return null;
   if (NOT_CONTENT.has(normalise(query))) return null;
 
   // "X by Y" names an album: a track is "the song X by Y", and a bare name is an artist.
-  const kind: MusicKind = reading.kind ?? (split.artist ? 'album' : 'artist');
+  const kind: MusicKind = reading.kind ?? (artist ? 'album' : 'artist');
   return {
     query,
     kind,
-    ...(split.artist ? { artist: split.artist } : {}),
+    ...(artist ? { artist } : {}),
     ...(aside?.target ? { on: aside.target } : {}),
-    bare: reading.kind === undefined && !split.artist,
+    bare: reading.kind === undefined && !artist,
     ...(shuffle ? { shuffle: true } : {}),
   };
 }

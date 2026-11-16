@@ -276,9 +276,15 @@ function StatTile({ label, value, hint }: { label: string; value: string; hint?:
 }
 
 function TraceRow({ entry, replies = [] }: { entry: TraceEntry; replies?: TraceEntry[] }) {
+  // A request can offer forty tools, and forty chips is as unreadable as one long line.
+  // Show the first few, then let the reader ask for the rest.
+  const TOOL_PREVIEW = 12;
+  const [allTools, setAllTools] = useState(false);
   const tool = entry.tool ? `${entry.tool} ${pretty(entry.args ?? {})}` : null;
   const callLines = (entry.calls ?? []).map((call, index) => `${index + 1}. ${call.tool} ${pretty(call.args ?? {})}`);
-  const headline = entry.route === 'refused' ? entry.reason : entry.utterance || '(empty)';
+  const upstreamCallLines = (entry.upstreamCalls ?? []).map(
+    (call, index) => `${index + 1}. ${call.tool} ${pretty(call.args ?? {})}`,
+  );
   return (
     <Accordion disableGutters elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, '&:before': { display: 'none' }, mb: 1 }}>
       <AccordionSummary
@@ -294,22 +300,6 @@ function TraceRow({ entry, replies = [] }: { entry: TraceEntry; replies?: TraceE
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', width: '100%', minWidth: 0 }}>
           <RouteChip kind={entry.route} />
           {entry.httpStatus ? <Chip label={`HTTP ${entry.httpStatus}`} color="error" variant="outlined" size="small" /> : null}
-          <Typography
-            variant="body2"
-            sx={{
-              flex: 1,
-              minWidth: 0,
-              // One line on every width: a long spoken sentence must never widen the row.
-              // `noWrap` alone lets the flex item keep its content width, so the summary
-              // scrolls the whole card sideways on a phone.
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-            title={headline}
-          >
-            {headline}
-          </Typography>
           {callLines.length ? (
             <Chip
               size="small"
@@ -318,6 +308,18 @@ function TraceRow({ entry, replies = [] }: { entry: TraceEntry; replies?: TraceE
               sx={{ flexShrink: 0, display: { xs: 'none', sm: 'inline-flex' } }}
             />
           ) : null}
+          {entry.upstreamCalls?.length ? (
+            <Chip
+              size="small"
+              variant="outlined"
+              color="secondary"
+              label={`${entry.upstreamCalls.length} model call${entry.upstreamCalls.length > 1 ? 's' : ''}`}
+              sx={{ flexShrink: 0, display: { xs: 'none', sm: 'inline-flex' } }}
+            />
+          ) : null}
+          {/* The spoken sentence is not repeated here: on a phone it was cut to a few words
+              and told the reader nothing. It waits in the body, where it can wrap. */}
+          <Box sx={{ flex: 1, minWidth: 0 }} />
           <Typography variant="caption" color="text.secondary" sx={{ flexShrink: 0, display: { xs: 'none', sm: 'block' } }}>
             {ms(entry.decisionMs)}
           </Typography>
@@ -328,7 +330,14 @@ function TraceRow({ entry, replies = [] }: { entry: TraceEntry; replies?: TraceE
       </AccordionSummary>
       <AccordionDetails sx={{ px: 2, pt: 0 }}>
         <Stack spacing={1.5}>
-          <Typography variant="body2" color="text.secondary">{entry.reason}</Typography>
+          {entry.route === 'refused' ? null : (
+            <Typography variant="body1" sx={{ overflowWrap: 'anywhere', fontWeight: 500 }}>
+              {entry.utterance || '(empty)'}
+            </Typography>
+          )}
+          <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: 'anywhere' }}>
+            {entry.reason}
+          </Typography>
           <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: 'wrap' }}>
             {entry.category ? <Chip label={entry.category} variant="outlined" /> : null}
             {entry.action ? <Chip label={entry.action} variant="outlined" /> : null}
@@ -397,7 +406,36 @@ function TraceRow({ entry, replies = [] }: { entry: TraceEntry; replies?: TraceE
                 {entry.toolsOffered.length ? 'Tools the request offered' : 'Tools the request offered — none'}
               </Typography>
               {entry.toolsOffered.length ? (
-                <ScrollLine>{entry.toolsOffered.join(', ')}</ScrollLine>
+                <Stack direction="row" spacing={0.75} useFlexGap sx={{ flexWrap: 'wrap', rowGap: 0.75, minWidth: 0 }}>
+                  {(allTools ? entry.toolsOffered : entry.toolsOffered.slice(0, TOOL_PREVIEW)).map((name) => (
+                    <Chip
+                      key={name}
+                      label={name}
+                      size="small"
+                      variant="outlined"
+                      // One chip per tool wraps, so a long name stays readable instead of
+                      // living in a single line that scrolls off the screen.
+                      sx={{
+                        maxWidth: '100%',
+                        fontFamily: monoFont,
+                        '& .MuiChip-label': { overflowWrap: 'anywhere', whiteSpace: 'normal' },
+                      }}
+                    />
+                  ))}
+                  {entry.toolsOffered.length > TOOL_PREVIEW ? (
+                    <Chip
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      onClick={() => setAllTools((shown) => !shown)}
+                      label={
+                        allTools
+                          ? 'Show fewer'
+                          : `Show ${entry.toolsOffered.length - TOOL_PREVIEW} more`
+                      }
+                    />
+                  ) : null}
+                </Stack>
               ) : (
                 <Typography variant="body2" color="text.secondary">
                   Home Assistant sent no intent schemas with this request, so nothing could be called
@@ -405,6 +443,31 @@ function TraceRow({ entry, replies = [] }: { entry: TraceEntry; replies?: TraceE
                 </Typography>
               )}
             </Box>
+          ) : null}
+          {entry.upstreamReply ? (
+            <Box>
+              <Typography variant="overline" color="text.secondary">
+                What the model server answered
+              </Typography>
+              <Typography variant="body2" sx={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
+                {entry.upstreamReply}
+              </Typography>
+            </Box>
+          ) : null}
+          {upstreamCallLines.length ? (
+            <Box>
+              <Typography variant="overline" color="text.secondary">
+                {upstreamCallLines.length === 1
+                  ? 'Tool the model used'
+                  : `Tools the model used (${upstreamCallLines.length})`}
+              </Typography>
+              <CodeBlock>{upstreamCallLines.join('\n')}</CodeBlock>
+            </Box>
+          ) : null}
+          {entry.upstreamStatus && entry.upstreamStatus !== 200 ? (
+            <Alert severity="warning" variant="outlined">
+              The model server answered HTTP {entry.upstreamStatus}.
+            </Alert>
           ) : null}
           {entry.clarification ? <Alert severity="info" variant="outlined">{entry.clarification}</Alert> : null}
           {entry.error ? <Alert severity="error" variant="outlined">{entry.error}</Alert> : null}
@@ -452,9 +515,23 @@ function TraceRow({ entry, replies = [] }: { entry: TraceEntry; replies?: TraceE
                         {timeAgo(reply.at)}
                       </Typography>
                     </Stack>
-                    <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>
-                      {reply.said || reply.reason}
+                    <Typography variant="body2" sx={{ overflowWrap: 'anywhere', whiteSpace: 'pre-wrap' }}>
+                      {reply.said || reply.upstreamReply || reply.reason}
                     </Typography>
+                    {reply.upstreamCalls?.length ? (
+                      <Box sx={{ mt: 1 }}>
+                        <Typography variant="overline" color="text.secondary">
+                          {reply.upstreamCalls.length === 1
+                            ? 'Tool the model used'
+                            : `Tools the model used (${reply.upstreamCalls.length})`}
+                        </Typography>
+                        <CodeBlock>
+                          {reply.upstreamCalls
+                            .map((call, index) => `${index + 1}. ${call.tool} ${pretty(call.args ?? {})}`)
+                            .join('\n')}
+                        </CodeBlock>
+                      </Box>
+                    ) : null}
                   </Box>
                 ))}
               </Stack>

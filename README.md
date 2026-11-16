@@ -498,6 +498,15 @@ takes.
 | "play radio station BBC Radio 4" | the station |
 | "play some jazz" | the genre, which every provider keeps as a shelf |
 
+**The words around the request.** A satellite keeps listening after the request, so the sentence
+arrives with the nod that follows it: "play Taylor Swift. Yeah." is one request and one
+confirmation. The confirmation, the thanks and the hesitation are cut off the end before the name
+is searched for — otherwise the provider is asked for a band called "Taylor Swift. Yeah" and finds
+nothing at all. Only trailing words go, and never the last word left standing, so a song actually
+called "Yeah" is still played. This is a rule and not a model call, which keeps music free of
+latency; a request that is messy in some other way is still better forwarded, and that is what
+happens when the reader cannot make a clean name out of it.
+
 **Which speaker.** The device the sentence was spoken to — Home Assistant names it in the
 request — is found in the catalog through the speaker that belongs to it, so "play Taylor Swift"
 in the kitchen plays in the kitchen. A speaker or a room named in the sentence wins over that
