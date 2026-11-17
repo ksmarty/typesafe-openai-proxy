@@ -185,23 +185,70 @@ sequence:
           {% if d %}{% set out.ids = out.ids + [d] %}{% endif %}
         {% endfor %}
         {{ out.ids }}
-      # The room this was spoken in, without being told: the satellite running this very call
-      # is in `processing` (or `responding` while it speaks), and an idle one is not — so its
-      # area is the room that was asked in.
-      heard_area: >-
-        {% set out = namespace(area='', other='') %}
+      # Which satellite is running this very call: it is in `processing` (or `responding`
+      # while it speaks), and an idle one is not. The same device also carries the media
+      # source sensor that says which speaker this kiosk plays through.
+      heard_satellite: >-
+        {% set out = namespace(ent='', other='') %}
         {% for e in states.assist_satellite | map(attribute='entity_id') | list %}
           {% set s = states(e) %}
-          {% set a = area_name(e) or '' %}
-          {% if a and s == 'processing' and out.area == '' %}
-            {% set out.area = a | lower %}
-          {% elif a and s in ['listening', 'responding'] and out.other == '' %}
-            {% set out.other = a | lower %}
+          {% if s == 'processing' and out.ent == '' %}
+            {% set out.ent = e %}
+          {% elif s in ['listening', 'responding'] and out.other == '' %}
+            {% set out.other = e %}
           {% endif %}
         {% endfor %}
-        {{ out.area or out.other }}
+        {{ out.ent or out.other }}
+
+  # ---------------------------------------------------------------------------------------
+  # Which speaker this kiosk plays through
+  #
+  # A kiosk satellite publishes the speaker it is wired to as `sensor.<name>_media_source`,
+  # on the same device. Its state names the media_player to play on, so it beats every guess
+  # below: a satellite that hears you knows its own output. The room stays as the fallback.
+  # ---------------------------------------------------------------------------------------
+  - variables:
+      heard_area: "{{ (area_name(heard_satellite) or '') | lower if heard_satellite else '' }}"
       # What to treat as the room: default_area wins, otherwise where it was asked.
       wanted_area: "{{ (default_area or heard_area or '') | lower }}"
+      # The media source of this kiosk: a `sensor.*media_source` on the satellite's own
+      # device, or — when the sensor sits on the speaker instead — the one whose state names
+      # a player that shares the satellite's device.
+      media_source_entity: >-
+        {% set out = namespace(ent='') %}
+        {% set dev = device_id(heard_satellite) if heard_satellite else '' %}
+        {% if dev %}
+          {% for e in device_entities(dev) %}
+            {% if out.ent == '' and e.startswith('sensor.') and 'media_source' in e %}
+              {% set out.ent = e %}
+            {% endif %}
+          {% endfor %}
+          {% if out.ent == '' %}
+            {% for e in states.sensor | map(attribute='entity_id') | select('match', '.*media_source$') | list %}
+              {% if out.ent == '' and states(e) is string and states(e).startswith('media_player.')
+                    and device_id(states(e)) == dev %}
+                {% set out.ent = e %}
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+        {% endif %}
+        {{ out.ent }}
+      # The sensor's state is the player itself, or a name to look up among the speakers.
+      media_source_player: >-
+        {% set raw = (states(media_source_entity) if media_source_entity else '') | string | trim %}
+        {% set out = namespace(ent='') %}
+        {% if raw.startswith('media_player.') %}
+          {% if states(raw) not in ['unavailable', 'unknown', 'none', ''] %}
+            {% set out.ent = raw %}
+          {% endif %}
+        {% elif raw and raw | lower not in ['unknown', 'unavailable', 'none', 'off', ''] %}
+          {% for p in all_speakers %}
+            {% if out.ent == '' and ((state_attr(p, 'friendly_name') or p) | lower) == (raw | lower) %}
+              {% set out.ent = p %}
+            {% endif %}
+          {% endfor %}
+        {% endif %}
+        {{ out.ent }}
 
   - variables:
       named_players: >-
@@ -259,6 +306,7 @@ sequence:
   - variables:
       target_players: >-
         {% if named_players | count > 0 %}{{ named_players }}
+        {% elif media_source_player %}{{ [media_source_player] }}
         {% elif default_speaker and default_speaker in all_speakers %}{{ [default_speaker] }}
         {% elif area_players | count > 0 %}{{ area_players }}
         {% elif playing_now | count > 0 %}{{ playing_now }}
