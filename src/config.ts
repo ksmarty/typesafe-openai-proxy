@@ -163,6 +163,32 @@ export interface Config {
     timeoutMs: number;
   };
   /**
+   * Sports, read from the sensors the sports-ticker integration already publishes.
+   *
+   * The integration fetches ESPN itself and publishes the raw feed as the attributes of a
+   * `sensor.espn_<league>_scoreboard_raw` entity, plus standings, rankings and next-game
+   * sensors for whichever leagues are enabled. So there is nothing to configure per league
+   * and nothing to expose to Assist: the proxy reads Home Assistant's state machine, which
+   * already holds every one of them, and asks no model anything.
+   *
+   * Spoiler delay is honoured by default. If the house set one up, reading the raw sensor
+   * would spoil a delayed game, which is the opposite of what it was for.
+   */
+  sports: {
+    /** Answer score, standings and fixture questions locally. Off leaves every one to the model. */
+    enabled: boolean;
+    /** Only these league codes (comma separated: `nfl,epl`). Empty reads every league it finds. */
+    leagues: string;
+    /**
+     * `respect` holds a game back by the sensor's own spoiler delay, `ignore` reads the raw
+     * scoreboard even when a delayed one exists.
+     */
+    spoilerDelay: 'respect' | 'ignore';
+    /** How long one state dump is reused. A scoreboard changes by the minute. */
+    cacheMs: number;
+    timeoutMs: number;
+  };
+  /**
    * Music, played on the speaker that was spoken to.
    *
    * "Play Taylor Swift" names no speaker, no media type and no provider, and all three are
@@ -406,6 +432,7 @@ export function defaultConfig(): Config {
       baseUrl: '',
       timeoutMs: 8000,
     },
+    sports: { enabled: true, leagues: '', spoilerDelay: 'respect', cacheMs: 30000, timeoutMs: 8000 },
     music: { enabled: true, provider: 'auto', enqueue: 'replace', artist: 'artist' },
     reminders: { enabled: true },
     timers: { enabled: true },
@@ -520,6 +547,13 @@ function applyEnv(config: Config): void {
   if (env.WEATHER_LANGUAGE) config.weather.language = env.WEATHER_LANGUAGE;
   if (env.WEATHER_STYLE) config.weather.style = env.WEATHER_STYLE;
   if (env.WEATHER_BASE_URL) config.weather.baseUrl = env.WEATHER_BASE_URL;
+  if (env.SPORTS !== undefined && env.SPORTS !== '') {
+    config.sports.enabled = /^(1|true|yes|on)$/i.test(env.SPORTS);
+  }
+  if (env.SPORTS_LEAGUES) config.sports.leagues = env.SPORTS_LEAGUES;
+  if (env.SPORTS_SPOILER_DELAY === 'ignore' || env.SPORTS_SPOILER_DELAY === 'respect') {
+    config.sports.spoilerDelay = env.SPORTS_SPOILER_DELAY;
+  }
   if (env.MUSIC !== undefined && env.MUSIC !== '') {
     config.music.enabled = /^(1|true|yes|on)$/i.test(env.MUSIC);
   }

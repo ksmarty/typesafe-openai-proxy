@@ -19,6 +19,7 @@ import { reminderPlan } from './reminders.js';
 import { timerPlan } from './timers.js';
 import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
 import { readWeatherQuestion, requestedSummaryLanguage, weatherAnswer, weatherFor } from './weather.js';
+import { readSportsQuestion, sportsAnswer, sportsFor } from './sports.js';
 import { looksLikeChatter } from './chatter.js';
 import { judgeAddressee } from './addressee.js';
 import { actionPhrase, humanTarget, interpolateSpeech, ruleFor } from './speech.js';
@@ -413,6 +414,44 @@ export async function runPipeline(
         stats.requests += 1;
         return {
           route: { plan: { kind: 'text', text } as Plan, gates: [], reason, category: 'query', action: 'query' },
+          entry,
+        };
+      }
+    }
+  }
+  // Sports are not in the house either, but they are already in Home Assistant: the
+  // sports-ticker integration fetches ESPN and publishes the raw feed as sensor attributes, so
+  // a score question is a state read rather than a model call. The reader is deliberately
+  // strict — a club name has to appear in the sensors, and "play the game" stays a media
+  // command because bare "play" is not a sports word — so an utterance it cannot place is
+  // forwarded exactly as before.
+  if (active.routing.enabled && active.sports?.enabled) {
+    const question = readSportsQuestion(utterance, houseNamesOf(catalog));
+    if (question) {
+      const snapshot = await sportsFor(active);
+      const answer = snapshot ? sportsAnswer(snapshot, question, { timezone: active.clock.timezone }) : null;
+      if (answer) {
+        const reason = `sports: ${answer.about} — from the sports-ticker sensors, no model call`;
+        const entry: TraceEntry = {
+          id: uid('trace'),
+          at: startedAt,
+          utterance,
+          route: 'text',
+          reason,
+          gates: [],
+          category: 'query',
+          action: 'query',
+          backend: 'off',
+          catalogSource: catalog.source,
+          catalogExposure: catalog.exposure,
+          toolsOffered,
+          timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+          totalMs: Date.now() - startedAt,
+        };
+        noteTrace(entry);
+        stats.requests += 1;
+        return {
+          route: { plan: { kind: 'text', text: answer.text } as Plan, gates: [], reason, category: 'query', action: 'query' },
           entry,
         };
       }

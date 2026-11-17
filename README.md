@@ -478,6 +478,70 @@ forwarded to your model exactly as before. Neither is anything fetched without a
 of any kind — a bad key, an unreachable service, a timeout — answers nothing and forwards the
 question, so weather can never be the reason a turn breaks.
 
+### Sports
+
+"how are the Bills doing?" is answered from the sensors
+[sports-ticker](https://github.com/LiquidFXX/sports-ticker) already writes. ESPN's scoreboards,
+standings, rankings and each favourite team's next fixture arrive as attributes on that
+integration's `sensor.espn_*` entities, so a sports question is a lookup in state that is
+already there — no model call, no search, and the score comes back in the time the round trip
+takes.
+
+| Said | Spoken |
+| --- | --- |
+| "how are the Bills doing", "what's the score of the Bills game" | "Bills are winning 24 to 21 against the Chiefs, 6:32 left in the third quarter." |
+| "how did the Dolphins do" | "Dolphins lost to the Bills 31 to 17." |
+| "when do the Bills play next" | "Bills play the Patriots Sunday at 4:25 PM at Gillette Stadium." |
+| "where are the Knicks in the standings" | "Knicks are second in the Atlantic with a 12 and 6 record." |
+| "who's number one in college football" | "Georgia Bulldogs are number one in AP poll with a 10-1 record." |
+| "any games on?", "what's the score?" | "On now: Bills 24, Chiefs 21." — and anything starting soon after it |
+
+Scores are spoken as **"24 to 21"**, never "24-21", and a record as **"a 12 and 6 record"**,
+because a hyphen read aloud comes out as "twenty four dash twenty one". A final is a win or a
+loss rather than a scoreline — "beat the Dolphins 31 to 17" — since that is what was asked.
+
+Which game is meant is worked out, not assumed. The team in the sentence is matched against
+every team the sensors carry — full name, short name, nickname, ESPN abbreviation — with the
+league named in the sentence weighted first and sports-ticker's own favourite team after it, so
+"the Bills" resolves from the scoreboard, "the Knicks" from the standings and "Georgia" from the
+poll. A question that names no team and no league is answered with the games on now and the
+games coming up, which is what "any games on?" is asking.
+
+**Nothing has to be exposed to Assist for this to work.** The reader calls the same Home
+Assistant REST API the catalogue uses (`GET /api/states`, cached for 30 seconds) with the token
+already in Settings → Home Assistant, and reads the sensors directly — the Assist exposure list
+never enters into it, so there is no entity to tick and no intent for Home Assistant to route.
+What it reads, for every league enabled in sports-ticker:
+
+| Entity | What it contributes |
+| --- | --- |
+| `sensor.espn_<league>_scoreboard_raw` | today's games: the `events` attribute |
+| `sensor.espn_<league>_scoreboard_delayed` | the same, held back by the spoiler delay |
+| `sensor.espn_<league>_standings_raw` | the table — the generic profiles (nba, wnba, nhl, mls, epl, laliga, bundesliga, seriea, ligue1, ucl) and the NFL's own |
+| `sensor.espn_<league>_next_game` | the favourite team's next fixture (nfl, cfb) |
+| `sensor.espn_college_football_rankings` | the AP, coaches and CFP polls |
+
+`<league>` is the code in the entity id: `nfl`, `cfb`, `mlb`, `nba`, `wnba`, `nhl`, `mls`, `epl`,
+`laliga`, `bundesliga`, `seriea`, `ligue1`, `ucl` — `seriea` and `ligue1` without an underscore,
+which is what the integration actually names them. A sensor whose league is not enabled in
+sports-ticker simply is not there, and questions about it are forwarded as before.
+
+The spoiler delay is honoured by default: when sports-ticker is holding a game back, the
+delayed scoreboard is read in preference to the raw one, so asking out loud cannot give away a
+game that is being watched on a delay. **Settings → Sports → *Spoiler delay*** turns that off
+for a house that would rather have the live score.
+
+Set it up in **Settings → Sports**, and it is already on: *Answer sports questions locally* is
+the switch, *Leagues* narrows the reader to the leagues you care about when a house carries
+many, and the cache and timeout fields decide how often the sensors are re-read and how long a
+slow Home Assistant may take. Or set `SPORTS=0`, `SPORTS_LEAGUES=nfl,epl` and
+`SPORTS_SPOILER_DELAY=ignore` and skip the form.
+
+What it deliberately does not do: **box scores and player stats** (they are not on the
+sensors, so they are forwarded), **a sport nothing is enabled for**, and **a team the sensors do
+not carry** — an unreadable or missing sensor answers nothing and the question goes to your
+model, so sports can never be the reason a turn breaks.
+
 ### Music
 
 "play Taylor Swift" is a request with the speaker missing, the media type missing and the
@@ -991,6 +1055,9 @@ The backend-related variables are worth naming, because there is no default deci
 | `WEATHER_LANGUAGE` | *(empty)* | pin the language of the summaries; empty follows each request |
 | `WEATHER_STYLE` | `current` | what the answer says: `summary`, `current`, `full`, `temperature_first` or `natural` |
 | `WEATHER_BASE_URL` | *(empty)* | only for a self-hosted or mirrored service |
+| `SPORTS` | `1` | `0` hands sports questions back to your model |
+| `SPORTS_LEAGUES` | *(empty)* | league codes to read (`nfl,epl`); empty reads every league the sports-ticker sensors carry |
+| `SPORTS_SPOILER_DELAY` | `respect` | `respect` reads the delayed scoreboard when sports-ticker is holding a game back; `ignore` always reads the raw one |
 
 ### One key for both servers
 
@@ -1015,6 +1082,8 @@ different provider is used for prose. Nothing changes when the flag is off.
 - **Script/template field filling**, `set_mode`, and MQTT-specific actions — forwarded.
 - **The time in another timezone** — "what time is it in Tokyo" is forwarded, since the proxy
   only knows the time in this house.
+- **A sports question the sensors cannot answer** — a box score, a player's stats, or a team no
+  enabled league carries is forwarded, because sports-ticker publishes games, not play-by-play.
 - Anything where a gate fails. That is the point.
 
 ## Development

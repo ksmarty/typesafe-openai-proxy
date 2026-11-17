@@ -595,6 +595,57 @@ export function settingsGroups(): SettingsGroup[] {
       ],
     },
     {
+      id: 'sports',
+      title: 'Sports',
+      description:
+        'Scores, standings and fixtures are read from the sports-ticker sensors your house already has, with no model call.',
+      fields: [
+        {
+          key: 'sports.enabled',
+          label: 'Answer sports questions locally',
+          type: 'checkbox',
+          help: 'Reads the ESPN sensors the sports-ticker integration publishes. Off forwards every sports question to your model.',
+        },
+        {
+          key: 'sports.leagues',
+          label: 'Leagues to read',
+          type: 'text',
+          placeholder: 'every league it finds',
+          help: 'Comma-separated codes such as nfl,epl. Empty reads every league sports-ticker publishes, so a league you add there needs nothing here.',
+        },
+        {
+          key: 'sports.spoilerDelay',
+          label: 'Spoiler delay',
+          type: 'select',
+          options: [
+            { value: 'respect', label: 'Respect it — read the delayed scoreboard when there is one' },
+            { value: 'ignore', label: 'Ignore it — always read the raw scoreboard' },
+          ],
+          help: 'A delayed game read from the raw sensor spoils the result the delay was set up to hide.',
+        },
+        {
+          key: 'sports.cacheMs',
+          label: 'State lifetime',
+          type: 'number',
+          min: 0,
+          step: 5000,
+          unit: 'ms',
+          advanced: true,
+          help: 'How long one read of Home Assistant’s states is reused. A scoreboard changes by the minute.',
+        },
+        {
+          key: 'sports.timeoutMs',
+          label: 'Timeout',
+          type: 'number',
+          min: 500,
+          step: 500,
+          unit: 'ms',
+          advanced: true,
+          help: 'A timeout forwards the question to your model rather than failing the turn.',
+        },
+      ],
+    },
+    {
       id: 'server',
       title: 'Server',
       description: 'The endpoint hass_local_openai_llm points at.',
