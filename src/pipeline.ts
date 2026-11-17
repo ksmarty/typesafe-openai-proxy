@@ -21,6 +21,7 @@ import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
 import { readWeatherQuestion, requestedSummaryLanguage, weatherAnswer, weatherFor } from './weather.js';
 import { readSportsQuestion, sportsAnswer, sportsFor } from './sports.js';
 import { looksLikeChatter } from './chatter.js';
+import { cancelPlan } from './cancel.js';
 import { judgeAddressee } from './addressee.js';
 import { actionPhrase, humanTarget, interpolateSpeech, ruleFor } from './speech.js';
 import { cachedDecision, decisionKey, isQuestion, rememberDecision } from './decidecache.js';
@@ -654,6 +655,17 @@ export async function runPipeline(
   }
 
   const entityNames = catalog.entities.map((entity) => entity.name);
+
+  // "Nevermind.", "cancel that", "forget it": the sentence that ends the turn rather than
+  // adding to it. Home Assistant has an intent for it and its answer is silence, so reading
+  // it here ends the turn in milliseconds instead of spending the full model round trip the
+  // chatter filter used to spend on it first — which is the whole delay between saying it and
+  // the answer stopping. The readers above already own "stop" when a timer or a speaker could
+  // be what was meant, so only a sentence nothing else claimed reaches this one.
+  if (active.routing.enabled) {
+    const cancel = cancelPlan(utterance, inventory);
+    if (cancel) return localCall(cancel.plan, cancel.reason);
+  }
 
   // "no you", "ignore that", "thanks" — conversation, not a command. Answering it with a
   // decision call would cost a round trip and could nudge a device; the model server is the

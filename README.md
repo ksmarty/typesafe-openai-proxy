@@ -278,13 +278,33 @@ Two sources, used automatically:
   because an area-scoped request cannot resolve without them. Version-dependent by nature, so it
   is the fallback, not the preference.
 
+### Saying "never mind"
+
+"Nevermind.", "cancel that", "forget it", "no thanks", "stop", "that's all" end the turn. Home
+Assistant has an intent for exactly this (`HassNevermind`), and its answer is silence, so the proxy
+reads the sentence before anything else looks at it and calls that intent directly — no decision
+call, no model round trip. A user who says it to cut an answer short waits for the sentence to be
+transcribed and nothing more.
+
+The reader only fires on the whole sentence: a cancel word is not a cancel if the sentence names
+something ("never mind the lights", "cancel the pasta timer", "no thanks turn it off") — those still
+reach the decision model, which is the only thing that knows what was meant. The readers above it
+keep "stop" when a timer or a speaker could be meant, and `HassNevermind` has to be offered by the
+conversation agent; when it is not, the sentence falls through to the normal path.
+
+That covers the sentence. Cutting off an answer that is already being spoken is the satellite's job,
+not the proxy's: enable **Stop word interruption** in Kiosk Satellite and "stop" is classified
+on-device, with no STT and no pipeline. A wake word will not do it — the satellite ignores one while
+a turn is in flight.
+
 ### Conversation that is not a command
 
 "No you", "ignore that", "thanks", "wait" are about the conversation, not about the house. The
 proxy recognises a short sentence that names no device or room and contains no command verb, and
 sends it straight to your model server — no decision call, no chance of nudging a device. Anything
 it is unsure about still goes through the decision model, and a sentence that names a device or a
-room always does.
+room always does. The one exception is the sentence that means "end the turn" (see above): that
+reader runs first, so "nevermind" never reaches your model server at all.
 
 ### When it was not addressed to the assistant
 
@@ -1035,8 +1055,9 @@ three small:
   start deciding. The last good catalog is also written to `data/catalog.json`, so the first
   command after a restart is answered from it while a fresh one is built behind that request.
 - **Nothing is decided that does not need deciding.** A plain state question ("is the desk lamp
-  on?") is answered from the catalog in about two milliseconds, and a conversational aside ("no
-  you", "ignore that") goes straight to your model server instead of costing a decision call.
+  on?") is answered from the catalog in about two milliseconds, "nevermind" ends the turn with
+  `HassNevermind` without either call, and a conversational aside ("no you", "ignore that") goes
+  straight to your model server instead of costing a decision call.
 - **The catalog is narrowed to what Assist can see.** Exposure is read from Home Assistant, so 19
   exposed entities reach the model instead of 356 — roughly 33 000 input tokens become a couple of
   thousand, which is the single largest latency lever on a hosted decision model.
