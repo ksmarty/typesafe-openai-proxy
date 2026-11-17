@@ -34,9 +34,18 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import SaveIcon from '@mui/icons-material/Save';
 import SyncIcon from '@mui/icons-material/Sync';
 import TuneIcon from '@mui/icons-material/Tune';
-import WaterDropIcon from '@mui/icons-material/WaterDrop';
+import CallSplitIcon from '@mui/icons-material/CallSplit';
+import CloudIcon from '@mui/icons-material/Cloud';
+import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import HearingIcon from '@mui/icons-material/Hearing';
+import MusicNoteIcon from '@mui/icons-material/MusicNote';
+import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import RouteIcon from '@mui/icons-material/Route';
+import ScheduleIcon from '@mui/icons-material/Schedule';
+import SettingsIcon from '@mui/icons-material/Settings';
+import SportsSoccerIcon from '@mui/icons-material/SportsSoccer';
+import TimerIcon from '@mui/icons-material/Timer';
+import TvIcon from '@mui/icons-material/Tv';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import HubIcon from '@mui/icons-material/Hub';
 import RecordVoiceOverIcon from '@mui/icons-material/RecordVoiceOver';
@@ -67,8 +76,16 @@ const GROUP_ICON: Record<string, ReactElement> = {
   catalog: <HubIcon fontSize="small" />,
   upstream: <RouteIcon fontSize="small" />,
   speech: <RecordVoiceOverIcon fontSize="small" />,
-  routing: <WaterDropIcon fontSize="small" />,
+  music: <MusicNoteIcon fontSize="small" />,
+  media: <TvIcon fontSize="small" />,
+  reminders: <NotificationsActiveIcon fontSize="small" />,
+  timers: <TimerIcon fontSize="small" />,
   listening: <HearingIcon fontSize="small" />,
+  routing: <CallSplitIcon fontSize="small" />,
+  clock: <ScheduleIcon fontSize="small" />,
+  weather: <CloudIcon fontSize="small" />,
+  travel: <DirectionsCarIcon fontSize="small" />,
+  sports: <SportsSoccerIcon fontSize="small" />,
   server: <DnsIcon fontSize="small" />,
 };
 
@@ -316,7 +333,7 @@ export function SettingsView({
           sx={{ borderRadius: 2, mb: 0.5 }}
         >
           <Box sx={{ mr: 1.25, display: 'flex', color: entry.id === active ? 'primary.main' : 'text.secondary' }}>
-            {GROUP_ICON[entry.id] ?? <WaterDropIcon fontSize="small" />}
+            {GROUP_ICON[entry.id] ?? <SettingsIcon fontSize="small" />}
           </Box>
           <ListItemText
             primary={entry.title}
