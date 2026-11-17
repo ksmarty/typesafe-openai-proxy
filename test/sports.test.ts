@@ -182,6 +182,14 @@ function states(): Record<string, unknown>[] {
   ];
 }
 
+/**
+ * The moment the tests answer as of: Tuesday 17 November 2026, 10:00 in the house (New York).
+ *
+ * Fixed on purpose — "tonight" and "tomorrow" depend on the day the question is asked, and a test
+ * that read the real clock would pass today and fail next November.
+ */
+const NOW = new Date('2026-11-17T15:00:00Z');
+
 function settings(overrides: Partial<Config['sports']> = {}): Config['sports'] {
   return { ...defaultConfig().sports, ...overrides };
 }
@@ -191,7 +199,7 @@ function ask(sentence: string, config = settings()): { question: SportsQuestion;
   const question = readSportsQuestion(sentence);
   const snapshot = sportsFromStates(states(), config);
   if (!question || !snapshot) return null;
-  const answer = sportsAnswer(snapshot, question, { timezone: 'America/New_York' });
+  const answer = sportsAnswer(snapshot, question, { timezone: 'America/New_York', now: NOW });
   return answer ? { question, text: answer.text } : null;
 }
 
@@ -372,6 +380,16 @@ const NBA_PRE = event({
   home: { abbr: 'BOS', name: 'Boston', short: 'Celtics' },
 });
 
+/** The same game, moved to tonight, so the wording can be checked against the day it is said. */
+const NBA_PRE_TONIGHT = event({
+  name: 'Toronto Raptors at Boston Celtics',
+  start: '2026-11-18T00:30:00Z',
+  state: 'pre',
+  detail: 'Tue 7:30 PM',
+  away: { abbr: 'TOR', name: 'Toronto', short: 'Raptors' },
+  home: { abbr: 'BOS', name: 'Boston', short: 'Celtics' },
+});
+
 /** The Raptors game in progress, which "when are they playing" means while it is on. */
 const NBA_LIVE = event({
   name: 'New York Knicks at Toronto Raptors',
@@ -384,10 +402,46 @@ const NBA_LIVE = event({
   home: { abbr: 'TOR', name: 'Toronto', short: 'Raptors', score: '104' },
 });
 
+/** The schedule sensor, with the one upcoming game moved to `start`. */
+function scheduleAt(start: string): Record<string, unknown> {
+  return {
+    entity_id: 'sensor.espn_nba_next_game',
+    state: '1 upcoming',
+    attributes: {
+      league: 'nba',
+      favorite_team: 'TOR',
+      favorite_team_name: 'Toronto Raptors',
+      has_upcoming_game: true,
+      date: start,
+      matchup: 'TOR @ BOS',
+      opponent: 'BOS',
+      opponent_name: 'Boston Celtics',
+      venue: 'TD Garden',
+      home_away: 'away',
+      upcoming_games: [
+        {
+          event_id: '401810100',
+          date: start,
+          home_away: 'away',
+          matchup: 'TOR @ BOS',
+          opponent: 'BOS',
+          opponent_name: 'Boston Celtics',
+          venue: 'TD Garden',
+          status: 'pre',
+          status_detail: '',
+        },
+      ],
+    },
+  };
+}
+
 /** The same house, with the Raptors followed and, unless asked not to, a schedule published. */
-function scheduleStates(options: { schedule?: boolean; scoreboard?: Record<string, unknown>[] } = {}): Record<string, unknown>[] {
+function scheduleStates(
+  options: { schedule?: boolean; scoreboard?: Record<string, unknown>[]; extra?: Record<string, unknown>[] } = {},
+): Record<string, unknown>[] {
   const out = [...states()];
   if (options.schedule !== false) out.push(NBA_SCHEDULE);
+  if (options.extra) out.push(...options.extra);
   if (options.scoreboard) {
     out.push({
       entity_id: 'sensor.espn_nba_scoreboard_raw',
@@ -400,12 +454,15 @@ function scheduleStates(options: { schedule?: boolean; scoreboard?: Record<strin
 
 function scheduleAsk(
   sentence: string,
-  options: { schedule?: boolean; scoreboard?: Record<string, unknown>[] } = {},
+  options: { schedule?: boolean; scoreboard?: Record<string, unknown>[]; extra?: Record<string, unknown>[]; now?: Date } = {},
 ): { question: SportsQuestion; text: string } | null {
   const question = readSportsQuestion(sentence);
   const snapshot = sportsFromStates(scheduleStates(options), settings());
   if (!question || !snapshot) return null;
-  const answer = sportsAnswer(snapshot, question, { timezone: 'America/New_York' });
+  const answer = sportsAnswer(snapshot, question, {
+    timezone: 'America/New_York',
+    now: options.now ?? NOW,
+  });
   return answer ? { question, text: answer.text } : null;
 }
 
@@ -551,4 +608,37 @@ test('a Home Assistant that refuses the read forwards the turn rather than faili
   config.catalog.haToken = 'wrong-token';
   const snapshot = await sportsFor(config);
   assert.equal(snapshot, null);
+});
+
+test('a game later today is tonight, not a weekday', () => {
+  // 19:30 in New York, on the same day the question is asked.
+  const answer = scheduleAsk('when are the raptors playing', {
+    schedule: false,
+    extra: [scheduleAt('2026-11-18T00:30:00Z')],
+  });
+  assert.ok(answer);
+  assert.equal(answer.text, 'Raptors visit the Boston Celtics tonight at 7:30 PM at TD Garden.');
+});
+
+test('a game tomorrow is tomorrow, and an afternoon game today is today', () => {
+  const tomorrow = scheduleAsk('when are the raptors playing', {
+    schedule: false,
+    extra: [scheduleAt('2026-11-19T00:30:00Z')],
+  });
+  assert.ok(tomorrow);
+  assert.equal(tomorrow.text, 'Raptors visit the Boston Celtics tomorrow at 7:30 PM at TD Garden.');
+
+  // 12:00 in New York: "tonight" would be the wrong time of day.
+  const afternoon = scheduleAsk('when are the raptors playing', {
+    schedule: false,
+    extra: [scheduleAt('2026-11-17T17:00:00Z')],
+  });
+  assert.ok(afternoon);
+  assert.equal(afternoon.text, 'Raptors visit the Boston Celtics today at 12:00 PM at TD Garden.');
+});
+
+test('a slate read out loud says tonight too', () => {
+  const answer = scheduleAsk('any games tonight', { schedule: false, scoreboard: [NBA_PRE_TONIGHT] });
+  assert.ok(answer);
+  assert.match(answer.text, /Raptors at Celtics tonight at 7:30 PM/);
 });

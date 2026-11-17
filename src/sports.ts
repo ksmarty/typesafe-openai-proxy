@@ -808,24 +808,71 @@ function ordinal(value: number | null): string | null {
   return `${whole}${suffix}`;
 }
 
-/** The wall clock in this house, so a kickoff is said in the listener's own time. */
-function whenWords(start: string | null, timezone: string | undefined): string | null {
+/**
+ * The clock the answer is spoken against: the house zone, and the moment the question was asked.
+ *
+ * `now` exists for the tests, which cannot assert "tonight" against a real wall clock, and for any
+ * caller that wants to answer a batch of questions as of one instant.
+ */
+export interface SportsClock {
+  timezone?: string;
+  now?: Date;
+}
+
+/** One moment, split into the fields a spoken date needs, in the zone that will be spoken. */
+interface Stamp {
+  weekday: string;
+  hour: string;
+  minute: string;
+  period: string;
+  /** `2026-11-21`: the calendar day this moment falls on in that zone. */
+  day: string;
+}
+
+const DAY_MS = 86_400_000;
+
+function stamp(value: Date, timeZone: string | undefined): Stamp {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    weekday: 'long',
+    hour: 'numeric',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    timeZone,
+  }).formatToParts(value);
+  const part = (type: string): string => parts.find((entry) => entry.type === type)?.value ?? '';
+  return {
+    weekday: part('weekday'),
+    hour: part('hour'),
+    minute: part('minute'),
+    period: part('dayPeriod').toUpperCase(),
+    day: `${part('year')}-${part('month')}-${part('day')}`,
+  };
+}
+
+/**
+ * When a game starts, said the way the person hearing it measures time.
+ *
+ * "Tuesday at 7:30 PM" is what a calendar says; a house asking on a Tuesday afternoon hears
+ * "tonight at 7:30 PM", and on Monday "tomorrow at 7:30 PM". A weekday is only worth saying once the
+ * game is further out than tomorrow, where it is the clearest thing there is.
+ */
+function whenWords(start: string | null, clock: SportsClock): string | null {
   if (!start) return null;
   const at = new Date(start);
   if (Number.isNaN(at.getTime())) return null;
+  const zone = (clock.timezone ?? '').trim() || undefined;
+  const asked = clock.now instanceof Date && !Number.isNaN(clock.now.getTime()) ? clock.now : new Date();
   try {
-    const parts = new Intl.DateTimeFormat('en-US', {
-      weekday: 'long',
-      hour: 'numeric',
-      minute: '2-digit',
-      timeZone: (timezone ?? '').trim() || undefined,
-    }).formatToParts(at);
-    const part = (type: string): string => parts.find((entry) => entry.type === type)?.value ?? '';
-    const hour = part('hour');
-    const minute = part('minute');
-    const period = part('dayPeriod').toUpperCase();
-    if (!hour) return null;
-    return `on ${part('weekday')} at ${hour}:${minute} ${period}`.trim();
+    const parts = stamp(at, zone);
+    if (!parts.hour) return null;
+    const hour24 = (Number(parts.hour) % 12) + (parts.period === 'PM' ? 12 : 0);
+    const time = `${parts.hour}:${parts.minute} ${parts.period}`;
+    const today = stamp(asked, zone);
+    if (parts.day === today.day) return hour24 >= 17 ? `tonight at ${time}` : `today at ${time}`;
+    if (parts.day === stamp(new Date(asked.getTime() + DAY_MS), zone).day) return `tomorrow at ${time}`;
+    return `on ${parts.weekday} at ${time}`;
   } catch {
     return null;
   }
@@ -1002,7 +1049,7 @@ function progressWords(event: SportsEvent): string {
 }
 
 /** One game, from the named team's point of view. */
-function eventAnswer(event: SportsEvent, match: { alias: string; abbr: string | null }, timezone: string | undefined): string | null {
+function eventAnswer(event: SportsEvent, match: { alias: string; abbr: string | null }, clock: SportsClock): string | null {
   if (event.teams.length < 2) return null;
   const mine = event.teams.find((team) => sameTeam(team, match)) ?? null;
   const other = event.teams.find((team) => team !== mine) ?? null;
@@ -1013,7 +1060,7 @@ function eventAnswer(event: SportsEvent, match: { alias: string; abbr: string | 
     if (!away || !home) return null;
     const line = (team: SportsTeamLine): string =>
       `${spokenName(team)} ${scoreWords(team.score) || '0'}`.trim();
-    if (event.state === 'pre') return `${line(away)} at ${line(home)}, ${whenWords(event.start, timezone) ?? 'time to be confirmed'}.`;
+    if (event.state === 'pre') return `${line(away)} at ${line(home)}, ${whenWords(event.start, clock) ?? 'time to be confirmed'}.`;
     return `${line(away)} at ${line(home)}, ${event.state === 'post' ? 'final' : event.detail ?? 'in progress'}.`;
   }
 
@@ -1034,12 +1081,12 @@ function eventAnswer(event: SportsEvent, match: { alias: string; abbr: string | 
       ? `${match.alias} beat ${against} ${scoreWords(ourScore)} to ${scoreWords(theirScore)}.`
       : `${match.alias} lost to ${against} ${scoreWords(theirScore)} to ${scoreWords(ourScore)}.`;
   }
-  const when = whenWords(event.start, timezone);
+  const when = whenWords(event.start, clock);
   return `${match.alias} play ${against}${when ? ` ${when}` : ''}.`;
 }
 
 /** Live games across the house's leagues, for "what games are on". */
-function roundupAnswer(snapshot: SportsSnapshot, timezone: string | undefined): SportsAnswer | null {
+function roundupAnswer(snapshot: SportsSnapshot, clock: SportsClock): SportsAnswer | null {
   const parts: string[] = [];
   const live: string[] = [];
   const upcoming: string[] = [];
@@ -1053,7 +1100,7 @@ function roundupAnswer(snapshot: SportsSnapshot, timezone: string | undefined): 
           `${spokenName(away)} ${scoreWords(away.score) || '0'}, ${spokenName(home)} ${scoreWords(home.score) || '0'}`,
         );
       } else if (event.state === 'pre') {
-        const when = whenWords(event.start, timezone);
+        const when = whenWords(event.start, clock);
         upcoming.push(`${spokenName(away)} at ${spokenName(home)}${when ? ` ${when}` : ''}`);
       }
     }
@@ -1161,7 +1208,7 @@ function askedOpponent(fixtures: SportsFixture[], spoken: string): SportsFixture
 function fixtureAnswer(
   league: SportsLeague,
   target: { alias: string; abbr: string | null } | null,
-  timezone: string | undefined,
+  clock: SportsClock,
   spoken: string,
 ): SportsAnswer | null {
   if (!league.fixtures.length || !followsTeam(league, target)) return null;
@@ -1170,7 +1217,7 @@ function fixtureAnswer(
   const name = target?.alias ?? league.favoriteTeamName ?? favoriteOf(league)?.alias ?? null;
   if (!name) return null;
   const opponent = fixture.opponentName ?? fixture.opponent ?? null;
-  const when = whenWords(fixture.start, timezone);
+  const when = whenWords(fixture.start, clock);
   // A home game is played in their own building, so naming it adds nothing; an away one is news.
   const where = fixture.venue && fixture.homeAway !== 'home' ? ` at ${fixture.venue}` : '';
   const verb =
@@ -1197,8 +1244,9 @@ function fixtureAnswer(
 export function sportsAnswer(
   snapshot: SportsSnapshot,
   question: SportsQuestion,
-  options: { timezone?: string } = {},
+  options: SportsClock = {},
 ): SportsAnswer | null {
+  const clock: SportsClock = { timezone: options.timezone, now: options.now };
   const leagues = question.league
     ? snapshot.leagues.filter((league) => league.league === question.league)
     : snapshot.leagues;
@@ -1207,7 +1255,7 @@ export function sportsAnswer(
   const league = match?.league ?? pool[0] ?? null;
 
   if (!match && !question.league && question.kind === 'roundup') {
-    return roundupAnswer(snapshot, options.timezone);
+    return roundupAnswer(snapshot, clock);
   }
 
   // "What's the score?" with no team and no league is a question about the slate, so a roundup is
@@ -1218,7 +1266,7 @@ export function sportsAnswer(
     const aboutTheSlate =
       /\b(games?|matches?|scores?|results?|slate)\b/.test(question.spoken) &&
       !/\bhow (are|is|did|s|was|were|about)\b/.test(question.spoken);
-    return aboutTheSlate ? roundupAnswer(snapshot, options.timezone) : null;
+    return aboutTheSlate ? roundupAnswer(snapshot, clock) : null;
   }
 
   // "my team" with nothing named: the favourite, when the integration knows one.
@@ -1253,13 +1301,13 @@ export function sportsAnswer(
         ? board.events.find((event) => event.state === 'in' && event.teams.some((team) => sameTeam(team, mine)))
         : undefined;
       if (live && mine && !theOneAfterThis) {
-        const text = eventAnswer(live, mine, options.timezone);
+        const text = eventAnswer(live, mine, clock);
         if (text) return { text, about: `${board.label} game` };
       }
-      const answer = fixtureAnswer(board, mine, options.timezone, question.spoken);
+      const answer = fixtureAnswer(board, mine, clock, question.spoken);
       if (answer) return answer;
       if (live && mine) {
-        const text = eventAnswer(live, mine, options.timezone);
+        const text = eventAnswer(live, mine, clock);
         if (text) return { text, about: `${board.label} game` };
       }
     }
@@ -1269,7 +1317,7 @@ export function sportsAnswer(
         (event) => event.state === 'pre' && (!mine || event.teams.some((team) => sameTeam(team, mine))),
       );
       if (upcoming && mine) {
-        const text = eventAnswer(upcoming, mine, options.timezone);
+        const text = eventAnswer(upcoming, mine, clock);
         if (text) return { text, about: `${board.label} schedule` };
       }
     }
@@ -1277,12 +1325,12 @@ export function sportsAnswer(
   }
 
   if (question.kind === 'roundup') {
-    if (!target) return roundupAnswer(snapshot, options.timezone);
+    if (!target) return roundupAnswer(snapshot, clock);
   }
 
   // A score: the named team's game, in the order live, then final, then upcoming.
   const owner = target ?? (question.mine ? null : (league ? favoriteOf(league) : null)) ?? null;
-  if (!owner) return roundupAnswer(snapshot, options.timezone);
+  if (!owner) return roundupAnswer(snapshot, clock);
   const boards = target ? [target.league] : pool;
   const order: SportsEvent['state'][] = ['in', 'post', 'pre'];
   for (const state of order) {
@@ -1291,7 +1339,7 @@ export function sportsAnswer(
         (entry) => entry.state === state && entry.teams.some((team) => sameTeam(team, owner)),
       );
       if (!event) continue;
-      const text = eventAnswer(event, owner, options.timezone);
+      const text = eventAnswer(event, owner, clock);
       if (text) return { text, about: `${owner.alias} score` };
     }
   }
@@ -1299,7 +1347,7 @@ export function sportsAnswer(
   // the schedule the integration publishes is the answer — "is there a raptors game tonight".
   if (/\b(game|games|match|matches|tonight|today|tomorrow|playing|play|next|upcoming)\b/.test(question.spoken)) {
     for (const board of boards) {
-      const answer = fixtureAnswer(board, owner, options.timezone, question.spoken);
+      const answer = fixtureAnswer(board, owner, clock, question.spoken);
       if (answer) return answer;
     }
   }

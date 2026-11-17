@@ -501,6 +501,12 @@ Scores are spoken as **"24 to 21"**, never "24-21", and a record as **"a 12 and 
 because a hyphen read aloud comes out as "twenty four dash twenty one". A final is a win or a
 loss rather than a scoreline — "beat the Dolphins 31 to 17" — since that is what was asked.
 
+A kickoff is said in the day it actually falls on, not read off a calendar: a game later the
+same day is **"tonight at 7:30 PM"**, one tomorrow is **"tomorrow at 7:30 PM"**, and only past
+that does the weekday come back — **"on Friday at 7:30 PM"**. A midday game today is "today at
+12:00 PM" rather than "tonight". The day is decided in the house's own zone, from
+**Settings → Clock → Timezone** (the container's zone when that is unset).
+
 Which game is meant is worked out, not assumed. The team in the sentence is matched against
 every team the sensors carry — full name, short name, nickname, ESPN abbreviation — with the
 league named in the sentence weighted first and sports-ticker's own favourite team after it, so
