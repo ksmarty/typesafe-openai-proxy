@@ -491,7 +491,8 @@ takes.
 | --- | --- |
 | "how are the Bills doing", "what's the score of the Bills game" | "Bills are winning 24 to 21 against the Chiefs, 6:32 left in the third quarter." |
 | "how did the Dolphins do" | "Dolphins lost to the Bills 31 to 17." |
-| "when do the Bills play next" | "Bills play the Patriots Sunday at 4:25 PM at Gillette Stadium." |
+| "when do the Bills play next", "when are the Raptors playing" | "Raptors visit the Boston Celtics on Friday at 7:30 PM at TD Garden." |
+| "when's the next Raptors game", "when are the raptor's playing?" | the same fixture, read from the schedule sensor |
 | "where are the Knicks in the standings" | "Knicks are second in the Atlantic with a 12 and 6 record." |
 | "who's number one in college football" | "Georgia Bulldogs are number one in AP poll with a 10-1 record." |
 | "any games on?", "what's the score?" | "On now: Bills 24, Chiefs 21." — and anything starting soon after it |
@@ -518,13 +519,26 @@ What it reads, for every league enabled in sports-ticker:
 | `sensor.espn_<league>_scoreboard_raw` | today's games: the `events` attribute |
 | `sensor.espn_<league>_scoreboard_delayed` | the same, held back by the spoiler delay |
 | `sensor.espn_<league>_standings_raw` | the table — the generic profiles (nba, wnba, nhl, mls, epl, laliga, bundesliga, seriea, ligue1, ucl) and the NFL's own |
-| `sensor.espn_<league>_next_game` | the favourite team's next fixture (nfl, cfb) |
+| `sensor.espn_<league>_next_game` | the favourite team's next fixtures, and the ones after it |
 | `sensor.espn_college_football_rankings` | the AP, coaches and CFP polls |
 
 `<league>` is the code in the entity id: `nfl`, `cfb`, `mlb`, `nba`, `wnba`, `nhl`, `mls`, `epl`,
 `laliga`, `bundesliga`, `seriea`, `ligue1`, `ucl` — `seriea` and `ligue1` without an underscore,
 which is what the integration actually names them. A sensor whose league is not enabled in
 sports-ticker simply is not there, and questions about it are forwarded as before.
+
+**A "when do they play next" question needs the schedule sensor**, and that sensor follows one
+team per league: the *Favorite Team* set for that league in sports-ticker. It exists for every
+team league (nfl, cfb, mlb, nba, wnba, nhl, mls, epl, laliga, bundesliga, seriea, ligue1, ucl),
+so a house that follows the Raptors reads `sensor.espn_nba_next_game`, with the fixture, the
+opponent, the venue and the games after it as attributes. Two consequences worth knowing: a
+question about a team that is not the league's favourite is forwarded rather than answered with
+somebody else's fixture, and the answer says the venue only for an away game — a home game is
+played in their own building, so naming it adds nothing. When no schedule sensor answers, a game
+on today's scoreboard that has not started yet still does.
+
+The answer separates "playing now" from "next": "when are they playing" during a game is the
+live score, while "when's the next game" still means the fixture after it.
 
 The spoiler delay is honoured by default: when sports-ticker is holding a game back, the
 delayed scoreboard is read in preference to the raw one, so asking out loud cannot give away a
@@ -538,9 +552,11 @@ slow Home Assistant may take. Or set `SPORTS=0`, `SPORTS_LEAGUES=nfl,epl` and
 `SPORTS_SPOILER_DELAY=ignore` and skip the form.
 
 What it deliberately does not do: **box scores and player stats** (they are not on the
-sensors, so they are forwarded), **a sport nothing is enabled for**, and **a team the sensors do
-not carry** — an unreadable or missing sensor answers nothing and the question goes to your
-model, so sports can never be the reason a turn breaks.
+sensors, so they are forwarded), **a schedule for a team that is not a league's favourite** (the
+next-game sensor follows one team per league, and nobody else's fixture is substituted),
+**a sport nothing is enabled for**, and **a team the sensors do not carry** — an unreadable or
+missing sensor answers nothing and the question goes to your model, so sports can never be the
+reason a turn breaks.
 
 ### Music
 

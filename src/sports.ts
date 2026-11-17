@@ -94,7 +94,7 @@ export interface SportsRankRow {
   record: string | null;
 }
 
-/** The next game the favourite team plays, from the `next_game` sensor. */
+/** One game from the `next_game` sensor: the favourite team's schedule, soonest first. */
 export interface SportsFixture {
   matchup: string | null;
   opponent: string | null;
@@ -115,7 +115,8 @@ export interface SportsLeague {
   standings: SportsStandingRow[];
   rankings: SportsRankRow[];
   poll: string | null;
-  next: SportsFixture | null;
+  /** The favourite team's schedule as the `next_game` sensor publishes it, soonest first. */
+  fixtures: SportsFixture[];
   /** True when the games come from the spoiler-delayed scoreboard. */
   delayed: boolean;
   stale: boolean;
@@ -221,7 +222,7 @@ interface MutableLeague {
   standings: SportsStandingRow[];
   rankings: SportsRankRow[];
   poll: string | null;
-  next: SportsFixture | null;
+  fixtures: SportsFixture[];
   stale: boolean;
 }
 
@@ -439,6 +440,50 @@ function readFixture(attributes: Record<string, unknown>): SportsFixture | null 
   };
 }
 
+/**
+ * One row of the `next_game` sensor's `upcoming_games` list.
+ *
+ * The rows are flatter than the single event the same sensor repeats at the top level, and they are
+ * the only way to answer "when do they play next" for a game after the one on today's board.
+ */
+function readFixtureRow(row: Record<string, unknown>): SportsFixture | null {
+  const start = text(row.date);
+  const matchup = text(row.matchup);
+  if (!start && !matchup) return null;
+  return {
+    matchup,
+    opponent: text(row.opponent),
+    opponentName: text(row.opponent_name),
+    start,
+    venue: text(row.venue),
+    homeAway: text(row.home_away),
+    detail: text(row.status_detail),
+  };
+}
+
+/**
+ * The favourite team's upcoming games, soonest first.
+ *
+ * `upcoming_games` is the list to read; `next_five` is the same array under its other name, so it is
+ * only consulted when the first is missing — reading both would double every fixture. When neither
+ * is there, the single event the sensor publishes at the top level is still one answer.
+ */
+function readFixtures(attributes: Record<string, unknown>): SportsFixture[] {
+  for (const list of [attributes.upcoming_games, attributes.next_five]) {
+    if (!Array.isArray(list)) continue;
+    const fixtures: SportsFixture[] = [];
+    for (const item of list) {
+      const row = record(item);
+      if (!row) continue;
+      const fixture = readFixtureRow(row);
+      if (fixture) fixtures.push(fixture);
+    }
+    if (fixtures.length) return fixtures;
+  }
+  const single = readFixture(attributes);
+  return single ? [single] : [];
+}
+
 /** The league code an entity id belongs to, or null for anything this reader does not know. */
 function leagueOf(group: string): string | null {
   const league = group === 'college_football' ? 'cfb' : group;
@@ -476,7 +521,7 @@ export function sportsFromStates(states: unknown, settings: Config['sports']): S
       standings: [],
       rankings: [],
       poll: null,
-      next: null,
+      fixtures: [],
       stale: false,
     };
     box.set(league, fresh);
@@ -538,7 +583,7 @@ export function sportsFromStates(states: unknown, settings: Config['sports']): S
       const league = leagueOf(next[1] ?? '');
       if (!league || !wanted(league)) continue;
       const target = of(league);
-      target.next = readFixture(attributes);
+      target.fixtures = readFixtures(attributes);
       target.favoriteTeam = text(attributes.favorite_team) ?? target.favoriteTeam;
       target.favoriteTeamName = text(attributes.favorite_team_name) ?? target.favoriteTeamName;
       continue;
@@ -560,7 +605,7 @@ export function sportsFromStates(states: unknown, settings: Config['sports']): S
       standings: target.standings,
       rankings: target.rankings,
       poll: target.poll,
-      next: target.next,
+      fixtures: target.fixtures,
       delayed: Boolean(delayed.length),
       stale: target.stale,
     });
@@ -643,6 +688,10 @@ export async function sportsFor(config: Config): Promise<SportsSnapshot | null> 
 
 // --- reading the question ---------------------------------------------------
 
+/** A sentence that asks something, so it can be a question about sport without naming a league. */
+const ASKING =
+  /^(what|whats|when|whens|where|who|whos|how|is|are|was|were|do|does|did|will|would|can|could|any|should|which|tell me|give me)\b/;
+
 /**
  * A sentence that names a sport, said the ways people say it.
  *
@@ -650,7 +699,7 @@ export async function sportsFor(config: Config): Promise<SportsSnapshot | null> 
  * question about a score.
  */
 const SPORTS_WORD =
-  /\b(score|scores|scored|scoring|win|wins|winning|won|lose|loses|losing|lost|beat|beats|beating|beaten|game|games|match|matches|playoff|playoffs|postseason|standings|standing|rank|ranked|ranking|rankings|poll|polls|record|kickoff|tip off|tipoff|face|faces|facing|versus|vs|overtime|touchdown|home run|goal|goals|inning|quarter|halftime|shutout|final|season|seed|seeds|undefeated|streak|rivalry|play next|next game|next match|how did|how are)\b/;
+  /\b(score|scores|scored|scoring|win|wins|winning|won|lose|loses|losing|lost|beat|beats|beating|beaten|game|games|match|matches|playoff|playoffs|postseason|standings|standing|rank|ranked|ranking|rankings|poll|polls|record|kickoff|tip off|tipoff|face|faces|facing|versus|vs|overtime|touchdown|home run|goal|goals|inning|quarter|halftime|shutout|final|season|seed|seeds|undefeated|streak|rivalry|play next|next game|next match|playing|play (the|against|at|on|in|next|tonight|tomorrow|today)|how did|how are)\b/;
 
 /** A command: "play the game", "set a timer for the match" are not questions about sport. */
 const COMMAND =
@@ -698,7 +747,8 @@ const KIND_PATTERNS: { kind: SportsKind; pattern: RegExp }[] = [
   {
     kind: 'next',
     pattern:
-      /\b(next (game|match|opponent|one)|when (do|does|are|is) .* (play|next)|who (do|does|are|will) .* play|upcoming|schedule|fixture|fixtures|who s next)\b/,
+      // "the next game", "the next raptors game", "the next home game": the team may sit in the middle.
+      /\b(next (\w+ ){0,3}(game|match|opponent|one)|when (do|does|are|is) .* (play|plays|playing|next)|what time (do|does|is|are|will) .* (play|start|game|match)|who (do|does|are|will) .* play|upcoming|schedule|fixture|fixtures|who s next)\b/,
   },
   { kind: 'score', pattern: /\b(score|scores|win|won|lose|lost|beat|beating|result|results|final|playing|game|match|doing|how did|how d)\b/ },
 ];
@@ -714,8 +764,13 @@ const KIND_PATTERNS: { kind: SportsKind; pattern: RegExp }[] = [
 export function readSportsQuestion(text: string, houseNames: string[] = []): SportsQuestion | null {
   const raw = text.trim();
   if (!raw) return null;
-  const spoken = normalise(raw);
-  if (!spoken) return null;
+  // People say "the raptor's" meaning the plural, and normalise turns that apostrophe into a space
+  // ("raptor s"), which no team alias matches. Both forms are kept, side by side, so the spaced one
+  // still holds "who's next" together and the joined one recovers "raptors".
+  const spaced = normalise(raw);
+  if (!spaced) return null;
+  const joined = normalise(raw.replace(/['’]s\b/gi, 's'));
+  const spoken = joined && joined !== spaced ? `${spaced} ${joined}` : spaced;
   if (COMMAND.test(spoken)) return null;
   if (HOUSE_WORD.test(spoken)) return null;
   for (const name of houseNames) {
@@ -726,7 +781,9 @@ export function readSportsQuestion(text: string, houseNames: string[] = []): Spo
   const league = LEAGUE_WORDS.find((entry) => entry.pattern.test(spoken))?.league ?? null;
   const named = /\b(the|my|our)\s+[a-z]/.test(spoken) || /\bmy (team|teams|side|club)\b/.test(spoken);
   if (!SPORTS_WORD.test(spoken) && !league) return null;
-  if (!league && !named) return null;
+  // A sentence only reaches the answerer when it asks something: "is there a raptors game tonight"
+  // is a question without a "the" in it, and "let us watch a game" is not a question at all.
+  if (!league && !named && !ASKING.test(spoken)) return null;
 
   const kind = KIND_PATTERNS.find((entry) => entry.pattern.test(spoken))?.kind ?? 'score';
   const abbreviations = (raw.match(/\b[A-Z]{2,4}\b/g) ?? []).map((value) => value.toUpperCase());
@@ -793,15 +850,29 @@ interface TeamEntry {
 }
 
 /** A name a team goes by, normalised for matching and kept as written for speaking. */
+/**
+ * Last words that do not name a team, so a nickname is not invented from them: "Manchester City",
+ * "Tampa Bay", "New York City".
+ */
+const PLACE_WORD = new Set(['city', 'town', 'county', 'state', 'park', 'field', 'bay', 'area']);
+
 function aliasesOf(values: (string | null | undefined)[], abbr: string | null): { key: string; alias: string }[] {
   const out: { key: string; alias: string }[] = [];
   const seen = new Set<string>();
   for (const value of values) {
     if (!value) continue;
     const key = normalise(value);
-    if (key.length < 3 || seen.has(key)) continue;
-    seen.add(key);
-    out.push({ key, alias: value });
+    if (key.length < 3) continue;
+    // "Toronto Raptors" is said as "the Raptors", so the nickname is a name of its own. The last
+    // word is used rather than the first because that is the part that names the team ("New York
+    // Knicks" → "Knicks"), and the place word the other way round ("New York") names two of them.
+    const nick = normalise(value.trim().split(/\s+/).at(-1) ?? '');
+    const keys = nick && nick !== key && nick.length >= 4 && !PLACE_WORD.has(nick) ? [key, nick] : [key];
+    for (const one of keys) {
+      if (seen.has(one)) continue;
+      seen.add(one);
+      out.push({ key: one, alias: one === key ? value : value.trim().split(/\s+/).at(-1)! });
+    }
   }
   if (abbr && abbr.length >= 2) {
     const key = normalise(abbr);
@@ -834,8 +905,7 @@ function teamCatalogue(snapshot: SportsSnapshot): TeamEntry[] {
     for (const row of league.rankings) {
       for (const alias of aliasesOf([row.name, row.abbr], row.abbr)) push(league, alias, row.abbr);
     }
-    const fixture = league.next;
-    if (fixture) {
+    for (const fixture of league.fixtures) {
       for (const alias of aliasesOf([fixture.opponentName, fixture.opponent], fixture.opponent)) {
         push(league, alias, fixture.opponent);
       }
@@ -951,7 +1021,7 @@ function eventAnswer(event: SportsEvent, match: { alias: string; abbr: string | 
   const theirScore = other.score ?? 0;
   const opponent = spokenName(other);
   // "the Bills" reads better than "Bills" in a sentence like "against the Bills".
-  const against = /^(the|a|an)\b/i.test(opponent) ? opponent : `the ${opponent}`;
+  const against = theOpponent(opponent);
 
   if (event.state === 'in') {
     const verb = ourScore === theirScore ? 'are tied' : ourScore > theirScore ? 'are winning' : 'are losing';
@@ -1044,17 +1114,73 @@ function rankingsAnswer(league: SportsLeague, match: { alias: string; abbr: stri
   return { text: `${name} ${row.record ? 'are' : 'is'} ${place} in ${poll}${record}.`, about: 'college football rankings' };
 }
 
-/** The next fixture the integration publishes for the favourite team. */
-function fixtureAnswer(league: SportsLeague, timezone: string | undefined): SportsAnswer | null {
-  const fixture = league.next;
+/** The other side of a game, said with its article: "the Celtics". */
+function theOpponent(value: string): string {
+  return /^(the|a|an)\b/i.test(value) ? value : `the ${value}`;
+}
+
+/**
+ * Are these fixtures the named team's?
+ *
+ * The `next_game` sensor follows one team per league — whichever sports-ticker was told is the
+ * favourite — so its schedule belongs to that team alone. A question about the Knicks in a league
+ * favourited to the Raptors has to go unanswered rather than be answered with somebody else's game.
+ */
+function followsTeam(league: SportsLeague, match: { alias: string; abbr: string | null } | null): boolean {
+  if (!match) return true;
+  const favourite = league.favoriteTeam?.toUpperCase() ?? null;
+  if (favourite && match.abbr && favourite === match.abbr.toUpperCase()) return true;
+  const name = league.favoriteTeamName ? normalise(league.favoriteTeamName) : '';
+  if (!name) return false;
+  const wanted = normalise(match.alias);
+  return Boolean(wanted) && (name === wanted || name.includes(wanted) || wanted.includes(name));
+}
+
+/** The game the sentence asked about, when it named an opponent: "when do the Raptors play the Celtics". */
+function askedOpponent(fixtures: SportsFixture[], spoken: string): SportsFixture | null {
+  if (!spoken) return null;
+  for (const fixture of fixtures) {
+    // The nickname counts: "the raptors play the knicks" names "New York Knicks", not "Knicks".
+    const nickname = normalise((fixture.opponentName ?? fixture.opponent ?? '').trim().split(/\s+/).at(-1) ?? '');
+    for (const value of [fixture.opponentName, fixture.opponent, nickname]) {
+      if (!value) continue;
+      const key = normalise(value);
+      if (key.length < 3) continue;
+      if (new RegExp(`\\b${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`).test(spoken)) return fixture;
+    }
+  }
+  return null;
+}
+
+/**
+ * The next game the integration publishes for the favourite team.
+ *
+ * Which team was asked about decides whether this answers at all, and which of the upcoming games it
+ * reads: the opponent the sentence named when it named one, otherwise the soonest.
+ */
+function fixtureAnswer(
+  league: SportsLeague,
+  target: { alias: string; abbr: string | null } | null,
+  timezone: string | undefined,
+  spoken: string,
+): SportsAnswer | null {
+  if (!league.fixtures.length || !followsTeam(league, target)) return null;
+  const fixture = askedOpponent(league.fixtures, spoken) ?? league.fixtures[0] ?? null;
   if (!fixture) return null;
-  const name = league.favoriteTeamName ?? favoriteOf(league)?.alias ?? null;
-  const opponent = fixture.opponentName ?? fixture.opponent ?? null;
+  const name = target?.alias ?? league.favoriteTeamName ?? favoriteOf(league)?.alias ?? null;
   if (!name) return null;
+  const opponent = fixture.opponentName ?? fixture.opponent ?? null;
   const when = whenWords(fixture.start, timezone);
-  const where = fixture.venue ? ` at ${fixture.venue}` : '';
-  const against = opponent ? `play ${/^(the|a|an)\b/i.test(opponent) ? opponent : `the ${opponent}`}` : 'are next up';
-  const verb = opponent ? against : 'are next up';
+  // A home game is played in their own building, so naming it adds nothing; an away one is news.
+  const where = fixture.venue && fixture.homeAway !== 'home' ? ` at ${fixture.venue}` : '';
+  const verb =
+    opponent === null
+      ? 'are next up'
+      : fixture.homeAway === 'home'
+        ? `host ${theOpponent(opponent)}`
+        : fixture.homeAway === 'away'
+          ? `visit ${theOpponent(opponent)}`
+          : `play ${theOpponent(opponent)}`;
   return {
     text: `${name} ${verb}${when ? ` ${when}` : ''}${where}.`,
     about: `${league.label} schedule`,
@@ -1118,17 +1244,32 @@ export function sportsAnswer(
 
   if (question.kind === 'next') {
     const boards = target ? [target.league] : pool;
+    const mine = target;
+    // "When are they playing?" during a game is a question about the game on now; "when do they play
+    // next" is not, so only a sentence that says next, upcoming or schedule jumps the live game.
+    const theOneAfterThis = /\b(next|upcoming|schedule|fixtures?)\b/.test(question.spoken);
     for (const board of boards) {
-      const answer = fixtureAnswer(board, options.timezone);
+      const live = mine
+        ? board.events.find((event) => event.state === 'in' && event.teams.some((team) => sameTeam(team, mine)))
+        : undefined;
+      if (live && mine && !theOneAfterThis) {
+        const text = eventAnswer(live, mine, options.timezone);
+        if (text) return { text, about: `${board.label} game` };
+      }
+      const answer = fixtureAnswer(board, mine, options.timezone, question.spoken);
       if (answer) return answer;
+      if (live && mine) {
+        const text = eventAnswer(live, mine, options.timezone);
+        if (text) return { text, about: `${board.label} game` };
+      }
     }
     // No schedule sensor: fall back to a game that has not started yet.
     for (const board of boards) {
       const upcoming = board.events.find(
-        (event) => event.state === 'pre' && (!target || event.teams.some((team) => sameTeam(team, target))),
+        (event) => event.state === 'pre' && (!mine || event.teams.some((team) => sameTeam(team, mine))),
       );
-      if (upcoming && target) {
-        const text = eventAnswer(upcoming, target, options.timezone);
+      if (upcoming && mine) {
+        const text = eventAnswer(upcoming, mine, options.timezone);
         if (text) return { text, about: `${board.label} schedule` };
       }
     }
@@ -1152,6 +1293,14 @@ export function sportsAnswer(
       if (!event) continue;
       const text = eventAnswer(event, owner, options.timezone);
       if (text) return { text, about: `${owner.alias} score` };
+    }
+  }
+  // Nothing on the scoreboard for them: if the sentence asks about a game rather than a result,
+  // the schedule the integration publishes is the answer — "is there a raptors game tonight".
+  if (/\b(game|games|match|matches|tonight|today|tomorrow|playing|play|next|upcoming)\b/.test(question.spoken)) {
+    for (const board of boards) {
+      const answer = fixtureAnswer(board, owner, options.timezone, question.spoken);
+      if (answer) return answer;
     }
   }
   // Nothing on the scoreboard for that team: the table still knows its record.

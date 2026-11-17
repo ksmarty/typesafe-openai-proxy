@@ -317,6 +317,148 @@ test('one league filter narrows what is read', () => {
   );
 });
 
+// --- the schedule: "when do they play next" ----------------------------------
+
+/** The favourite's schedule, in the flat rows `sensor.espn_nba_next_game` publishes. */
+const NBA_SCHEDULE = {
+  entity_id: 'sensor.espn_nba_next_game',
+  state: 'Fri 7:30 PM',
+  attributes: {
+    league: 'nba',
+    has_upcoming_game: true,
+    favorite_team: 'TOR',
+    favorite_team_name: 'Toronto Raptors',
+    date: '2026-11-21T00:30:00Z',
+    matchup: 'TOR @ BOS',
+    opponent: 'BOS',
+    opponent_name: 'Boston Celtics',
+    venue: 'TD Garden',
+    home_away: 'away',
+    status_detail: 'Fri 7:30 PM',
+    upcoming_games: [
+      {
+        event_id: '401810100',
+        date: '2026-11-21T00:30:00Z',
+        home_away: 'away',
+        matchup: 'TOR @ BOS',
+        opponent: 'BOS',
+        opponent_name: 'Boston Celtics',
+        venue: 'TD Garden',
+        status: 'pre',
+        status_detail: 'Fri 7:30 PM',
+      },
+      {
+        event_id: '401810112',
+        date: '2026-11-22T01:00:00Z',
+        home_away: 'home',
+        matchup: 'NYK vs TOR',
+        opponent: 'NYK',
+        opponent_name: 'New York Knicks',
+        venue: 'Scotiabank Arena',
+        status: 'pre',
+        status_detail: 'Sat 8:00 PM',
+      },
+    ],
+  },
+};
+
+/** A Raptors game on the scoreboard that has not started, for a house with no schedule sensor. */
+const NBA_PRE = event({
+  name: 'Toronto Raptors at Boston Celtics',
+  start: '2026-11-21T00:30:00Z',
+  state: 'pre',
+  detail: 'Fri 7:30 PM',
+  away: { abbr: 'TOR', name: 'Toronto', short: 'Raptors' },
+  home: { abbr: 'BOS', name: 'Boston', short: 'Celtics' },
+});
+
+/** The Raptors game in progress, which "when are they playing" means while it is on. */
+const NBA_LIVE = event({
+  name: 'New York Knicks at Toronto Raptors',
+  start: '2026-11-19T00:30:00Z',
+  state: 'in',
+  detail: '4:10 - 4th',
+  clock: '4:10',
+  period: 4,
+  away: { abbr: 'NYK', name: 'New York', short: 'Knicks', score: '98' },
+  home: { abbr: 'TOR', name: 'Toronto', short: 'Raptors', score: '104' },
+});
+
+/** The same house, with the Raptors followed and, unless asked not to, a schedule published. */
+function scheduleStates(options: { schedule?: boolean; scoreboard?: Record<string, unknown>[] } = {}): Record<string, unknown>[] {
+  const out = [...states()];
+  if (options.schedule !== false) out.push(NBA_SCHEDULE);
+  if (options.scoreboard) {
+    out.push({
+      entity_id: 'sensor.espn_nba_scoreboard_raw',
+      state: `${options.scoreboard.length} games`,
+      attributes: { league: 'nba', favorite_team: 'TOR', favorite_team_name: 'Toronto Raptors', events: options.scoreboard },
+    });
+  }
+  return out;
+}
+
+function scheduleAsk(
+  sentence: string,
+  options: { schedule?: boolean; scoreboard?: Record<string, unknown>[] } = {},
+): { question: SportsQuestion; text: string } | null {
+  const question = readSportsQuestion(sentence);
+  const snapshot = sportsFromStates(scheduleStates(options), settings());
+  if (!question || !snapshot) return null;
+  const answer = sportsAnswer(snapshot, question, { timezone: 'America/New_York' });
+  return answer ? { question, text: answer.text } : null;
+}
+
+test('the schedule sensor answers when the next game is', () => {
+  for (const sentence of [
+    "when's the next raptors game",
+    'when are the raptors playing',
+    'when do the raptors play next',
+    'what time do the raptors play on friday',
+    'is there a raptors game tonight',
+  ]) {
+    const answer = scheduleAsk(sentence);
+    assert.ok(answer, sentence);
+    // "is there a raptors game tonight" reads as a slate question, but a named team makes the
+    // branch irrelevant: the answer is that team's fixture either way.
+    assert.ok(['next', 'roundup'].includes(answer.question.kind), `${sentence} → ${answer.question.kind}`);
+    assert.equal(answer.text, 'Raptors visit the Boston Celtics on Friday at 7:30 PM at TD Garden.', sentence);
+  }
+  // A sentence that only mentions a game is not a question about one.
+  assert.equal(readSportsQuestion('lets watch a game tonight'), null);
+});
+
+test("a possessive plural is still the team's name", () => {
+  const answer = scheduleAsk("when are the raptor's playing?");
+  assert.ok(answer);
+  assert.match(answer.text, /^Raptors visit the Boston Celtics/);
+});
+
+test('a home game names no venue, and the opponent asked about picks the game', () => {
+  const answer = scheduleAsk('when do the raptors play the knicks');
+  assert.ok(answer);
+  assert.equal(answer.text, 'Raptors host the New York Knicks on Saturday at 8:00 PM.');
+});
+
+test("another team never gets the favourite's schedule", () => {
+  // The Knicks are in the standings, so they are named — but the schedule sensor follows the Raptors.
+  assert.equal(scheduleAsk('when do the knicks play next'), null);
+  // No schedule sensor: a game on the scoreboard that has not started is still an answer.
+  const board = scheduleAsk('when do the raptors play next', { schedule: false, scoreboard: [NBA_PRE] });
+  assert.ok(board);
+  assert.match(board.text, /^Raptors play the Celtics/);
+  assert.match(board.text, /Friday at 7:30 PM/);
+});
+
+test('a game on now answers "when are they playing", and next still means next', () => {
+  const now = scheduleAsk('when are the raptors playing', { scoreboard: [NBA_LIVE] });
+  assert.ok(now);
+  assert.match(now.text, /^Raptors are winning 104 to 98 against the Knicks/);
+  const next = scheduleAsk("when's the next raptors game", { scoreboard: [NBA_LIVE] });
+  assert.ok(next);
+  assert.match(next.text, /^Raptors visit the Boston Celtics/);
+});
+
 // --- through the pipeline, against a stub Home Assistant ---------------------
 
 let server: Server | null = null;
