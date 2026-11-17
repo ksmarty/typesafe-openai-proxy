@@ -231,6 +231,34 @@ export function extractListItem(text: string): string | undefined {
   return undefined;
 }
 
+/**
+ * The separate things a list command names.
+ *
+ * "Add peanut butter and jam to the shopping list" is two things to buy, and a Home Assistant
+ * list intent takes one `item` per call: handing the whole phrase over puts a single
+ * "peanut butter and jam" on the list. Commas, semicolons and the conjunctions people speak
+ * (`and`, `&`, `plus`, `along with`, `as well as`) are the seams.
+ *
+ * Two words that really are one thing keep a way out: "add fish and chips as one item" (or
+ * "… together") is left whole, and so is anything the sentence never split.
+ */
+export function splitListItems(item: string | undefined): string[] {
+  const said = (item ?? '').trim();
+  if (!said) return [];
+  // An explicit request to keep the phrase together, for a name that is two words.
+  const keepWhole = /\s+(?:as|in)\s+(?:one|a single)\s+items?$|\s+together$/i;
+  if (keepWhole.test(said)) {
+    const whole = said.replace(keepWhole, '').replace(/[,;]+$/, '').trim();
+    return whole ? [whole] : [];
+  }
+  const parts = said
+    .split(/\s*[,;]\s*|\s+(?:and|&|plus|along with|as well as)\s+/i)
+    .map((part) => part.replace(/^(?:and|&|plus)\s+/i, '').trim())
+    .filter((part) => part.length > 0);
+  // Nothing to split, or a phrase that splits to nothing usable: the sentence stands as said.
+  return parts.length > 0 ? parts : [said];
+}
+
 /** Pull the media query out of "play some jazz on the kitchen speaker". */
 export function extractMediaQuery(text: string, entityNames: string[]): string | undefined {
   let rest = text;

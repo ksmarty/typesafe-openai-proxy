@@ -151,6 +151,8 @@ const COMMAND_WORDS = [
   'turn on', 'turn off', 'switch on', 'switch off', 'put on', 'shut off', 'open', 'close', 'lock', 'unlock',
   'dim', 'brighten', 'brighter', 'dimmer', 'set', 'play', 'pause', 'resume', 'mute', 'unmute', 'start', 'stop',
   'vacuum', 'clean', 'press', 'run', 'activate', 'toggle', 'increase', 'decrease', 'raise', 'lower', 'skip',
+  // Lists: "add milk to the shopping list" is a command, not a remark.
+  'add', 'append', 'remove', 'delete', 'complete', 'mark', 'tick',
 ];
 
 const QUERY_WORDS = [

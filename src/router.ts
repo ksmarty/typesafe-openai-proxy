@@ -18,6 +18,7 @@ import {
 import { answerCount, answerStateQuestion } from './answer.js';
 import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
 import { DEFAULT_TEMPLATES, type Config, type DecisionThresholds, type SpeechTemplates } from './config.js';
+import { splitListItems } from './extract.js';
 import type { Extraction } from './extract.js';
 import { Q, NO_AREA, NO_DOMAIN, NO_SINGLE_ENTITY, NOT_TARGETED, actionQuestion } from './questions.js';
 import type { BuiltQuestions } from './questions.js';
@@ -784,6 +785,12 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
     }
   }
 
+  // "Add peanut butter and jam to the shopping list" names two things to buy, and a list intent
+  // fills one item per call: handing the whole phrase over puts a single "peanut butter and jam"
+  // on the list. One call per item, in the order they were spoken. "As one item" keeps a name.
+  const items = spec.needsText === 'item' ? splitListItems(text) : [];
+  if (items.length === 1) text = items[0];
+
   // A media search goes through whichever play service the install really offers, so a room
   // ends up on the speaker in it rather than on a refusal.
   const call =
@@ -812,6 +819,58 @@ function planCommand(ctx: RouteContext, gates: Gate[]): RouteResult {
       : targetFloor
         ? [targetFloor.name]
         : [domain];
+  // "Add peanut butter and jam to the shopping list" names two things to buy: one call per item.
+  if (items.length > 1) {
+    const calls: ToolCall[] = [];
+    for (const item of items) {
+      const each = buildToolCall({
+        intent: spec.intentType,
+        spec,
+        inventory,
+        target: {
+          ...(targetEntity ? { entity: targetEntity } : {}),
+          ...(targetRoom ? { areaName: targetRoom.name } : {}),
+          ...(targetFloor ? { floorName: targetFloor.name } : {}),
+          ...(domain ? { domain } : {}),
+        },
+        action,
+        text: item,
+      });
+      if ('error' in each) return forward(each.error, gates, { category: 'command' });
+      calls.push({ tool: each.tool, args: each.args, targets, action, ...(domain ? { domain } : {}) });
+    }
+    const many: MultiCallPlan = { kind: 'calls', calls, action, ...(domain ? { domain } : {}) };
+    const riskyMany = isRisky(action, domain, targetEntity ? { entity: targetEntity } : {}, noulOf(answers, Q.risky), t);
+    if (riskyMany && config.decision.alwaysConfirmRisky) {
+      const verb = CONFIRM_INFINITIVES[action] ?? ACTION_VERBS[action]?.toLowerCase() ?? action;
+      return {
+        plan: {
+          kind: 'confirm',
+          text: fill(said.confirm, {
+            action: verb,
+            entity: entityLabel(targetEntity ?? { name: targetRoom?.name ?? targetFloor?.name ?? domain } as CatalogEntity),
+          }),
+          pending: many,
+        },
+        gates,
+        reason: 'risky action needs confirmation',
+        category: 'command',
+        action,
+        target: targets[0],
+        risky: true,
+      };
+    }
+    return {
+      plan: many,
+      gates,
+      reason: `${action} ${items.length} items (${items.join(', ')})`,
+      category: 'command',
+      action,
+      target: targets[0],
+      risky: riskyMany,
+    };
+  }
+
   const plan: ToolCallPlan = {
     kind: 'tool',
     tool: call.tool,

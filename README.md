@@ -235,6 +235,13 @@ than answering half of it:
   clause is not something the fast path can call (a request for prose, a device kind this request
   offers no intent for), the whole sentence is forwarded instead: a half-done compound request is
   the one outcome worth avoiding.
+- **Several items on one list** — "add peanut butter and jam to the shopping list" is two things to
+  buy, not one thing called "peanut butter and jam", so it becomes two `HassListAddItem` calls, one
+  per item, in the order they were said. Commas, semicolons, `and`, `&`, `plus`, `along with` and
+  `as well as` are the seams, and the shopping list itself is still named once. Two words that
+  really are one thing keep a way out: "add fish and chips as one item to the shopping list" (or
+  "… together") goes on the list whole. The same splitting applies to "mark milk and eggs off the
+  list" and "remove milk and eggs from the list".
 
 Home Assistant executes the calls in order and the follow-up round carries one tool result per call,
 so the spoken reply is assembled from every result.
