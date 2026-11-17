@@ -9,6 +9,7 @@ import { ACTION_VERBS } from './actions.js';
 import { cachedCatalog } from './catalog.js';
 import { ROUTER_MODEL, loadConfig, upstreamApiKey, type Config } from './config.js';
 import { issuedCalls, stats } from './state.js';
+import { spokenToolResult } from './toolsuite.js';
 import type { Catalog, CatalogEntity, OpenAIChatRequest } from './types.js';
 import { fetchWithTimeout, uid } from './util.js';
 
@@ -395,6 +396,13 @@ export function speechFor(
   const active = loadConfig();
   const info = callId ? issuedCalls.get(callId) : undefined;
   if (!info) return '';
+
+  // A Tools for Assist tool answers in its own shape, which has no Home Assistant speech in
+  // it. `get_route` is the one worth saying out loud: "it's 24 min to the airport, 14 miles".
+  // Everything else in that suite (search results, forecasts, long text) is left to the
+  // model, because reading it aloud is exactly what `speech.afterTool = 'upstream'` is for.
+  const local = spokenToolResult(info.tool, info.args, toolContent, language);
+  if (local) return local;
 
   if (toolContent) {
     try {

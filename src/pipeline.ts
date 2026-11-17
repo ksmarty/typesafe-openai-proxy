@@ -53,7 +53,8 @@ import {
 } from './state.js';
 import { splitClauses } from './compound.js';
 import { decide, DecisionUnavailable } from './systemone.js';
-import { descriptorFromAnnouncement, inventoryFor, parseToolArguments } from './toolcall.js';
+import { descriptorFromAnnouncement, findTool, inventoryFor, parseToolArguments } from './toolcall.js';
+import { readTravelQuestion, spokenToolResult, travelArgs } from './toolsuite.js';
 import type {
   Answer,
   Catalog,
@@ -456,6 +457,56 @@ export async function runPipeline(
           entry,
         };
       }
+    }
+  }
+  // "How long to get to the airport?" is a route, not a decision. The Tools for Assist
+  // integration already offers `get_route`, which asks Google for a traffic-aware route at
+  // the moment it is called, so the fast path asks it and lets the speech round say the
+  // answer. Nothing about a journey is remembered: the next turn asks again.
+  if (active.routing.enabled && active.travel.enabled) {
+    const tool = findTool(inventory, 'get_route');
+    const question = tool ? readTravelQuestion(utterance, houseNamesOf(catalog)) : null;
+    if (tool && question) {
+      const args = travelArgs(question, active.travel.mode);
+      const reason = `travel time to ${question.destination} — asked ${tool.name}, no model call`;
+      const entry: TraceEntry = {
+        id: uid('trace'),
+        at: startedAt,
+        utterance,
+        route: 'tool',
+        reason,
+        gates: [],
+        category: 'query',
+        action: 'get_route',
+        target: question.destination,
+        backend: 'off',
+        catalogSource: catalog.source,
+        catalogExposure: catalog.exposure,
+        toolsOffered,
+        timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+        totalMs: Date.now() - startedAt,
+      };
+      noteTrace(entry);
+      recordTurn(request, systemPrompt, entry);
+      stats.requests += 1;
+      stats.toolCalls += 1;
+      stats.routable += 1;
+      return {
+        route: {
+          plan: {
+            kind: 'tool',
+            tool: tool.name,
+            args,
+            targets: [question.destination],
+            action: 'get_route',
+          } as Plan,
+          gates: [],
+          reason,
+          category: 'query',
+          action: 'get_route',
+        },
+        entry,
+      };
     }
   }
   // "Is the desk lamp on?" is a catalogue lookup, not a decision: the state is already here,
@@ -1137,6 +1188,9 @@ export async function handleChatCompletions(
     // back as nothing at all. Only a round the proxy did not issue takes this path, so the
     // existing behaviour for its own calls does not change.
     const owedAnswer = !ownerFromCalls && previousTurn?.category === 'query';
+    // A rule that said "Speak it" or showed a custom sentence is an instruction to say
+    // something, so the silence marker is not an acceptable outcome for that round.
+    const askedForSpeech = ruled.some((rule) => rule?.mode === 'speak' || rule?.mode === 'custom');
 
     // null means "let Home Assistant, or the template, say it".
     const resolved = described.map((item, index) => {
@@ -1166,6 +1220,21 @@ export async function handleChatCompletions(
         if (fixed) parts.push(fixed);
         return;
       }
+      // Tool results the proxy never issued carry no Home Assistant speech, so the suites it
+      // knows how to read are read here — a travel time becomes a sentence about the route.
+      // Everything else stays empty and is handed to the model below.
+      const mine = item.ours
+        ? ''
+        : spokenToolResult(
+            item.call.tool,
+            item.args,
+            textOf(item.message.content) || undefined,
+            languageOf(request),
+          );
+      if (mine) {
+        parts.push(mine);
+        return;
+      }
       const said = speechForLastTool(
         item.message.tool_call_id,
         textOf(item.message.content) || undefined,
@@ -1175,18 +1244,23 @@ export async function handleChatCompletions(
     });
     const text = [...new Set(parts)].join(' ').trim();
 
-    // A question the model answered with a call of its own, for which no local sentence can
-    // be built: the model already holds the tool result, so hand the round to it rather than
-    // answering a plain question with silence.
-    if (!text && owedAnswer) {
+    // A question the model answered with a call of its own, or a round whose rule asked for
+    // speech that no local sentence could provide: the model already holds the tool result,
+    // so hand the round to it rather than answering with silence. A rule that says "Speak
+    // it" and then says nothing is the bug this branch exists to prevent.
+    if (!text && (owedAnswer || askedForSpeech)) {
       const owedEntry: TraceEntry = {
         id: uid('trace'),
         at: Date.now(),
         utterance: '',
         route: 'forward',
-        reason: `the answer to a question was spoken by the model (${describeRules(
-          described.map((item) => item.call),
-        )})`,
+        reason: owedAnswer
+          ? `the answer to a question was spoken by the model (${describeRules(
+              described.map((item) => item.call),
+            )})`
+          : `the rule asked for speech and no local sentence could be built, so the model said it (${describeRules(
+              described.map((item) => item.call),
+            )})`,
         gates: [],
         backend: 'speech',
         ...(owner ? { answersTurn: owner } : {}),

@@ -174,6 +174,27 @@ export interface Config {
    * Spoiler delay is honoured by default. If the house set one up, reading the raw sensor
    * would spoil a delayed game, which is the opposite of what it was for.
    */
+  /**
+   * Travel time, through the Tools for Assist integration.
+   *
+   * "How long to get to the airport?" is a `get_route` call, not something to reason about, so
+   * the fast path reads it here and asks Home Assistant for the route without consulting the
+   * model. The route itself is Google's, made afresh for every call with traffic-aware routing:
+   * nothing about a journey is cached, here or in the integration, because a travel time that
+   * is a minute old is a wrong travel time.
+   *
+   * It only acts when Home Assistant offers `get_route`, so a house without the integration is
+   * unaffected.
+   */
+  travel: {
+    /** Read travel questions here instead of leaving them to the model. */
+    enabled: boolean;
+    /**
+     * `auto` lets the integration use the mode configured in Home Assistant. A journey the
+     * sentence names itself ("… walking?", "… by bus?") always wins over this.
+     */
+    mode: 'auto' | 'DRIVE' | 'WALK' | 'BICYCLE' | 'TRANSIT' | 'TWO_WHEELER';
+  };
   sports: {
     /** Answer score, standings and fixture questions locally. Off leaves every one to the model. */
     enabled: boolean;
@@ -432,6 +453,7 @@ export function defaultConfig(): Config {
       baseUrl: '',
       timeoutMs: 8000,
     },
+    travel: { enabled: true, mode: 'auto' },
     sports: { enabled: true, leagues: '', spoilerDelay: 'respect', cacheMs: 30000, timeoutMs: 8000 },
     music: { enabled: true, provider: 'auto', enqueue: 'replace', artist: 'artist' },
     reminders: { enabled: true },
@@ -549,6 +571,16 @@ function applyEnv(config: Config): void {
   if (env.WEATHER_BASE_URL) config.weather.baseUrl = env.WEATHER_BASE_URL;
   if (env.SPORTS !== undefined && env.SPORTS !== '') {
     config.sports.enabled = /^(1|true|yes|on)$/i.test(env.SPORTS);
+  }
+  if (env.TRAVEL !== undefined && env.TRAVEL !== '') {
+    config.travel.enabled = /^(1|true|yes|on)$/i.test(env.TRAVEL);
+  }
+  if (env.TRAVEL_MODE) {
+    const mode = env.TRAVEL_MODE.toUpperCase();
+    if (mode === 'AUTO') config.travel.mode = 'auto';
+    else if (['DRIVE', 'WALK', 'BICYCLE', 'TRANSIT', 'TWO_WHEELER'].includes(mode)) {
+      config.travel.mode = mode as Config['travel']['mode'];
+    }
   }
   if (env.SPORTS_LEAGUES) config.sports.leagues = env.SPORTS_LEAGUES;
   if (env.SPORTS_SPOILER_DELAY === 'ignore' || env.SPORTS_SPOILER_DELAY === 'respect') {

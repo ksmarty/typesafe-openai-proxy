@@ -584,6 +584,56 @@ next-game sensor follows one team per league, and nobody else's fixture is subst
 missing sensor answers nothing and the question goes to your model, so sports can never be the
 reason a turn breaks.
 
+### Travel time
+
+"How long to get to the airport?" is a `get_route` call, not something to reason about. The
+[Tools for Assist](https://github.com/skye-harris/llm_intents) integration registers that tool
+with Home Assistant's LLM API, so the proxy reads the sentence as the call it is and sends
+`get_route` itself — destination, the journey the sentence named, and `departure_time` left out
+so Google answers for right now. No model turn is spent on working that out.
+
+| Said | Asked of Home Assistant | Spoken |
+| --- | --- | --- |
+| "how long to get to the airport?" | `get_route {destination: "the airport"}` | "It's 24 min to London Stansted Airport, 14.2 miles." |
+| "how long does it take to drive to Tesco?" | the same, with `mode: "DRIVE"` | the driving time, with traffic |
+| "how long to walk to the shops?" | the same, with `mode: "WALK"` | "It's 18 min to the shops, 0.9 miles." |
+| "how far is it to the station?" | the same | the distance, since the route carries it |
+
+**Nothing about a journey is cached, here or there.** The integration caches the Places lookup —
+which address "the airport" means — and its YouTube searches; the route itself is fetched from
+Google Routes on every call with `routingPreference: TRAFFIC_AWARE`, so for driving and two
+wheels the duration already includes live traffic, and a future `departure_time` would return
+predicted traffic. The proxy adds no layer on top: there is no travel cache to configure,
+anything that reads as a question is refused by the decision cache (`src/decidecache.ts`) so it
+can never be replayed from a previous turn, and every response leaves with `cache-control:
+no-store`. Two identical questions a minute apart are two Google calls and two honest answers.
+
+A destination is the words that came after "to": a name, not a paragraph, and never something in
+the house — a sentence naming an entity or an area ("how long has the hall light been on?") is
+left to the model, because a route to a lamp is not a route. When Google has nothing, the round
+says nothing rather than inventing a journey.
+
+`Settings → Travel time → Answer travel questions locally` turns the fast path off, and **Default
+journey** picks the mode for a question that does not name one — a question that does say
+"walking" or "by bus" always wins. A journey that needs a departure time ("… tomorrow at eight")
+is forwarded, so the model can fill `departure_time` in itself. Or set `TRAVEL=0` and
+`TRAVEL_MODE=WALK` and skip the form.
+
+#### The rest of the suite
+
+Tools for Assist also registers `search_web`, `find_places`, `get_weather_forecast`,
+`search_wikipedia`, `search_youtube`, `play_video`, `calculate`, `unit_convert`,
+`get_device_history_context` and `calendar_day_info`, plus a Home Control clone of the Assist API.
+Home Assistant runs all of them, so nothing here needs to know they exist: the calls arrive as
+ordinary tool calls, the results are live answers, and nothing is cached. Two of them are read
+aloud locally — `calculate` ("2 plus 2 is 4") and `unit_convert` ("That's 42 kilometres") — and
+the long-text ones follow `speech.afterTool` and the speech rules like any other tool, because
+reading a web page or a forecast aloud is what the model is for.
+
+The Home Control clone is a second way to turn a lamp on; it is not required, and the proxy makes
+no use of it. With both installed, Home Assistant offers the same intents twice and the fast path
+uses whichever copy it finds first.
+
 ### Music
 
 "play Taylor Swift" is a request with the speaker missing, the media type missing and the
@@ -918,6 +968,7 @@ first match wins, and each rule matches one of:
 | `light` | every action on that domain |
 | `turn_on` | that action on every domain |
 | `todo.*` | every action on that domain (a trailing `.*` is a prefix) |
+| `get_route`, `llm_intents__get_route` | a tool from the Tools for Assist integration, by its own name or by the name Home Assistant offers it under |
 
 Matching is case-insensitive and applies to the call the proxy issued, not to the sentence. Each rule
 then does one of three things:
@@ -941,6 +992,15 @@ The shipped default silences the on/off domains — `light`, `switch`, `fan`, `c
 and talkative about lists, scenes and the vacuum. A trace reads `silent by rule (…, sent
 "[pause:1.5s]")` when a rule fired, and `1 of them silent by rule` when only part of a round was
 silenced.
+
+**Speak it** is honoured even when the call was the model's, not the proxy's. A forwarded request
+replays the whole round — the assistant's tool call and Home Assistant's result — and that round
+used to be identified from an announcement the proxy had no descriptor for, so a rule set to
+*Speak it* fell through to the quiet default and answered with the silence marker. Now the round
+is read from the announcement, the rule matches, and the sentence is built from the tool result:
+a route is spoken locally, and a tool whose result nobody here can phrase (a web page, a
+forecast) is handed to the model instead of being silenced. A rule that asks for speech never
+produces `[pause:1.5s]`.
 
 ## Answering a state question
 
@@ -1101,6 +1161,8 @@ The backend-related variables are worth naming, because there is no default deci
 | `SPORTS` | `1` | `0` hands sports questions back to your model |
 | `SPORTS_LEAGUES` | *(empty)* | league codes to read (`nfl,epl`); empty reads every league the sports-ticker sensors carry |
 | `SPORTS_SPOILER_DELAY` | `respect` | `respect` reads the delayed scoreboard when sports-ticker is holding a game back; `ignore` always reads the raw one |
+| `TRAVEL` | `1` | `0` hands travel questions back to your model |
+| `TRAVEL_MODE` | `auto` | `auto` keeps whatever mode Home Assistant is set to; or `DRIVE`, `WALK`, `BICYCLE`, `TRANSIT`, `TWO_WHEELER` |
 
 ### One key for both servers
 
@@ -1127,6 +1189,9 @@ different provider is used for prose. Nothing changes when the flag is off.
   only knows the time in this house.
 - **A sports question the sensors cannot answer** — a box score, a player's stats, or a team no
   enabled league carries is forwarded, because sports-ticker publishes games, not play-by-play.
+- **A journey that needs a departure time or a waypoint** — "how long to get to Leeds tomorrow at
+  eight" and "… via Sheffield" are forwarded, because `get_route` takes one destination and the
+  proxy will not guess the rest.
 - Anything where a gate fails. That is the point.
 
 ## Development

@@ -595,6 +595,34 @@ export function settingsGroups(): SettingsGroup[] {
       ],
     },
     {
+      id: 'travel',
+      title: 'Travel time',
+      description:
+        "Travel times come from the Tools for Assist integration's get_route tool, so the answer is Google's live traffic estimate and never a replay of an earlier one.",
+      fields: [
+        {
+          key: 'travel.enabled',
+          label: 'Answer travel questions locally',
+          type: 'checkbox',
+          help: "Reads the get_route tool Home Assistant already offers, so 'how long to get to the airport?' is a tool call instead of a model turn. Off forwards every travel question to your model.",
+        },
+        {
+          key: 'travel.mode',
+          label: 'Default journey',
+          type: 'select',
+          options: [
+            { value: 'auto', label: 'Whatever Home Assistant is set to' },
+            { value: 'DRIVE', label: 'Driving' },
+            { value: 'WALK', label: 'Walking' },
+            { value: 'BICYCLE', label: 'Cycling' },
+            { value: 'TRANSIT', label: 'Public transport' },
+            { value: 'TWO_WHEELER', label: 'Motorbike or scooter' },
+          ],
+          help: "Used when the question does not say how you are going. 'How long to walk to the shops?' always asks about walking, whatever this is set to.",
+        },
+      ],
+    },
+    {
       id: 'sports',
       title: 'Sports',
       description:

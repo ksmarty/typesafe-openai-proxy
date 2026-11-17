@@ -23,7 +23,13 @@ export interface CallDescriptor {
 /** Everything a rule can be written against, most specific first. */
 export function descriptorsOf(call: CallDescriptor): string[] {
   const out: string[] = [];
-  if (call.tool) out.push(call.tool);
+  if (call.tool) {
+    out.push(call.tool);
+    // A tool from an integration arrives namespaced (`llm_intents__get_route`), but the tool is
+    // called `get_route` in the integration, in Home Assistant, and by whoever writes a rule.
+    const short = call.tool.includes('__') ? call.tool.slice(call.tool.lastIndexOf('__') + 2) : '';
+    if (short) out.push(short);
+  }
   if (call.domain && call.action) out.push(`${call.domain}.${call.action}`);
   if (call.domain) out.push(call.domain);
   if (call.action) out.push(call.action);
