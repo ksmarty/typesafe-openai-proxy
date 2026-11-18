@@ -195,6 +195,19 @@ export interface Config {
      */
     mode: 'auto' | 'DRIVE' | 'WALK' | 'BICYCLE' | 'TRANSIT' | 'TWO_WHEELER';
   };
+  /**
+   * The rest of the Tools for Assist suite: search, places, arithmetic, conversions.
+   *
+   * The same reasoning as `travel`: "what's 12 times 8?" and "how many grams in 8 ounces?" are
+   * one call with known arguments, so the fast path asks the tool and saves the model round
+   * trip. Their answers are not cached here either — the integration caches a web or YouTube
+   * search for two hours at its own end, and whether that is fresh enough is its setting, not
+   * this proxy's.
+   */
+  suite: {
+    /** Read search, places, arithmetic and conversion sentences here. */
+    enabled: boolean;
+  };
   sports: {
     /** Answer score, standings and fixture questions locally. Off leaves every one to the model. */
     enabled: boolean;
@@ -454,6 +467,7 @@ export function defaultConfig(): Config {
       timeoutMs: 8000,
     },
     travel: { enabled: true, mode: 'auto' },
+    suite: { enabled: true },
     sports: { enabled: true, leagues: '', spoilerDelay: 'respect', cacheMs: 30000, timeoutMs: 8000 },
     music: { enabled: true, provider: 'auto', enqueue: 'replace', artist: 'artist' },
     reminders: { enabled: true },
@@ -574,6 +588,9 @@ function applyEnv(config: Config): void {
   }
   if (env.TRAVEL !== undefined && env.TRAVEL !== '') {
     config.travel.enabled = /^(1|true|yes|on)$/i.test(env.TRAVEL);
+  }
+  if (env.SUITE !== undefined && env.SUITE !== '') {
+    config.suite.enabled = /^(1|true|yes|on)$/i.test(env.SUITE);
   }
   if (env.TRAVEL_MODE) {
     const mode = env.TRAVEL_MODE.toUpperCase();

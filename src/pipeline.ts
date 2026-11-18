@@ -54,7 +54,7 @@ import {
 import { splitClauses } from './compound.js';
 import { decide, DecisionUnavailable } from './systemone.js';
 import { descriptorFromAnnouncement, findTool, inventoryFor, parseToolArguments } from './toolcall.js';
-import { readTravelQuestion, spokenToolResult, travelArgs } from './toolsuite.js';
+import { needsModelWords, readSuiteQuestion, readTravelQuestion, spokenToolResult, travelArgs } from './toolsuite.js';
 import type {
   Answer,
   Catalog,
@@ -504,6 +504,56 @@ export async function runPipeline(
           reason,
           category: 'query',
           action: 'get_route',
+        },
+        entry,
+      };
+    }
+  }
+  // "What's 12 times 8?", "how many grams in 8 ounces?", "search the web for the FA Cup final":
+  // the rest of the suite is the same shape as travel — a tool call with arguments the sentence
+  // already contains — so it is asked for here rather than reasoned about. Only a reader that
+  // positively recognised the sentence gets this far, and only when Home Assistant offers the
+  // tool, so a house without the integration forwards everything exactly as before.
+  if (active.routing.enabled && active.suite.enabled) {
+    const question = readSuiteQuestion(utterance, houseNamesOf(catalog));
+    const tool = question ? findTool(inventory, question.tool) : undefined;
+    if (question && tool) {
+      const reason = `${question.tool} for ${question.about} — asked ${tool.name}, no model call`;
+      const entry: TraceEntry = {
+        id: uid('trace'),
+        at: startedAt,
+        utterance,
+        route: 'tool',
+        reason,
+        gates: [],
+        category: 'query',
+        action: question.tool,
+        target: question.about,
+        backend: 'off',
+        catalogSource: catalog.source,
+        catalogExposure: catalog.exposure,
+        toolsOffered,
+        timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+        totalMs: Date.now() - startedAt,
+      };
+      noteTrace(entry);
+      recordTurn(request, systemPrompt, entry);
+      stats.requests += 1;
+      stats.toolCalls += 1;
+      stats.routable += 1;
+      return {
+        route: {
+          plan: {
+            kind: 'tool',
+            tool: tool.name,
+            args: question.args,
+            targets: [question.about],
+            action: question.tool,
+          } as Plan,
+          gates: [],
+          reason,
+          category: 'query',
+          action: question.tool,
         },
         entry,
       };
@@ -1191,6 +1241,10 @@ export async function handleChatCompletions(
     // A rule that said "Speak it" or showed a custom sentence is an instruction to say
     // something, so the silence marker is not an acceptable outcome for that round.
     const askedForSpeech = ruled.some((rule) => rule?.mode === 'speak' || rule?.mode === 'custom');
+    // A tool whose result is prose — a web hit, a list of places, a forecast — has no local
+    // sentence worth speaking: "Done with search_web" is worse than a model round trip. Unless
+    // a rule silenced it, the round goes to the model, which is holding the result anyway.
+    const wantsWords = silenced === 0 && described.some((item) => needsModelWords(item.call.tool));
 
     // null means "let Home Assistant, or the template, say it".
     const resolved = described.map((item, index) => {
@@ -1248,19 +1302,23 @@ export async function handleChatCompletions(
     // speech that no local sentence could provide: the model already holds the tool result,
     // so hand the round to it rather than answering with silence. A rule that says "Speak
     // it" and then says nothing is the bug this branch exists to prevent.
-    if (!text && (owedAnswer || askedForSpeech)) {
+    if (!text && (owedAnswer || askedForSpeech || wantsWords)) {
       const owedEntry: TraceEntry = {
         id: uid('trace'),
         at: Date.now(),
         utterance: '',
         route: 'forward',
-        reason: owedAnswer
-          ? `the answer to a question was spoken by the model (${describeRules(
+        reason: askedForSpeech
+          ? `the rule asked for speech and no local sentence could be built, so the model said it (${describeRules(
               described.map((item) => item.call),
             )})`
-          : `the rule asked for speech and no local sentence could be built, so the model said it (${describeRules(
-              described.map((item) => item.call),
-            )})`,
+          : owedAnswer
+            ? `the answer to a question was spoken by the model (${describeRules(
+                described.map((item) => item.call),
+              )})`
+            : `the tool answers in prose, so the model phrased it (${describeRules(
+                described.map((item) => item.call),
+              )})`,
         gates: [],
         backend: 'speech',
         ...(owner ? { answersTurn: owner } : {}),

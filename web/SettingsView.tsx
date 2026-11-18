@@ -38,6 +38,7 @@ import CallSplitIcon from '@mui/icons-material/CallSplit';
 import CloudIcon from '@mui/icons-material/Cloud';
 import DirectionsCarIcon from '@mui/icons-material/DirectionsCar';
 import HearingIcon from '@mui/icons-material/Hearing';
+import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import MusicNoteIcon from '@mui/icons-material/MusicNote';
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive';
 import RouteIcon from '@mui/icons-material/Route';
@@ -85,6 +86,7 @@ const GROUP_ICON: Record<string, ReactElement> = {
   clock: <ScheduleIcon fontSize="small" />,
   weather: <CloudIcon fontSize="small" />,
   travel: <DirectionsCarIcon fontSize="small" />,
+  suite: <ManageSearchIcon fontSize="small" />,
   sports: <SportsSoccerIcon fontSize="small" />,
   server: <DnsIcon fontSize="small" />,
 };

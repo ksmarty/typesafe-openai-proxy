@@ -632,10 +632,33 @@ Tools for Assist also registers `search_web`, `find_places`, `get_weather_foreca
 `search_wikipedia`, `search_youtube`, `play_video`, `calculate`, `unit_convert`,
 `get_device_history_context` and `calendar_day_info`, plus a Home Control clone of the Assist API.
 Home Assistant runs all of them, so nothing here needs to know they exist: the calls arrive as
-ordinary tool calls, the results are live answers, and nothing is cached. Two of them are read
-aloud locally — `calculate` ("2 plus 2 is 4") and `unit_convert` ("That's 42 kilometres") — and
-the long-text ones follow `speech.afterTool` and the speech rules like any other tool, because
-reading a web page or a forecast aloud is what the model is for.
+ordinary tool calls, the results are live answers, and nothing is cached.
+
+Five of them can also be asked for by name, before a model turn is spent on the question:
+`calculate`, `unit_convert`, `search_wikipedia`, `search_web` and `find_places`. Settings →
+**Search, sums and conversions** turns that on and off (or `SUITE=0`).
+
+| Said | Asked of Home Assistant | Spoken |
+| --- | --- | --- |
+| "what's 12 times 8?" | `calculate` with `12*8` | "That's 96." |
+| "what is 15% of 240?" | `calculate` with `15*0.01*240` | "That's 36." |
+| "how many grams in 8 ounces?" | `unit_convert`, ounce → gram | "8 ounces is 226.8 grams." |
+| "convert 2 cups to ml" | `unit_convert`, cup → ml | "2 cups is 473.2 ml." |
+| "search wikipedia for Alan Turing" | `search_wikipedia` | the model, from the summary |
+| "search the web for the FA Cup final" | `search_web` | the model, from the results |
+| "find the nearest pharmacy" | `find_places` | the model, from the places |
+
+The last three answer in prose — a paragraph, a list of shops — so the round that carries the
+result is handed to the model rather than announced as "Done with search_web". Only a result the
+proxy can say in one true sentence is said locally.
+
+An arithmetic sentence has to *be* arithmetic to be read here: the whole expression has to reduce
+to digits, `+ - * / % **` and brackets, because that is all the integration's calculator accepts.
+"how much is a pint of milk?" is not a sum and is forwarded. A sentence that names a device in the
+catalog is never sent to a search engine, and a place is only looked for when the sentence asks for
+one nearby. The other tools — `get_weather_forecast`, `search_youtube`, `play_video`,
+`get_device_history_context`, `calendar_day_info` — take arguments only the model can put together
+(a date range, a video URL from a previous search), so they stay with the model.
 
 The Home Control clone is a second way to turn a lamp on; it is not required, and the proxy makes
 no use of it. With both installed, Home Assistant offers the same intents twice and the fast path
@@ -1170,6 +1193,7 @@ The backend-related variables are worth naming, because there is no default deci
 | `SPORTS_SPOILER_DELAY` | `respect` | `respect` reads the delayed scoreboard when sports-ticker is holding a game back; `ignore` always reads the raw one |
 | `TRAVEL` | `1` | `0` hands travel questions back to your model |
 | `TRAVEL_MODE` | `auto` | `auto` keeps whatever mode Home Assistant is set to; or `DRIVE`, `WALK`, `BICYCLE`, `TRANSIT`, `TWO_WHEELER` |
+| `SUITE` | `1` | `0` hands sums, conversions, web and Wikipedia searches and nearby places back to your model |
 
 ### One key for both servers
 

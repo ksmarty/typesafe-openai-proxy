@@ -220,6 +220,21 @@ function spokenDistance(value: string): string {
   return `${raw} ${number === 1 ? pair[0] : pair[1]}`;
 }
 
+/** `8`, `226.8`, `0.5`: a number a speech engine reads without stumbling. */
+function spokenNumber(value: unknown): string {
+  const number = typeof value === 'number' ? value : Number(String(value).trim());
+  if (!Number.isFinite(number)) return String(value).trim();
+  return String(Math.round(number * 100) / 100);
+}
+
+/** `fluid_ounce` → "fluid ounces", `ml` → "ml": a unit as it is said out loud. */
+function spokenUnit(unit: string): string {
+  const words = unit.replace(/_/g, ' ').trim();
+  if (!words) return '';
+  if (words === 'ml' || words === 'celsius' || words === 'fahrenheit') return words;
+  return /s$/.test(words) ? words : `${words}s`;
+}
+
 function sentence(text: string): string {
   const trimmed = text.replace(/\s+/g, ' ').trim();
   if (!trimmed) return '';
@@ -262,6 +277,283 @@ export function speakRoute(data: unknown, args?: Record<string, unknown>): strin
 }
 
 /**
+ * A call one of the suite's readers worked out, before the tool inventory is consulted.
+ *
+ * `tool` is the integration's own name (`search_web`, not `llm_intents__search_web`): the
+ * pipeline looks the offered spelling up in the inventory, exactly as it does for `get_route`.
+ */
+export interface SuiteQuestion {
+  tool: 'search_web' | 'search_wikipedia' | 'calculate' | 'unit_convert' | 'find_places';
+  args: Record<string, unknown>;
+  /** The thing asked about, for the trace line: the query, the expression, the place. */
+  about: string;
+}
+
+/** Lower case, with the arithmetic kept: what the maths readers match against. */
+function maths(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[’']/g, '')
+    .replace(/[^a-z0-9+\-*/%().\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Openings that introduce a sum rather than a question about the house. */
+const CALC_OPENINGS = [
+  'what is',
+  "what's",
+  'whats',
+  'how much is',
+  'how much does',
+  'calculate',
+  'work out',
+  'solve',
+];
+
+/** Words for arithmetic, replaced by the operator `calculate` understands. */
+const SUM_WORDS: [RegExp, string][] = [
+  [/\bmultiplied by\b/g, '*'],
+  [/\bto the power of\b/g, '**'],
+  [/\bdivided by\b/g, '/'],
+  [/\bpercent of\b/g, '*0.01*'],
+  [/\bpercent\b/g, '*0.01'],
+  [/\bsquared\b/g, '**2'],
+  [/\bcubed\b/g, '**3'],
+  [/\btimes\b/g, '*'],
+  [/\bplus\b/g, '+'],
+  [/\bminus\b/g, '-'],
+  [/\bmod\b/g, '%'],
+  [/% of\b/g, '*0.01*'],
+  [/(\d)\s*x\s*(\d)/g, '$1*$2'],
+];
+
+/** An expression `calculate`'s AST walk will accept, and nothing else. */
+const SAFE_EXPRESSION = /^[-+*/().\d%]+$/;
+
+/**
+ * Read "what's 12 times 8?" as a calculator expression.
+ *
+ * The expression is built from the words themselves — `times` becomes `*`, `15% of` becomes
+ * `*0.01*` — and then checked against the operator set the integration's safe evaluator
+ * allows, so a sentence that carries any word this reader did not translate is refused
+ * instead of being sent as a broken expression.
+ */
+function readCalculation(text: string): SuiteQuestion | null {
+  const said = maths(text);
+  if (!/\d/.test(said)) return null;
+  const opening = CALC_OPENINGS.find((phrase) => said.startsWith(`${phrase} `));
+  if (!opening) return null;
+  let body = said.slice(opening.length).trim();
+  for (const [pattern, replacement] of SUM_WORDS) body = body.replace(pattern, replacement);
+  body = body.replace(/\s+/g, '');
+  if (!body || !/\d/.test(body)) return null;
+  if (!SAFE_EXPRESSION.test(body)) return null;
+  return {
+    tool: 'calculate',
+    args: { operation: 'expression', data: [body] },
+    about: body,
+  };
+}
+
+/** How each unit is written in the integration's arguments. */
+const UNIT_WORDS: [string, string][] = [
+  ['fluid ounces', 'fluid_ounce'],
+  ['fluid ounce', 'fluid_ounce'],
+  ['fl oz', 'fluid_ounce'],
+  ['tablespoons', 'tablespoon'],
+  ['tablespoon', 'tablespoon'],
+  ['tbsp', 'tablespoon'],
+  ['teaspoons', 'teaspoon'],
+  ['teaspoon', 'teaspoon'],
+  ['tsp', 'teaspoon'],
+  ['millilitres', 'ml'],
+  ['milliliters', 'ml'],
+  ['millilitre', 'ml'],
+  ['milliliter', 'ml'],
+  ['ml', 'ml'],
+  ['litres', 'liter'],
+  ['liters', 'liter'],
+  ['litre', 'liter'],
+  ['liter', 'liter'],
+  ['gallons', 'gallon'],
+  ['gallon', 'gallon'],
+  ['pints', 'pint'],
+  ['pint', 'pint'],
+  ['cups', 'cup'],
+  ['cup', 'cup'],
+  ['kilograms', 'kilogram'],
+  ['kilogram', 'kilogram'],
+  ['kgs', 'kilogram'],
+  ['kg', 'kilogram'],
+  ['milligrams', 'milligram'],
+  ['milligram', 'milligram'],
+  ['mgs', 'milligram'],
+  ['mg', 'milligram'],
+  ['grams', 'gram'],
+  ['gram', 'gram'],
+  ['pounds', 'pound'],
+  ['pound', 'pound'],
+  ['lbs', 'pound'],
+  ['lb', 'pound'],
+  ['ounces', 'ounce'],
+  ['ounce', 'ounce'],
+  ['oz', 'ounce'],
+  ['stones', 'stone'],
+  ['stone', 'stone'],
+  ['celsius', 'celsius'],
+  ['centigrade', 'celsius'],
+  ['fahrenheit', 'fahrenheit'],
+];
+
+/** Longest first, so "fluid ounces" is matched before "ounces". */
+const UNIT_PATTERN = UNIT_WORDS.map(([word]) => word)
+  .sort((a, b) => b.length - a.length)
+  .map((word) => word.replace(/ /g, '\\s+'))
+  .join('|');
+
+/** A number as people say it: `8`, `2.5`, `1/2`, `1 1/2`. */
+const AMOUNT = '\\d+(?:[./]\\d+)?(?:\\s+\\d+/\\d+)?';
+
+const UNIT_MAP = new Map(UNIT_WORDS);
+
+function unitOf(said: string): string | undefined {
+  return UNIT_MAP.get(said.replace(/\s+/g, ' ').trim());
+}
+
+/**
+ * Read "how many grams in 8 ounces?" or "convert 2 cups to ml" as a `unit_convert` call.
+ *
+ * Both units have to be ones the integration knows, and both forms of the sentence put the
+ * amount between them, so a question about a number of things in the house ("how many lights
+ * are on?") names no unit and is refused.
+ */
+function readConversion(text: string): SuiteQuestion | null {
+  const said = maths(text);
+  const u = UNIT_PATTERN;
+  const patterns: [RegExp, 'amount-from-to' | 'to-amount-from'][] = [
+    [new RegExp(`^how many (${u}) (?:are |is )?(?:in|to) (?:an? )?(${AMOUNT}) (${u})$`), 'to-amount-from'],
+    [new RegExp(`^(?:convert|change) (${AMOUNT}) (${u}) (?:to|into) (${u})$`), 'amount-from-to'],
+    [
+      new RegExp(
+        `^(?:(?:what is|what's|whats) |how many ${u} (?:is|are) )?(${AMOUNT}) (?:degrees? )?(${u}) (?:in|to|into) (?:degrees? )?(${u})$`,
+      ),
+      'amount-from-to',
+    ],
+  ];
+  for (const [pattern, shape] of patterns) {
+    const match = pattern.exec(said);
+    if (!match) continue;
+    const [, one, two, three] = match;
+    if (!one || !two || !three) continue;
+    const amount = shape === 'to-amount-from' ? two : one;
+    const from = unitOf(shape === 'to-amount-from' ? three : two);
+    const to = unitOf(shape === 'to-amount-from' ? one : three);
+    if (!from || !to) continue;
+    return {
+      tool: 'unit_convert',
+      args: { amount, from_unit: from, to_unit: to },
+      about: `${amount} ${from.replace('_', ' ')} in ${to.replace('_', ' ')}`,
+    };
+  }
+  return null;
+}
+
+/** Openings that ask the web a question rather than the house. */
+const WEB_OPENINGS: RegExp[] = [
+  /^(?:please )?search (?:the web|online|the internet) for (.+)$/,
+  /^(?:please )?google (.+)$/,
+  /^(?:please )?look up (.+?) online$/,
+  /^(?:please )?what does the web say about (.+)$/,
+];
+
+const WIKIPEDIA_OPENINGS: RegExp[] = [
+  /^(?:please )?search wikipedia for (.+)$/,
+  /^(?:please )?look up (.+?) on wikipedia$/,
+  /^(?:please )?what does wikipedia say about (.+)$/,
+  /^(?:please )?wikipedia (.+)$/,
+];
+
+/** Openings that ask where the nearest one of something is. */
+const PLACE_OPENINGS: RegExp[] = [
+  /^(?:please )?find (?:me )?(?:the )?(?:an? )?(?:nearest|closest|nearby) (.+)$/,
+  /^(?:please )?search for (?:the )?(?:an? )?(?:nearest|closest|nearby) (.+)$/,
+  /^(?:please )?where is the (?:nearest|closest) (.+)$/,
+  /^(?:please )?find (?:me )?an? (.+?) (?:near me|nearby|near here|round here)$/,
+];
+
+const ABOUT_LIMIT = 24;
+
+function aboutFrom(match: RegExpExecArray | null): string {
+  const value = (match?.[1] ?? '').replace(/\s+/g, ' ').trim();
+  if (!value) return '';
+  if (value.split(' ').length > ABOUT_LIMIT) return '';
+  if (!/\p{L}/u.test(value)) return '';
+  return value;
+}
+
+/**
+ * Read a sentence as a call to one of the suite's tools, or `null`.
+ *
+ * Order matters: the arithmetic and conversion readers work on symbols as well as words, so
+ * they are tried before the prose readers, and every reader is narrow enough to decline a
+ * sentence it does not positively recognise. `houseNames` keeps "the nearest lamp" out of
+ * Google Places.
+ */
+export function readSuiteQuestion(text: string, houseNames: string[] = []): SuiteQuestion | null {
+  const calculated = readCalculation(text);
+  if (calculated) return calculated;
+  const converted = readConversion(text);
+  if (converted) return converted;
+
+  const spoken = normalise(text);
+  if (!spoken) return null;
+  for (const pattern of WIKIPEDIA_OPENINGS) {
+    const about = aboutFrom(pattern.exec(spoken));
+    if (about) return { tool: 'search_wikipedia', args: { query: about }, about };
+  }
+  for (const pattern of WEB_OPENINGS) {
+    const about = aboutFrom(pattern.exec(spoken));
+    if (about) return { tool: 'search_web', args: { query: about }, about };
+  }
+  for (const pattern of PLACE_OPENINGS) {
+    const about = aboutFrom(pattern.exec(spoken));
+    if (!about) continue;
+    // Something in the house answers to this name, so it is not a place.
+    const atHome = houseNames.some((name) => {
+      const value = normalise(name);
+      return value.length > 2 && spoken.includes(value);
+    });
+    if (atHome) return null;
+    return { tool: 'find_places', args: { query: about }, about };
+  }
+  return null;
+}
+
+/**
+ * Tools whose result is prose, so only the model can phrase the answer.
+ *
+ * A search result, a list of places, a transcript of past states: reading one of these out
+ * through a template produces "Done with search_web", which is worse than a model round trip.
+ * The speech round forwards these to the model instead, unless a rule silenced them.
+ */
+const PROSE_TOOLS = new Set([
+  'search_web',
+  'search_wikipedia',
+  'find_places',
+  'search_youtube',
+  'get_device_history_context',
+  'get_weather_forecast',
+  'play_video',
+  'calendar_day_info',
+]);
+
+/** Does this tool's result have to be phrased by the model rather than spoken from a template? */
+export function needsModelWords(tool: string | undefined): boolean {
+  return Boolean(tool) && PROSE_TOOLS.has(shortName(tool as string));
+}
+
+/**
  * What to say after a Tools for Assist tool ran, in the tool's own terms.
  *
  * Returns `''` when this module cannot say it — an unknown tool, a language it does not write,
@@ -293,14 +585,16 @@ export function spokenToolResult(
   if (name === 'calculate') {
     const answer = record.value;
     if (answer === undefined || answer === null || answer === '') return '';
-    const expression = typeof args?.expression === 'string' ? args.expression.trim() : '';
-    return sentence(expression ? `${expression} is ${String(answer)}` : `That's ${String(answer)}`);
+    return sentence(`That's ${spokenNumber(answer)}`);
   }
   if (name === 'unit_convert') {
     const answer = record.value;
     if (answer === undefined || answer === null || answer === '') return '';
-    const unit = typeof args?.to_unit === 'string' ? args.to_unit.trim() : '';
-    return sentence(`That's ${String(answer)}${unit ? ` ${unit}` : ''}`);
+    const amount = typeof args?.amount === 'string' ? args.amount.trim() : '';
+    const from = typeof args?.from_unit === 'string' ? spokenUnit(args.from_unit) : '';
+    const to = typeof args?.to_unit === 'string' ? spokenUnit(args.to_unit) : '';
+    const left = amount ? `${amount}${from ? ` ${from}` : ''}` : '';
+    return sentence(left ? `${left} is ${spokenNumber(answer)}${to ? ` ${to}` : ''}` : `That's ${spokenNumber(answer)}${to ? ` ${to}` : ''}`);
   }
   return '';
 }

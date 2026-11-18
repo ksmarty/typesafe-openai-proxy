@@ -623,6 +623,20 @@ export function settingsGroups(): SettingsGroup[] {
       ],
     },
     {
+      id: 'suite',
+      title: 'Search, sums and conversions',
+      description:
+        "Web and Wikipedia search, nearby places, arithmetic and unit conversions come from the Tools for Assist integration's own tools. The fast path asks for them by name; the answers are only ever shown, never stored here.",
+      fields: [
+        {
+          key: 'suite.enabled',
+          label: 'Answer search, sum and conversion questions locally',
+          type: 'checkbox',
+          help: "Turns 'what's 12 times 8?', 'how many grams in 8 ounces?' and 'find the nearest pharmacy' into the tool call Home Assistant already offers. Off forwards them to your model, which asks for the same tools itself.",
+        },
+      ],
+    },
+    {
       id: 'sports',
       title: 'Sports',
       description:
