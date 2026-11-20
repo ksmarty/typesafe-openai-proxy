@@ -304,6 +304,27 @@ not the proxy's: enable **Stop word interruption** in Kiosk Satellite and "stop"
 on-device, with no STT and no pipeline. A wake word will not do it — the satellite ignores one while
 a turn is in flight.
 
+### The catalog read aloud
+
+A microphone hears the speaker as well as the room, and the worst thing it can hear is the
+assistant's own list of names:
+
+> Office, Living Room, Kitchen, Bedroom, Front Hall, Main Floor, Upstairs, Bedroom Lamp, Bedroom
+> lights, Evedal, …, Door.
+
+That is one real satellite's transcript. Nothing in it asks for anything, but it is far past the
+length a remark is allowed to be, so it used to take the whole slow path: a decision call, then the
+model server, which answered by naming things back — and the microphone heard that too.
+
+A sentence that is only names the catalog already holds, joined by commas or "and", with no verb of
+its own, is now answered with the configured silence instead: no decision call, no model round trip,
+nothing spoken. "No verb of its own" is doing the work — a part of the sentence that opens with a
+verb ("…, turn on") keeps the whole sentence for the decision model, and so does any sentence that
+holds a name the catalog does not know. Devices named with those words are fine: a media player
+called "Play Music" does not disqualify the list it appears in.
+
+This is the reader that closes the loop on a satellite that answers its own voice.
+
 ### Conversation that is not a command
 
 "No you", "ignore that", "thanks", "wait" are about the conversation, not about the house. The

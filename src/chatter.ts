@@ -18,12 +18,36 @@ import { normalise } from './util.js';
 const CHATTER_OPENER =
   /^(no|nope|nah|yes|yeah|yep|yup|ok|okay|sure|right|hmm+|hm+|um+|uh+|er+|ah+|oh+|ignore|ignored|forget|never ?mind|nevermind|stop|quit|cancel|actually|wait|hold on|thanks|thank you|thx|ta|hello|hi|hey|yo|please|sorry|oops|wrong|not that|nothing|whatever|anyway|lol|haha|maybe|dunno|idk|who|what|why|how come|huh|eh|well|so|you|me|i|do you|can you|are you|did you|is that|was that)\b/;
 
-/** A verb that makes the sentence an instruction, whatever else it contains. */
-const COMMAND_VERB =
-  /\b(turn|switch|set|dim|brighten|open|close|lock|unlock|play|pause|resume|mute|unmute|increase|decrease|raise|lower|toggle|arm|disarm|activate|run|clean|vacuum|add|complete|remove|put|make|shut|kill|broadcast|restart|reboot|find|search|start)\b/;
+/** The verbs that make a sentence an instruction, whatever else it contains. */
+const COMMAND_VERBS =
+  'turn|switch|set|dim|brighten|open|close|lock|unlock|play|pause|resume|mute|unmute|increase|decrease|raise|lower|toggle|arm|disarm|activate|run|clean|vacuum|add|complete|remove|put|make|shut|kill|broadcast|restart|reboot|find|search|start';
+
+const COMMAND_VERB = new RegExp(`\\b(${COMMAND_VERBS})\\b`);
+
+/** The same verbs where they matter most: the word the sentence opens with. */
+const LEADING_COMMAND_VERB = new RegExp(`^(${COMMAND_VERBS})\\b`);
 
 /** A sentence longer than this is not a terse aside; let the model read it. */
 const MAX_WORDS = 6;
+
+/**
+ * Whether the sentence contains a verb that makes it an instruction, whatever else it holds.
+ * Exported because "this could be a command" is the guard every other reader needs before it
+ * calls a sentence something else: a roll call of names is only a roll call when nothing in it
+ * asks for anything.
+ */
+export function hasCommandVerb(text: string): boolean {
+  return COMMAND_VERB.test(text);
+}
+
+/**
+ * Whether the sentence opens with one of those verbs. A part of a sentence that starts with a
+ * verb is an instruction even when the rest of it is names ("turn on kitchen lights"); a part that
+ * merely contains one is often a device whose name holds the word ("Deadbolt Detector Lock State").
+ */
+export function startsWithCommandVerb(text: string): boolean {
+  return LEADING_COMMAND_VERB.test(text);
+}
 
 /**
  * The reason this sentence is conversation rather than a command, or null when it might be

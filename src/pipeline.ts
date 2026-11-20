@@ -22,6 +22,7 @@ import { readWeatherQuestion, requestedSummaryLanguage, weatherAnswer, weatherFo
 import { readSportsQuestion, sportsAnswer, sportsFor } from './sports.js';
 import { looksLikeChatter } from './chatter.js';
 import { cancelPlan } from './cancel.js';
+import { looksLikeRollCall } from './rollcall.js';
 import { judgeAddressee } from './addressee.js';
 import { actionPhrase, humanTarget, interpolateSpeech, ruleFor } from './speech.js';
 import { cachedDecision, decisionKey, isQuestion, rememberDecision } from './decidecache.js';
@@ -766,6 +767,25 @@ export async function runPipeline(
   if (active.routing.enabled) {
     const cancel = cancelPlan(utterance, inventory);
     if (cancel) return localCall(cancel.plan, cancel.reason);
+  }
+
+  // "Office, Living Room, Kitchen, Bedroom, …, Door.": the microphone heard the assistant's own
+  // list of names. Nothing in it asks for anything, but it is far past the chatter filter's word
+  // limit, so it used to spend a decision call and then a full model round trip — the model
+  // answered by naming things back, which the microphone heard in turn. A sentence that is only
+  // names the catalog already holds is answered with silence instead, and the loop closes.
+  if (active.routing.enabled) {
+    const rollCall = looksLikeRollCall(utterance, catalog);
+    if (rollCall) {
+      const entry = ignoredEntry(startedAt, utterance, catalog, toolsOffered, catalogMs, rollCall);
+      noteTrace(entry);
+      stats.requests += 1;
+      stats.ignored += 1;
+      return {
+        route: { plan: { kind: 'ignore', reason: rollCall, silence: active.speech.silence }, gates: [], reason: rollCall },
+        entry,
+      };
+    }
   }
 
   // "no you", "ignore that", "thanks" — conversation, not a command. Answering it with a
