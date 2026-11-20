@@ -773,8 +773,9 @@ export async function runPipeline(
   // list of names. Nothing in it asks for anything, but it is far past the chatter filter's word
   // limit, so it used to spend a decision call and then a full model round trip — the model
   // answered by naming things back, which the microphone heard in turn. A sentence that is only
-  // names the catalog already holds is answered with silence instead, and the loop closes.
-  if (active.routing.enabled) {
+  // names is answered with silence instead, and the loop closes. An armed question is exempt: the
+  // answer to "which one did you mean" can be a list of names and has to reach the decision.
+  if (active.routing.enabled && !pendingConfirmations.get(sessionKey(request, systemPrompt))) {
     const rollCall = looksLikeRollCall(utterance, catalog);
     if (rollCall) {
       const entry = ignoredEntry(startedAt, utterance, catalog, toolsOffered, catalogMs, rollCall);

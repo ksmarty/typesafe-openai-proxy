@@ -15,9 +15,9 @@
  *
  * This reader closes that loop. A sentence that is nothing but names the catalog already holds,
  * joined by commas or "and", with no verb, is not addressed to the assistant: the turn ends with
- * the configured silence, no decision call and no model round trip. Anything else — a verb
- * anywhere, a question, a name the catalog does not know, two names where four are needed — is
- * left alone, because a sentence the proxy cannot read is exactly what the model is for.
+ * the configured silence, no decision call and no model round trip. Anything else — a part that
+ * opens with a verb, a question, two names where four are needed — is left alone, because a
+ * sentence the proxy cannot read is exactly what the model is for.
  */
 
 import { startsWithCommandVerb } from './chatter.js';
@@ -30,8 +30,32 @@ const SEPARATOR = /\s*(?:,|;|\/|\band\b|\bthen\b|\bor\b)\s*/;
 /** Fewer names than this is a short phrase that something else should read. */
 const MIN_NAMES = 4;
 
-/** The share of the sentence that has to be catalog names before the whole thing is a list. */
-const MIN_SHARE = 0.75;
+/**
+ * How much of a *short* sentence has to be names before it is a list: "Office, Living Room,
+ * Kitchen, Bedroom, garage" is somebody talking, not a catalog.
+ */
+const SHORT_SHARE = 0.75;
+
+/**
+ * The same share for a long one. A satellite reading a catalog out loud names far more than
+ * Assist is exposed to — the live transcript behind this reader was 34 names of which the
+ * catalog held 15 — so a strict share declines exactly the sentence the reader exists for.
+ * Thirty-four parts separated by commas is decisive on its own; the share only says "and a
+ * good part of it is even in the catalog".
+ */
+const LONG_SHARE = 0.35;
+
+/** From this many parts on, a sentence is read aloud rather than spoken. */
+const LONG_SEGMENTS = 8;
+
+/** Whether any of a part's first words is a command verb, i.e. the part is an instruction. */
+function opensWithVerb(part: string): boolean {
+  const words = part.split(' ').filter(Boolean);
+  for (let index = 0; index < Math.min(3, words.length); index += 1) {
+    if (startsWithCommandVerb(words.slice(index).join(' '))) return true;
+  }
+  return false;
+}
 
 /**
  * The reason this sentence is a roll call rather than a command, or null when it might be one.
@@ -71,11 +95,14 @@ export function looksLikeRollCall(text: string, catalog: Catalog): string | null
   const matched = segments.filter((segment) => names.has(segment));
   const rest = segments.filter((segment) => !names.has(segment));
   if (matched.length < MIN_NAMES) return null;
-  if (matched.length / segments.length < MIN_SHARE) return null;
+  const needed = segments.length >= LONG_SEGMENTS ? LONG_SHARE : SHORT_SHARE;
+  if (matched.length / segments.length < needed) return null;
   // A part that opens with a verb is an instruction: "Kitchen Lights, Bed Lights, turn on" reads
   // as a list, but "turn on" is what the sentence is for. A verb merely inside a part is not, since
   // Home Assistant names devices with those words — "Play Music", "Deadbolt Detector Lock State".
-  if (rest.some((segment) => startsWithCommandVerb(segment))) return null;
+  // The first three words are close enough to the front: "Door turn on the office lamp" is a name
+  // with no comma after it and still an instruction.
+  if (rest.some(opensWithVerb)) return null;
 
   const opening = text.trim();
   const shown = opening.length > 48 ? `${opening.slice(0, 48)}…` : opening;

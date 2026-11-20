@@ -75,6 +75,29 @@ function catalogOf(names: string[], areas: string[]): Catalog {
 
 const CATALOG = catalogOf(ENTITIES, AREAS);
 
+/** The real catalog of the install that produced HEARD: 15 exposed names of the 34 read aloud. */
+const NARROW_CATALOG: Catalog = catalogOf(
+  [
+    'Bed Lights',
+    'Bedroom Lamp',
+    'Evedal',
+    'Kitchen Lights',
+    'Varmblixt',
+    'Office Lamp',
+    'Office Overhead',
+    'Living Room TV',
+    'Download Movie',
+    'Play Music',
+    'Projector Remote Projector Off',
+    'Projector Remote Projector On',
+    'Shopping list',
+    'Deadbolt Detector Deadbolt Detector Lock State',
+    'Door Sensor',
+  ],
+  ['Bedroom', 'Front Hall', 'Living Room', 'Office'],
+);
+
+
 function tool(name: string, properties: Record<string, unknown> = {}): OpenAITool {
   return {
     type: 'function',
@@ -112,10 +135,25 @@ test('a list of room names alone is a roll call too', () => {
   assert.ok(looksLikeRollCall('Office, Living Room, Kitchen, Bedroom.', CATALOG));
 });
 
-test('a name the catalog does not hold is left to the model', () => {
-  // Four known names and two unknown ones is under the share a roll call needs.
+test('a short sentence of names mostly unknown to the catalog is left to the model', () => {
+  // Six parts is a sentence somebody spoke, so the share stays strict here.
   assert.equal(looksLikeRollCall('Office, Living Room, Kitchen, Bedroom, garage, shed', CATALOG), null);
   assert.equal(looksLikeRollCall('Office, Living Room, Kitchen, Bedroom, gimme, pony', CATALOG), null);
+});
+
+test('a catalog read aloud is a roll call even when the catalog holds few of the names', () => {
+  // The live install this reader was written for exposes fifteen names and reads out thirty-four:
+  // a four-in-five share declined the very sentence the reader exists for.
+  const reason = looksLikeRollCall(HEARD, NARROW_CATALOG);
+  assert.ok(reason, 'a long list is read aloud, not spoken');
+  assert.match(reason!, /roll call, not a command/);
+
+  // Lower case and a straggling full stop are the same sentence.
+  assert.ok(looksLikeRollCall(HEARD.toLowerCase(), NARROW_CATALOG));
+});
+
+test('a long list that still holds an instruction is left to the model', () => {
+  assert.equal(looksLikeRollCall(`${HEARD} turn on the office lamp`, NARROW_CATALOG), null);
 });
 
 test('an instruction is never a roll call, however many names it holds', () => {

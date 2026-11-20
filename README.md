@@ -316,12 +316,19 @@ That is one real satellite's transcript. Nothing in it asks for anything, but it
 length a remark is allowed to be, so it used to take the whole slow path: a decision call, then the
 model server, which answered by naming things back — and the microphone heard that too.
 
-A sentence that is only names the catalog already holds, joined by commas or "and", with no verb of
-its own, is now answered with the configured silence instead: no decision call, no model round trip,
-nothing spoken. "No verb of its own" is doing the work — a part of the sentence that opens with a
-verb ("…, turn on") keeps the whole sentence for the decision model, and so does any sentence that
-holds a name the catalog does not know. Devices named with those words are fine: a media player
-called "Play Music" does not disqualify the list it appears in.
+A sentence that is only names, joined by commas or "and", with no verb of its own, is now answered
+with the configured silence instead: no decision call, no model round trip, nothing spoken. "No verb
+of its own" is doing the work — a part of the sentence that opens with a verb ("…, turn on", or
+"… Door turn on the office lamp" with the comma missing) keeps the whole sentence for the decision
+model. Devices named with those words are fine: a media player called "Play Music" does not
+disqualify the list it appears in.
+
+How much of the sentence has to be names depends on how long it is. A short one ("Office, Living
+Room, Kitchen, Bedroom, garage") is somebody talking, and most of it has to be names the catalog
+holds. A long one is read aloud rather than spoken, and the catalog usually knows only part of it:
+the transcript above is thirty-four names of which that install exposes fifteen, so from eight parts
+on a third is enough. The alternative was a rule that declined the very sentence it was written
+for.
 
 This is the reader that closes the loop on a satellite that answers its own voice.
 
