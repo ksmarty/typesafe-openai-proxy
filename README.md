@@ -1008,11 +1008,13 @@ what happened**: "Sent it to Sarah." only once the service returned; a refusal o
 spoken as *"I couldn't send that to Sarah: <the reason>"*, because a message that did not go out
 must never sound like one that did.
 
-**When it is left alone.** The reader is off by default (`MESSAGING=1`, or Settings → Messages →
-*Read message sentences here*) so a house that never sends anything is untouched. A sentence it
-cannot finish — an unknown name, two Sarahs, a service setting that is not `domain.service`, a
-contact with no address — is answered or forwarded rather than half-sent. Nothing about a message
-is cached: the body is taken from the sentence as said and the call goes out on the turn.
+**When it is left alone.** Filling in a contact is all it takes: the reader is on by default and
+stays harmless with an empty list, because there is no name to resolve and the sentence is left to
+the model exactly as before (`MESSAGING=0`, or Settings → Messages → *Read message sentences here*,
+switches it off for good). A sentence it cannot finish — an unknown name, two Sarahs, a service
+setting that is not `domain.service`, a contact with no address — is answered or forwarded rather
+than half-sent. Nothing about a message is cached: the body is taken from the sentence as said and
+the call goes out on the turn.
 
 
 The catalog asks Home Assistant which entities are exposed to the conversation agent
@@ -1264,7 +1266,7 @@ The backend-related variables are worth naming, because there is no default deci
 | `TRAVEL` | `1` | `0` hands travel questions back to your model |
 | `TRAVEL_MODE` | `auto` | `auto` keeps whatever mode Home Assistant is set to; or `DRIVE`, `WALK`, `BICYCLE`, `TRANSIT`, `TWO_WHEELER` |
 | `SUITE` | `1` | `0` hands sums, conversions, web and Wikipedia searches and nearby places back to your model |
-| `MESSAGING` | `0` | `1` reads "text Sarah that I'm running late" and sends it through ha-bluebubbles itself |
+| `MESSAGING` | `1` | `0` hands “text Sarah that I'm running late” back to your model; with no contacts the reader already leaves it alone |
 | `MESSAGING_CONFIRM` | `1` | `0` sends without asking first |
 | `MESSAGING_SERVICE` | `bluebubbles.send_message` | the `domain.service` a message is sent with |
 | `MESSAGING_CONTACTS` | *(empty)* | contacts as `Name=+15551234567`, separated by `;` or newlines — afterwards editable in Settings → Messages |

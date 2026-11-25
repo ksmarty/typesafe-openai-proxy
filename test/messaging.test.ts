@@ -72,7 +72,7 @@ function config(patch: (base: Config) => Config = (base) => base): Config {
     decision: { ...base.decision, backend: 'heuristic', baseUrl: '', historyTurns: 0, autoStart: true },
     catalog: { ...base.catalog, haUrl: '', haToken: '' },
     upstream: { ...base.upstream, baseUrl: '', apiKey: '', model: 'test-model' },
-    messaging: { ...base.messaging, enabled: true, confirm: false, contacts: CONTACTS },
+    messaging: { ...base.messaging, confirm: false, contacts: CONTACTS },
   });
 }
 
@@ -252,8 +252,16 @@ test('saying no leaves the message unsent', async () => {
   assert.equal(pendingConfirmations.size, 0);
 });
 
-test('off by default, and an unreadable name is never sent anywhere', async () => {
-  // A house that never sends a message behaves exactly as it did before this reader existed.
+test('no contacts leaves a message sentence alone, and an unreadable name is never sent anywhere', async () => {
+  // A house that never sends a message behaves exactly as it did before this reader existed:
+  // there is nothing to resolve a name against, so the sentence stays the model's business.
+  const empty = await say('text Mum that I am on my way', config((base) => ({
+    ...base,
+    messaging: { ...base.messaging, contacts: [] },
+  })));
+  assert.doesNotMatch(said(empty), /Sent it to|don't have a contact/i);
+
+  // Switching the reader off still means off, contacts or not.
   const off = await say('text Mum that I am on my way', config((base) => ({
     ...base,
     messaging: { ...base.messaging, enabled: false },

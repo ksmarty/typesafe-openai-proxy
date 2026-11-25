@@ -419,7 +419,7 @@ export function settingsGroups(): SettingsGroup[] {
           key: 'messaging.enabled',
           label: 'Read message sentences here',
           type: 'checkbox',
-          help: 'Off leaves every “text …”, “message …” and “send a text to …” sentence to the model server. Needs Home Assistant URL and token under Home Assistant, because the proxy calls the service itself.',
+          help: 'Off leaves every “text …”, “message …” and “send a text to …” sentence to the model server, even with contacts filled in. Needs Home Assistant URL and token under Home Assistant, because the proxy calls the service itself.',
         },
         {
           key: 'messaging.confirm',

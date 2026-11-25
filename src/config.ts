@@ -513,10 +513,11 @@ export function defaultConfig(): Config {
     reminders: { enabled: true },
     timers: { enabled: true },
     media: { enabled: true },
-    // Off by default: sending a message names a person rather than a device, so the contacts
-    // have to be filled in before the reader can do anything useful. Forwarding until then
-    // keeps a house that never texts behaving exactly as it did.
-    messaging: { enabled: false, confirm: true, service: 'bluebubbles.send_message', contacts: [] },
+    // On by default, and harmless: with no contacts configured the reader returns null on the
+    // first line, so a house that never texts forwards exactly as it did. Adding a contact is
+    // then enough to make "text Sarah …" work — a second switch to find first is how the
+    // feature came out silent for someone who had already filled the list in.
+    messaging: { enabled: true, confirm: true, service: 'bluebubbles.send_message', contacts: [] },
     // On by default: an overheard remark answered with an action is the failure this
     // exists to prevent, and the judge declines to speak unless it is sure.
     listening: { enabled: true, confidence: 0.75, local: true },

@@ -625,6 +625,9 @@ function ContactsField({ field, config, onChange }: ControlProps) {
   const stacked = useMediaQuery(theme.breakpoints.down('sm'));
   const [rows, setRows] = useState<Contact[]>(() => asContacts(readPath(config, field.key)));
   const [pending, setPending] = useState<number | null>(null);
+  // The switch that arms this list lives above it in the same group, and it is easy to leave
+  // off while filling the list in — which looks exactly like the feature being broken.
+  const off = readPath(config, 'messaging.enabled') === false;
 
   const write = (next: Contact[]) => {
     setRows(next);
@@ -656,6 +659,13 @@ function ContactsField({ field, config, onChange }: ControlProps) {
       {field.help ? (
         <Typography variant="caption" color="text.secondary">
           {field.help}
+        </Typography>
+      ) : null}
+
+      {off ? (
+        <Typography variant="caption" color="warning.main">
+          Nothing will be sent: “Read message sentences here” above is switched off, so this list
+          is never used.
         </Typography>
       ) : null}
 

@@ -254,6 +254,10 @@ export interface MessagingInput {
  */
 export function messagingPlan({ utterance, config }: MessagingInput): MessagingRead | null {
   const contacts = config.messaging.contacts;
+  // No contacts, nothing to resolve against: "text Sarah …" would only ever come back as
+  // "I don't have a contact called Sarah", so the sentence stays the model's business. This is
+  // what keeps the reader safe to leave on — the switch is the off switch, not the on switch.
+  if (contacts.length === 0) return null;
   const sentence = readMessagingSentence(utterance, contacts);
   if (!sentence) return null;
 
