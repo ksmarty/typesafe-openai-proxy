@@ -986,10 +986,16 @@ uses, and answers the turn with a sentence.
 | Said | Sent |
 | --- | --- |
 | "text Sarah that I'm running late" | `addresses: "+15551234567"`, `message: "I'm running late"` |
+| "tell Sarah I'm running late" | the same, and the same for "let Sarah know …" |
 | "send a text to Mum saying the door is open" | the same shape, to Mum's number |
 | "text Sarah and Mum that dinner is ready" | one message, both addresses |
 | "message sarah@example.com I'll be late" | the address as said, no contact needed |
 | "imessage +1 555 123 4567 that the cat is out" | the number as said |
+
+**"Tell" is also the verb this house uses for the model** ("tell me a joke", "let me know when the
+washing is done"), so that shape is guarded rather than greedy: a recipient that is a pronoun — me,
+us, him, her, them, everyone, someone, nobody, you — is never a contact, and the sentence is left to
+the model exactly as before. Only a name it can resolve, or an address said outright, sends.
 
 **Contacts live here, not in Home Assistant.** The name is what has to be resolved and this is
 what resolves it, so the list belongs in Settings → **Messages** — a row per person, a name and
@@ -1007,6 +1013,22 @@ sends on "yes", using the same armed question and time window as every other con
 what happened**: "Sent it to Sarah." only once the service returned; a refusal or a timeout is
 spoken as *"I couldn't send that to Sarah: <the reason>"*, because a message that did not go out
 must never sound like one that did.
+
+**Importing from Google Contacts.** Typing numbers in is not the point, so Settings → **Messages** →
+*Import from Google* reads the contacts from the Google account you already keep them in. It is
+read-only (`contacts.readonly`), through an OAuth client **of your own**: Google has to trust the
+redirect address, so a client shipped with this proxy could not work for yours. Create one in
+Google Cloud → Credentials → OAuth client ID → *Web application*, add
+`https://<your-proxy>/api/google/callback` as a redirect URI (Settings → Google Contacts shows the
+exact one to register; empty means "this dashboard's own address", which is the loopback case
+Google allows without a verification review), paste the client ID and secret in, then **Connect
+Google** and pick names from the list. Rows already in the list are shown disabled, one row per
+address so a person's phone and email are two choices, and nothing is imported unless you tick it.
+
+The refresh token is stored in `data/config.json`, is never returned through the API (the same
+masking as every other secret), and **Disconnect** clears it — imported contacts stay. Reading the
+list happens when the dialog opens, never from a cached copy, so a number changed in Google is the
+number that gets texted.
 
 **When it is left alone.** Filling in a contact is all it takes: the reader is on by default and
 stays harmless with an empty list, because there is no name to resolve and the sentence is left to
@@ -1270,6 +1292,10 @@ The backend-related variables are worth naming, because there is no default deci
 | `MESSAGING_CONFIRM` | `1` | `0` sends without asking first |
 | `MESSAGING_SERVICE` | `bluebubbles.send_message` | the `domain.service` a message is sent with |
 | `MESSAGING_CONTACTS` | *(empty)* | contacts as `Name=+15551234567`, separated by `;` or newlines — afterwards editable in Settings → Messages |
+| `GOOGLE_CLIENT_ID` | *(empty)* | OAuth client for importing contacts, from your own Google Cloud project |
+| `GOOGLE_CLIENT_SECRET` | *(empty)* | that client's secret |
+| `GOOGLE_REDIRECT_URI` | *(empty)* | must match the client exactly; empty uses the address the dashboard is opened at |
+| `GOOGLE_REFRESH_TOKEN` | *(empty)* | filled in by **Connect Google**, not by hand |
 
 ### One key for both servers
 

@@ -1,3 +1,4 @@
+import type { Contact } from '../src/config.js';
 import type { SettingsGroup } from '../src/schema.js';
 import type { Gate, TraceEntry } from '../src/types.js';
 
@@ -179,6 +180,26 @@ export const resetConfig = (group?: string) =>
     method: 'POST',
     body: JSON.stringify(group ? { group } : {}),
   });
+
+/**
+ * Google Contacts, for the import list on the Messages page.
+ *
+ * `getGoogleStatus` never carries the token: the server answers whether one exists, and the
+ * settings API masks the value itself.
+ */
+export interface GoogleStatus {
+  configured: boolean;
+  connected: boolean;
+  redirectUri: string;
+}
+
+export const getGoogleStatus = () => call<GoogleStatus>('/api/google/status');
+export const startGoogleAuth = () =>
+  call<{ url: string; redirectUri: string }>('/api/google/start');
+export const getGoogleContacts = () =>
+  call<{ ok: boolean; error?: string; contacts: Contact[] }>('/api/google/contacts');
+export const disconnectGoogle = () =>
+  call<{ ok: boolean }>('/api/google/disconnect', { method: 'POST' });
 
 export const testHa = (url?: string, token?: string) =>
   call<TestResult>('/api/test/ha', { method: 'POST', body: JSON.stringify({ url, token }) });

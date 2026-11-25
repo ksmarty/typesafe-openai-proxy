@@ -56,6 +56,16 @@ import { breakerState, listModels, resetBreaker, warmDecision } from './systemon
 import { configureDecisionCache, decisionCachePath, decisionCacheSize } from './decidecache.js';
 import { ensureUiBundle } from './ui.js';
 import { fetchWithTimeout, uid } from './util.js';
+import {
+  authorizeUrl,
+  beginAuth,
+  exchangeCode,
+  finishAuth,
+  googleConfigured,
+  listContacts,
+  redirectUriFor,
+  statusFor,
+} from './google.js';
 import { appVersion } from './version.js';
 import type { Config } from './config.js';
 import type { Catalog, OpenAIChatRequest, TraceEntry } from './types.js';
@@ -241,6 +251,51 @@ async function refreshCatalog(force: boolean): Promise<Catalog> {
   return getCatalog(active);
 }
 
+/**
+ * The address this dashboard is being read at.
+ *
+ * Google wants the redirect URI back exactly as it was sent, and a proxy behind ingress or a
+ * reverse proxy is reached over a name this process never sees — hence the forwarded headers,
+ * and hence the setting that overrides all of this.
+ */
+function requestOrigin(request: IncomingMessage): string {
+  const first = (value: string | string[] | undefined): string => {
+    const text = Array.isArray(value) ? value[0] ?? '' : value ?? '';
+    return text.split(',')[0]?.trim() ?? '';
+  };
+  const proto = first(request.headers['x-forwarded-proto']) || 'http';
+  const host =
+    first(request.headers['x-forwarded-host']) ||
+    first(request.headers.host) ||
+    `127.0.0.1:${process.env.PORT ?? 8080}`;
+  return `${proto}://${host}`;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+/** A page for the consent flow to land on: it is a browser redirect, not a JSON client. */
+function sendHtml(response: ServerResponse, status: number, title: string, body: string): void {
+  response.writeHead(status, {
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+  });
+  response.end(
+    `<!doctype html><html lang="en"><head><meta charset="utf-8">` +
+      `<title>${escapeHtml(title)}</title>` +
+      `<style>body{margin:0;padding:48px;font:16px/1.5 system-ui,sans-serif;background:#0f1216;color:#e6edf3}` +
+      `h1{font-size:22px;margin:0 0 12px}p{margin:0 0 8px;color:#9fb0c0}code{color:#7fd1b9}</style></head>` +
+      `<body><h1>${escapeHtml(title)}</h1><p>${body}</p>` +
+      `<p>You can close this tab and return to the dashboard.</p>` +
+      `<script>setTimeout(() => window.close(), 1200)<\/script></body></html>`,
+  );
+}
+
 async function api(request: IncomingMessage, response: ServerResponse, url: URL, method: string): Promise<boolean> {
   const path = url.pathname.replace(/^\/api/, '');
 
@@ -396,6 +451,78 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
       defaults: defaultConfig(),
       envOverrides: activeEnvOverrides(),
     });
+    return true;
+  }
+
+  // Google Contacts. The token is written by the callback and never read back out to the
+  // browser: status says whether one exists, and the settings API masks the value itself.
+  if (path === '/google/status' && method === 'GET') {
+    jsonResponse(response, 200, statusFor(loadConfig(), requestOrigin(request)));
+    return true;
+  }
+
+  if (path === '/google/start' && method === 'GET') {
+    const active = loadConfig();
+    if (!googleConfigured(active)) {
+      jsonResponse(response, 400, {
+        error: 'no OAuth client is saved yet — add one under Settings, Google Contacts',
+      });
+      return true;
+    }
+    const redirect = redirectUriFor(active, requestOrigin(request));
+    const state = beginAuth(redirect);
+    jsonResponse(response, 200, { url: authorizeUrl(active, state, redirect), redirectUri: redirect });
+    return true;
+  }
+
+  if (path === '/google/callback' && method === 'GET') {
+    const state = url.searchParams.get('state') ?? '';
+    const code = url.searchParams.get('code') ?? '';
+    const refused = url.searchParams.get('error');
+    // The state is consumed either way: a replayed callback is not a second connection.
+    const redirect = finishAuth(state);
+    if (refused) {
+      sendHtml(response, 400, 'Google refused the connection', escapeHtml(refused));
+      return true;
+    }
+    if (!redirect || !code) {
+      sendHtml(
+        response,
+        400,
+        'That connection link expired',
+        'Start it again from the dashboard: a consent flow is only good for ten minutes.',
+      );
+      return true;
+    }
+    const exchanged = await exchangeCode(loadConfig(), code, redirect);
+    if (exchanged.error || !exchanged.refreshToken) {
+      sendHtml(response, 502, 'Google would not hand over a token', escapeHtml(exchanged.error ?? ''));
+      return true;
+    }
+    saveConfig({ google: { refreshToken: exchanged.refreshToken } });
+    note('google contacts: connected');
+    sendHtml(
+      response,
+      200,
+      'Connected',
+      'The dashboard can now read your Google contacts, read-only. Import them under Settings, Messages.',
+    );
+    return true;
+  }
+
+  if (path === '/google/contacts' && method === 'GET') {
+    const listed = await listContacts(loadConfig());
+    if (listed.error) {
+      jsonResponse(response, 200, { ok: false, error: listed.error, contacts: [] });
+      return true;
+    }
+    jsonResponse(response, 200, { ok: true, contacts: listed.contacts ?? [] });
+    return true;
+  }
+
+  if (path === '/google/disconnect' && method === 'POST') {
+    saveConfig({ google: { refreshToken: '' } });
+    jsonResponse(response, 200, { ok: true });
     return true;
   }
 

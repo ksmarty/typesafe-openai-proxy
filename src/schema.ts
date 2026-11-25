@@ -413,13 +413,13 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'messaging',
       title: 'Messages',
       description:
-        'Reads “text Sarah that I’m running late” and sends it through ha-bluebubbles. The integration registers a service but no assistant tool, so the proxy sends the message itself: it resolves the name against the contacts below and calls the service on your Home Assistant.',
+        'Reads “text Sarah that I’m running late” — or “tell Sarah I’m running late” — and sends it through ha-bluebubbles. The integration registers a service but no assistant tool, so the proxy sends the message itself: it resolves the name against the contacts below and calls the service on your Home Assistant.',
       fields: [
         {
           key: 'messaging.enabled',
           label: 'Read message sentences here',
           type: 'checkbox',
-          help: 'Off leaves every “text …”, “message …” and “send a text to …” sentence to the model server, even with contacts filled in. Needs Home Assistant URL and token under Home Assistant, because the proxy calls the service itself.',
+          help: 'Off leaves every “text …”, “tell Sarah …”, “message …” and “send a text to …” sentence to the model server, even with contacts filled in. Needs Home Assistant URL and token under Home Assistant, because the proxy calls the service itself.',
         },
         {
           key: 'messaging.confirm',
@@ -439,6 +439,40 @@ export function settingsGroups(): SettingsGroup[] {
           label: 'Contacts',
           type: 'contacts',
           help: 'The names you say, and the phone number or email address each one means. A name is matched whole first, then by its first word, so “text Sarah” works for “Sarah Miller”; two Sarahs is a question, never a guess.',
+        },
+      ],
+    },
+    {
+      id: 'google',
+      title: 'Google Contacts',
+      description:
+        'Fills the contact list above from the Google account you already keep it in, instead of typing every name and number. Read-only, through an OAuth client of your own: the proxy stores the refresh token it gets back and never writes to the account.',
+      fields: [
+        {
+          key: 'google.clientId',
+          label: 'OAuth client ID',
+          type: 'text',
+          placeholder: '1234567890-abc.apps.googleusercontent.com',
+          help: 'From a Google Cloud project with the People API enabled: Credentials → Create credentials → OAuth client ID → Web application. Enable the People API on that project first, or the list comes back empty.',
+        },
+        {
+          key: 'google.clientSecret',
+          label: 'OAuth client secret',
+          type: 'password',
+          help: 'Beside the client id on the same credentials page. Stored in data/config.json and masked everywhere it is read back.',
+        },
+        {
+          key: 'google.redirectUri',
+          label: 'Redirect URI',
+          type: 'text',
+          placeholder: 'https://proxy.example.com/api/google/callback',
+          help: 'Has to match a redirect URI on that OAuth client character for character. Leave it empty to use this dashboard’s own address, which is what a loopback client needs.',
+        },
+        {
+          key: 'google.refreshToken',
+          label: 'Connection',
+          type: 'password',
+          help: 'Filled in by “Connect Google” on the Messages page. Clear it to disconnect; the contacts already imported stay where they are.',
         },
       ],
     },

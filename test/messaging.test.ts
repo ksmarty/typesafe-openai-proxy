@@ -272,3 +272,59 @@ test('no contacts leaves a message sentence alone, and an unreadable name is nev
   const unknown = await say('text Dave that the car is ready', config());
   assert.match(said(unknown), /don't have a contact called dave/i);
 });
+
+test('“tell Sarah …” and “let Sarah know …” read the same way', () => {
+  assert.deepEqual(readMessagingSentence('tell Sarah that I am running late', CONTACTS), {
+    recipients: ['Sarah'],
+    message: 'I am running late',
+  });
+  // No boundary word at all: the configured name is what separates who from what.
+  assert.deepEqual(readMessagingSentence("tell Sarah I'm running late", CONTACTS), {
+    recipients: ['Sarah'],
+    message: "I'm running late",
+  });
+  assert.deepEqual(readMessagingSentence('let Mum know the door is open', CONTACTS), {
+    recipients: ['Mum'],
+    message: 'the door is open',
+  });
+  assert.deepEqual(readMessagingSentence('tell Sarah Bell about the party', CONTACTS), {
+    recipients: ['Sarah Bell'],
+    message: 'about the party',
+  });
+  // A bare "tell" with a real number still works, the way "text" does.
+  assert.deepEqual(readMessagingSentence('tell +15551234567 the car is outside', []), {
+    recipients: ['+15551234567'],
+    message: 'the car is outside',
+  });
+});
+
+test('“tell me a joke” is never a message', () => {
+  // The pronoun guard: "tell" is a verb this house uses for the model too.
+  for (const utterance of [
+    'tell me a joke',
+    'tell us the time',
+    'tell him the news',
+    'tell them about the party',
+    'let me know when the washing is done',
+    'tell everyone the party is cancelled',
+    'tell nobody',
+  ]) {
+    assert.equal(readMessagingSentence(utterance, CONTACTS), null, utterance);
+    assert.equal(messagingPlan({ utterance, config: config() }), null, utterance);
+  }
+});
+
+test('a “tell” sentence reaches the same plan as “text”', () => {
+  const read = messagingPlan({ utterance: 'tell Sarah that I am running late', config: config() });
+  assert.deepEqual(read, {
+    kind: 'send',
+    reason: read && 'reason' in read ? read.reason : '',
+    plan: {
+      kind: 'send',
+      service: 'bluebubbles.send_message',
+      addresses: ['+15551234567'],
+      contact: 'Sarah',
+      message: 'I am running late',
+    },
+  });
+});

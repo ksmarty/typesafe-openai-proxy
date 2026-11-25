@@ -347,6 +347,24 @@ export interface Config {
     contacts: Contact[];
   };
   /**
+   * Pulling the contacts list out of Google instead of typing it.
+   *
+   * The proxy cannot ship an OAuth client of its own — the secret would be everyone's — so this
+   * is the user's client id and secret, and the redirect URI registered on it. The refresh token
+   * arrives through the dashboard's Connect button and is stored like any other secret; nothing
+   * is read from the account until it is there.
+   */
+  google: {
+    /** OAuth client id, from the user's own Google Cloud project. */
+    clientId: string;
+    /** OAuth client secret for that id. */
+    clientSecret: string;
+    /** `https://…/api/google/callback` as registered on the client; empty uses this host. */
+    redirectUri: string;
+    /** Filled in by the consent flow. Clearing it disconnects. */
+    refreshToken: string;
+  };
+  /**
    * Was that sentence meant for the assistant?
    *
    * A voice assistant hears the whole room, and anything the fast path declines is
@@ -518,6 +536,9 @@ export function defaultConfig(): Config {
     // then enough to make "text Sarah …" work — a second switch to find first is how the
     // feature came out silent for someone who had already filled the list in.
     messaging: { enabled: true, confirm: true, service: 'bluebubbles.send_message', contacts: [] },
+    // Empty means no import: the contacts editor then explains what to fill in, and typing a
+    // name and number by hand keeps working exactly as it did.
+    google: { clientId: '', clientSecret: '', redirectUri: '', refreshToken: '' },
     // On by default: an overheard remark answered with an action is the failure this
     // exists to prevent, and the judge declines to speak unless it is sure.
     listening: { enabled: true, confidence: 0.75, local: true },
@@ -701,6 +722,12 @@ function applyEnv(config: Config): void {
     }
     if (contacts.length > 0) config.messaging.contacts = contacts;
   }
+  // The OAuth client and the token it produced. A container can carry all of them, so a
+  // deployment that would rather not click Connect can be provisioned instead.
+  if (env.GOOGLE_CLIENT_ID) config.google.clientId = env.GOOGLE_CLIENT_ID;
+  if (env.GOOGLE_CLIENT_SECRET) config.google.clientSecret = env.GOOGLE_CLIENT_SECRET;
+  if (env.GOOGLE_REDIRECT_URI) config.google.redirectUri = env.GOOGLE_REDIRECT_URI;
+  if (env.GOOGLE_REFRESH_TOKEN) config.google.refreshToken = env.GOOGLE_REFRESH_TOKEN;
 }
 
 /** The dashboard shows secrets masked; a save that echoes the mask back means "leave it". */
@@ -726,7 +753,12 @@ export function upstreamApiKey(config: Config): string {
 }
 
 function isSecretPath(key: string): boolean {
-  return key.endsWith('.apiKey') || key.endsWith('.haToken');
+  return (
+    key.endsWith('.apiKey') ||
+    key.endsWith('.haToken') ||
+    key.endsWith('.clientSecret') ||
+    key.endsWith('.refreshToken')
+  );
 }
 
 /**

@@ -1,6 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
+import Checkbox from '@mui/material/Checkbox';
 import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
@@ -28,6 +30,7 @@ import { useTheme } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import ContactsIcon from '@mui/icons-material/Contacts';
 import DeleteIcon from '@mui/icons-material/Delete';
 import KeyIcon from '@mui/icons-material/Key';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -52,6 +55,13 @@ import {
   type TemplateSlot,
 } from './config';
 import { fixed } from './format';
+import {
+  disconnectGoogle,
+  getGoogleContacts,
+  getGoogleStatus,
+  startGoogleAuth,
+  type GoogleStatus,
+} from './api';
 
 interface ControlProps {
   field: SettingsField;
@@ -625,6 +635,7 @@ function ContactsField({ field, config, onChange }: ControlProps) {
   const stacked = useMediaQuery(theme.breakpoints.down('sm'));
   const [rows, setRows] = useState<Contact[]>(() => asContacts(readPath(config, field.key)));
   const [pending, setPending] = useState<number | null>(null);
+  const [importing, setImporting] = useState(false);
   // The switch that arms this list lives above it in the same group, and it is easy to leave
   // off while filling the list in — which looks exactly like the feature being broken.
   const off = readPath(config, 'messaging.enabled') === false;
@@ -726,11 +737,36 @@ function ContactsField({ field, config, onChange }: ControlProps) {
         ))}
       </Stack>
 
-      <Box>
+      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
         <Button size="small" startIcon={<AddIcon />} onClick={() => write([...rows, { name: '', address: '' }])}>
           Add a contact
         </Button>
-      </Box>
+        <Button
+          size="small"
+          variant="outlined"
+          startIcon={<ContactsIcon />}
+          onClick={() => setImporting(true)}
+        >
+          Import from Google
+        </Button>
+      </Stack>
+
+      <GoogleImportDialog
+        open={importing}
+        onClose={() => setImporting(false)}
+        existing={rows}
+        onAdd={(incoming) => {
+          const have = new Set(rows.map((row) => row.address.trim().toLowerCase()).filter(Boolean));
+          const next = rows.slice();
+          for (const contact of incoming) {
+            const key = contact.address.trim().toLowerCase();
+            if (key && have.has(key)) continue;
+            have.add(key);
+            next.push({ name: contact.name, address: contact.address });
+          }
+          write(next);
+        }}
+      />
 
       <Dialog open={pending !== null} onClose={() => setPending(null)} maxWidth="xs" fullWidth>
         <DialogTitle>Remove this contact?</DialogTitle>
@@ -755,6 +791,217 @@ function ContactsField({ field, config, onChange }: ControlProps) {
         </DialogActions>
       </Dialog>
     </Stack>
+  );
+}
+
+/**
+ * Picking contacts out of Google instead of typing them.
+ *
+ * The list is read each time the dialog opens and never kept: a contact added in Google should
+ * appear here without a restart, and a stale copy in this page is one more thing that can make
+ * "text Sarah" go to an address she no longer has.
+ */
+function GoogleImportDialog({
+  open,
+  onClose,
+  existing,
+  onAdd,
+}: {
+  open: boolean;
+  onClose: () => void;
+  existing: Contact[];
+  onAdd: (rows: Contact[]) => void;
+}) {
+  const [status, setStatus] = useState<GoogleStatus | null>(null);
+  const [contacts, setContacts] = useState<Contact[] | null>(null);
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [filter, setFilter] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const load = async (silent = false) => {
+    if (!silent) setBusy(true);
+    setError('');
+    try {
+      const next = await getGoogleStatus();
+      setStatus(next);
+      if (!next.connected) {
+        setContacts(null);
+        return;
+      }
+      const listed = await getGoogleContacts();
+      if (!listed.ok) {
+        setError(listed.error ?? 'Google refused to list the contacts.');
+        setContacts([]);
+        return;
+      }
+      setContacts(listed.contacts);
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : String(problem));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    setChosen([]);
+    setFilter('');
+    void load();
+    // The consent tab closes itself; this one gets focus back, which is when to look again.
+    const again = () => void load(true);
+    window.addEventListener('focus', again);
+    return () => window.removeEventListener('focus', again);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const connect = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      const started = await startGoogleAuth();
+      window.open(started.url, '_blank', 'noopener,noreferrer');
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : String(problem));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const forget = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await disconnectGoogle();
+      setContacts(null);
+      await load(true);
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : String(problem));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const known = new Set(existing.map((row) => row.address.trim().toLowerCase()).filter(Boolean));
+  const needle = filter.trim().toLowerCase();
+  const visible = (contacts ?? []).filter(
+    (row) => !needle || `${row.name} ${row.address}`.toLowerCase().includes(needle),
+  );
+  const toggle = (address: string) => {
+    setChosen((current) =>
+      current.includes(address) ? current.filter((one) => one !== address) : [...current, address],
+    );
+  };
+  const add = () => {
+    const picked = (contacts ?? []).filter((row) => chosen.includes(row.address));
+    if (picked.length > 0) onAdd(picked);
+    setChosen([]);
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+      <DialogTitle>Import from Google Contacts</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={1.5}>
+          {error ? <Alert severity="error">{error}</Alert> : null}
+
+          {status && !status.configured ? (
+            <Alert severity="info">
+              Add an OAuth client first, under Settings, Google Contacts. The client ID and secret
+              come from your own Google Cloud project: Google has to trust the redirect address,
+              and a client shipped with the proxy could not be trusted for yours.
+            </Alert>
+          ) : null}
+
+          {status && status.configured && !status.connected ? (
+            <Stack spacing={1.5}>
+              <Typography variant="body2">
+                Connect the Google account whose contacts you want to read. Access is read-only,
+                and the connection can be removed again here.
+              </Typography>
+              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: monoFont }}>
+                redirect URI: {status.redirectUri}
+              </Typography>
+              <Box>
+                <Button variant="outlined" size="small" onClick={() => void connect()} disabled={busy}>
+                  Connect Google
+                </Button>
+              </Box>
+            </Stack>
+          ) : null}
+
+          {busy && !contacts ? (
+            <Typography variant="caption" color="text.secondary">
+              Reading Google Contacts…
+            </Typography>
+          ) : null}
+
+          {contacts ? (
+            <>
+              <TextField
+                size="small"
+                label="Find a contact"
+                value={filter}
+                onChange={(event) => setFilter(event.target.value)}
+                fullWidth
+              />
+              <Box sx={{ maxHeight: 340, overflowY: 'auto' }}>
+                <Table size="small">
+                  <TableBody>
+                    {visible.length === 0 ? (
+                      <TableRow>
+                        <TableCell sx={{ border: 0 }}>
+                          <Typography variant="caption" color="text.secondary">
+                            {contacts.length === 0
+                              ? 'That Google account has no contacts with a phone number or an email address.'
+                              : 'No contact matches that.'}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
+                    {visible.map((row) => {
+                      const have = known.has(row.address.trim().toLowerCase());
+                      return (
+                        <TableRow key={row.address} hover={!have}>
+                          <TableCell padding="checkbox" sx={{ border: 0 }}>
+                            <Checkbox
+                              size="small"
+                              disabled={have}
+                              checked={chosen.includes(row.address)}
+                              onChange={() => toggle(row.address)}
+                              slotProps={{ input: { 'aria-label': `Import ${row.name}` } }}
+                            />
+                          </TableCell>
+                          <TableCell sx={{ border: 0 }}>
+                            <Typography variant="body2">{row.name || '(no name)'}</Typography>
+                            <Typography variant="caption" color="text.secondary">
+                              {row.address}
+                              {have ? ' — already in this list' : ''}
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </Box>
+              <Box>
+                <Button size="small" color="inherit" onClick={() => void forget()} disabled={busy}>
+                  Disconnect
+                </Button>
+              </Box>
+            </>
+          ) : null}
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="contained" onClick={add} disabled={chosen.length === 0}>
+          {chosen.length === 0 ? 'Add contacts' : `Add ${chosen.length} contact${chosen.length === 1 ? '' : 's'}`}
+        </Button>
+      </DialogActions>
+    </Dialog>
   );
 }
 

@@ -66,6 +66,22 @@ const SEND_OBJECT =
   /^send\s+(?<who>[\s\S]+?)\s+(?:a|an)\s+(?:text|message|imessage|sms)\s+(?:that\s+|saying\s+|to say\s+|which says\s+)(?<body>[\s\S]+)$/i;
 
 /**
+ * "tell Sarah that I'm running late", "let Sarah know I'm on my way".
+ *
+ * The verb names no noun of its own — "tell" also starts questions ("tell me a joke", "tell
+ * the time") — so this shape is only a message when what follows it reads as a recipient and
+ * a body towards a name the contacts know. Everything else stays the model's sentence.
+ */
+const TELL = /^(?:tell|let)\s+(?:the\s+|my\s+)?(?<rest>[\s\S]+)$/i;
+
+/** The words that introduce the body after a "tell"/"let" recipient: "… know that I'm late". */
+const KNOW = /\s+know\s+(?:that\s+)?/i;
+
+/** A pronoun where a recipient should be: the speaker is not naming anyone in the list. */
+const PRONOUN =
+  /^(?:me|us|him|her|them|everyone|everybody|someone|somebody|anyone|anybody|nobody|you|yourself|myself)\b/i;
+
+/**
  * Where the name stops and the message starts.
  *
  * A person marks that boundary one of three ways: a comma or colon ("text Sarah, I'm late"), a
@@ -171,8 +187,21 @@ export function readMessagingSentence(utterance: string, contacts: Contact[]): M
   }
 
   const rest = SEND_TO.exec(text)?.groups?.rest ?? VERB.exec(text)?.groups?.rest;
-  if (!rest) return null;
+  if (!rest) {
+    const told = TELL.exec(text)?.groups?.rest;
+    if (!told) return null;
+    // "let Sarah know that …" reads as "tell Sarah that …" once the verb pair is folded in.
+    const sentence = readWhoAndBody(told.replace(KNOW, ' that '), contacts);
+    // "Tell me a joke" is a sentence for the model, not a message to anyone.
+    if (!sentence || sentence.recipients.every((who) => PRONOUN.test(who.trim()))) return null;
+    return sentence;
+  }
 
+  return readWhoAndBody(rest, contacts);
+}
+
+/** Who was named and what was said, in whichever of the two shapes the sentence used. */
+function readWhoAndBody(rest: string, contacts: Contact[]): MessagingSentence | null {
   const split = BODY.exec(rest);
   if (split?.groups?.who && split.groups.body) {
     const recipients = splitWho(split.groups.who);
