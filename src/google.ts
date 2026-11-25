@@ -197,6 +197,19 @@ function textOf(value: unknown): string {
   return typeof value === 'string' ? value.trim() : '';
 }
 
+/** One way to reach a person, and what kind of address it is. */
+export interface GoogleAddress {
+  value: string;
+  kind: 'phone' | 'email';
+}
+
+/** A person from the Google account, with every address the picker can offer for them. */
+export interface GooglePerson {
+  name: string;
+  aliases: string[];
+  addresses: GoogleAddress[];
+}
+
 function recordOf(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null;
 }
@@ -274,47 +287,93 @@ function emailsOf(value: unknown): string[] {
 }
 
 /**
- * Turn a `people/me/connections` page into contact rows.
+ * Turn a `people/me/connections` page into people, each with the addresses it can be reached at.
  *
- * One person with three numbers is three rows, because that is the choice the importer offers:
- * the home phone is not the cell, and a voice message should go to the one that is answered.
- * Rows are deduplicated on the address itself, so a number shared by two people is imported
- * once, and sorted by name so the picker reads like an address book.
+ * The importer asks two questions — who, then which number — so a person is kept whole instead of
+ * being flattened into a row per address. Addresses are deduplicated on the value itself (a number
+ * shared by two people is one number), and people are sorted by name so the list reads like an
+ * address book.
  */
-export function parseConnections(payload: unknown): Contact[] {
+export function parsePeople(payload: unknown, seen = new Set<string>()): GooglePerson[] {
   const raw = recordOf(payload)?.connections;
   if (!Array.isArray(raw)) return [];
-  const out: Contact[] = [];
-  const seen = new Set<string>();
+  const out: GooglePerson[] = [];
   for (const person of raw) {
     const record = recordOf(person);
     if (!record) continue;
     const name = nameOf(record.names);
-    const aliases = aliasesOf(record, name);
-    for (const address of [...phonesOf(record.phoneNumbers), ...emailsOf(record.emailAddresses)]) {
-      const key = address.toLowerCase();
-      if (seen.has(key)) continue;
+    const addresses: GoogleAddress[] = [];
+    for (const value of phonesOf(record.phoneNumbers)) addresses.push({ value, kind: 'phone' });
+    for (const value of emailsOf(record.emailAddresses)) addresses.push({ value, kind: 'email' });
+    const kept = addresses.filter((address) => {
+      const key = address.value.toLowerCase();
+      if (seen.has(key)) return false;
       seen.add(key);
-      out.push(aliases.length > 0 ? { name, address, aliases } : { name, address });
-    }
+      return true;
+    });
+    if (kept.length === 0) continue;
+    out.push({ name, aliases: aliasesOf(record, name), addresses: kept });
   }
   return out.sort((left, right) => left.name.localeCompare(right.name));
+}
+
+/** The flat shape, one row per address, for the callers that want a single list. */
+export function parseConnections(payload: unknown): Contact[] {
+  const rows: Contact[] = [];
+  for (const person of parsePeople(payload, new Set<string>())) {
+    for (const address of person.addresses) {
+      rows.push(
+        person.aliases.length > 0
+          ? { name: person.name, address: address.value, aliases: person.aliases }
+          : { name: person.name, address: address.value },
+      );
+    }
+  }
+  return rows.sort((left, right) => left.name.localeCompare(right.name));
 }
 
 /** Most pages this will walk before giving up, so a huge account cannot stall the request. */
 const MAX_PAGES = 10;
 
-/** Read the account's contacts. Nothing is cached: the list changes when the user changes it. */
-export async function listContacts(
-  config: Config,
-): Promise<{ contacts?: Contact[]; error?: string }> {
-  if (!googleConfigured(config)) return { error: 'no OAuth client is saved' };
-  if (!googleConnected(config)) return { error: 'not connected to Google' };
+/** How long a read is served from memory before the next look goes and asks Google again. */
+const CONTACTS_TTL_MS = 5 * 60 * 1000;
 
+interface ContactsCache {
+  key: string;
+  people: GooglePerson[];
+  fetchedAt: number;
+}
+
+let contactsCache: ContactsCache | null = null;
+
+/** Which account a cached read belongs to: another client or token is another list. */
+function cacheKey(config: Config): string {
+  return `${config.google.clientId}\u0000${config.google.refreshToken}`;
+}
+
+/** Forget the read held in memory, so a disconnect or a saved token is not answered from it. */
+export function forgetContactsCache(): void {
+  contactsCache = null;
+}
+
+/**
+ * Read the account's contacts, grouped by person.
+ *
+ * An address book is big and slow to fetch, and the picker is opened more than once, so a read is
+ * kept for a few minutes: opening the picker again is instant, and `refresh` asks Google anyway
+ * from the background. The cache is keyed by the account, so a different client or token never
+ * answers with the previous account's contacts.
+ */
+/**
+ * Every connection, page by page.
+ *
+ * Kept separate from `listContacts` so the cache around it can be reasoned about — and tested —
+ * without a network: nobody's test suite should be waiting on Google to answer.
+ */
+async function readPeople(config: Config): Promise<{ people?: GooglePerson[]; error?: string }> {
   const auth = await accessToken(config);
   if (auth.error || !auth.token) return { error: auth.error ?? 'no access token' };
-
-  const contacts: Contact[] = [];
+  const people: GooglePerson[] = [];
   const seen = new Set<string>();
   let pageToken = '';
   for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -338,15 +397,57 @@ export async function listContacts(
     } catch (error) {
       return { error: error instanceof Error ? error.message : String(error) };
     }
-    for (const contact of parseConnections(payload)) {
-      const key = contact.address.toLowerCase();
-      if (seen.has(key)) continue;
-      seen.add(key);
-      contacts.push(contact);
-    }
+    people.push(...parsePeople(payload, seen));
     const next = textOf(recordOf(payload)?.nextPageToken);
     if (!next || next === pageToken) break;
     pageToken = next;
   }
-  return { contacts };
+  return { people };
+}
+
+export async function listContacts(
+  config: Config,
+  options: { refresh?: boolean; now?: number; read?: (config: Config) => Promise<GooglePerson[]> } = {},
+): Promise<{ people?: GooglePerson[]; fetchedAt?: number; cached?: boolean; error?: string }> {
+  if (!googleConfigured(config)) return { error: 'no OAuth client is saved' };
+  if (!googleConnected(config)) return { error: 'not connected to Google' };
+
+  const key = cacheKey(config);
+  const now = options.now ?? Date.now();
+  if (
+    !options.refresh &&
+    contactsCache !== null &&
+    contactsCache.key === key &&
+    now - contactsCache.fetchedAt < CONTACTS_TTL_MS
+  ) {
+    return { people: contactsCache.people, fetchedAt: contactsCache.fetchedAt, cached: true };
+  }
+
+  let listed: GooglePerson[];
+  if (options.read) {
+    try {
+      listed = await options.read(config);
+    } catch (error) {
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  } else {
+    const read = await readPeople(config);
+    if (read.error || !read.people) return { error: read.error ?? 'no contacts came back' };
+    listed = read.people;
+  }
+  const people = new Map<string, GooglePerson>();
+  for (const person of listed) {
+    const existing = people.get(person.name.toLowerCase());
+    if (!existing) {
+      people.set(person.name.toLowerCase(), { ...person, addresses: [...person.addresses] });
+      continue;
+    }
+    existing.addresses.push(...person.addresses);
+    for (const alias of person.aliases) {
+      if (!existing.aliases.includes(alias)) existing.aliases.push(alias);
+    }
+  }
+  const list = [...people.values()].sort((left, right) => left.name.localeCompare(right.name));
+  contactsCache = { key, people: list, fetchedAt: now };
+  return { people: list, fetchedAt: contactsCache.fetchedAt, cached: false };
 }

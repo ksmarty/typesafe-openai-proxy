@@ -1,4 +1,3 @@
-import type { Contact } from '../src/config.js';
 import type { SettingsGroup } from '../src/schema.js';
 import type { Gate, TraceEntry } from '../src/types.js';
 
@@ -196,8 +195,31 @@ export interface GoogleStatus {
 export const getGoogleStatus = () => call<GoogleStatus>('/api/google/status');
 export const startGoogleAuth = () =>
   call<{ url: string; redirectUri: string }>('/api/google/start');
-export const getGoogleContacts = () =>
-  call<{ ok: boolean; error?: string; contacts: Contact[] }>('/api/google/contacts');
+/** One way to reach a person, as Google knows it. */
+export interface GoogleAddress {
+  value: string;
+  kind: 'phone' | 'email';
+}
+
+/** A person from the Google account, kept whole so the picker can ask who, then which address. */
+export interface GooglePerson {
+  name: string;
+  aliases: string[];
+  addresses: GoogleAddress[];
+}
+
+export interface GoogleContacts {
+  ok: boolean;
+  error?: string;
+  people: GooglePerson[];
+  /** When the list was read, so the picker can say how old it is. */
+  fetchedAt?: number;
+  cached?: boolean;
+}
+
+/** `refresh` bypasses the server's copy and asks Google; without it the answer is instant. */
+export const getGoogleContacts = (refresh = false) =>
+  call<GoogleContacts>(`/api/google/contacts${refresh ? '?refresh=1' : ''}`);
 export const disconnectGoogle = () =>
   call<{ ok: boolean }>('/api/google/disconnect', { method: 'POST' });
 

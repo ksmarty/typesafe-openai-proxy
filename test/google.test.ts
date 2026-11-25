@@ -18,7 +18,10 @@ import {
   finishAuth,
   googleConfigured,
   googleConnected,
+  forgetContactsCache,
+  listContacts,
   parseConnections,
+  parsePeople,
   redirectUriFor,
   statusFor,
 } from '../src/google.js';
@@ -143,4 +146,87 @@ test('a consent link is single use and expires, so a replay is not a second conn
 
   const stale = beginAuth('http://here/api/google/callback');
   assert.equal(finishAuth(stale, Date.now() + 11 * 60 * 1000), null);
+});
+
+test('a person is one entry with their numbers and addresses inside it', () => {
+  const [sarah, bob] = parsePeople(WITH_ALIASES);
+  assert.equal(sarah.name, 'Bob Bell');
+  assert.deepEqual(sarah.addresses, [
+    { value: '+15550001111', kind: 'phone' },
+    { value: '+15550002222', kind: 'phone' },
+  ]);
+  assert.equal(bob.name, 'Sarah Bell');
+  assert.deepEqual(bob.aliases, ['Mom', 'mother']);
+  assert.deepEqual(bob.addresses, [{ value: '+15551234567', kind: 'phone' }]);
+  // The email is the same person, not a second one.
+  assert.deepEqual(parsePeople(CONNECTIONS).map((person) => person.name), ['Mum Bell', 'Sarah Bell']);
+  assert.deepEqual(
+    parsePeople(CONNECTIONS)[1].addresses.map((one) => one.kind),
+    ['phone', 'phone', 'email'],
+  );
+});
+
+test('the list is kept, handed back instantly, and re-read when asked or aged out', async () => {
+  forgetContactsCache();
+  const active = config((base) => ({ ...base, google: { ...base.google, refreshToken: 't' } }));
+  const people = [{ name: 'Sarah', aliases: [], addresses: [{ value: '+15551234567', kind: 'phone' as const }] }];
+  let reads = 0;
+  const read = async () => {
+    reads += 1;
+    return people;
+  };
+
+  const first = await listContacts(active, { read, now: 1000 });
+  assert.equal(first.cached, false);
+  assert.deepEqual(first.people, people);
+
+  // Second look is instant and does not touch the network.
+  const second = await listContacts(active, { read, now: 2000 });
+  assert.equal(second.cached, true);
+  assert.equal(reads, 1);
+  assert.equal(second.fetchedAt, first.fetchedAt);
+
+  // A background pass always reads, and hands back what it found.
+  const refreshed = await listContacts(active, { read, now: 3000, refresh: true });
+  assert.equal(refreshed.cached, false);
+  assert.equal(reads, 2);
+
+  // Past the window the next look reads again.
+  await listContacts(active, { read, now: 3000 + 5 * 60 * 1000 });
+  assert.equal(reads, 3);
+
+  // A different account never sees the previous one's contacts.
+  const other = config((base) => ({ ...base, google: { ...base.google, refreshToken: 'other' } }));
+  await listContacts(other, { read, now: 3000 + 5 * 60 * 1000 + 1 });
+  assert.equal(reads, 4);
+
+  forgetContactsCache();
+  await listContacts(active, { read, now: 3000 + 5 * 60 * 1000 + 2 });
+  assert.equal(reads, 5);
+});
+
+test('a failed read is an error, never a cached empty list', async () => {
+  forgetContactsCache();
+  const active = config((base) => ({ ...base, google: { ...base.google, refreshToken: 't' } }));
+  const failed = await listContacts(active, {
+    now: 1,
+    read: async () => {
+      throw new Error('google is down');
+    },
+  });
+  assert.match(failed.error ?? '', /google is down/);
+  assert.equal(failed.people, undefined);
+
+  // Nothing was stored, so the next attempt still reads.
+  let reads = 0;
+  const good = await listContacts(active, {
+    now: 2,
+    read: async () => {
+      reads += 1;
+      return [{ name: 'Sarah', aliases: [], addresses: [{ value: '+15551234567', kind: 'phone' as const }] }];
+    },
+  });
+  assert.equal(reads, 1);
+  assert.equal(good.cached, false);
+  forgetContactsCache();
 });

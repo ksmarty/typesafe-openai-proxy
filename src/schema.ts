@@ -19,7 +19,8 @@ export type FieldType =
   | 'templates'
   | 'rules'
   | 'contacts'
-  | 'redirect';
+  | 'redirect'
+  | 'connection';
 
 export interface SettingsField {
   /** Dotted path into the config object, e.g. `routing.thresholds.entity`. */
@@ -472,8 +473,8 @@ export function settingsGroups(): SettingsGroup[] {
         {
           key: 'google.refreshToken',
           label: 'Connection',
-          type: 'password',
-          help: 'Filled in by Connect Google on the Messages page. Clear it to disconnect.',
+          type: 'connection',
+          help: 'Connected by Connect Google on the Messages page. Disconnect here; contacts already imported stay.',
         },
       ],
     },
@@ -984,7 +985,7 @@ export function secretOrStored(submitted: unknown, stored: string): string {
 /** Mask the secrets in a config object, in place. */
 export function maskSecrets(config: Record<string, unknown>, mask = '••••••'): void {
   for (const field of allFields()) {
-    if (field.type !== 'password') continue;
+    if (field.type !== 'password' && field.type !== 'connection') continue;
     const current = getPath(config, field.key);
     if (typeof current === 'string' && current) setPath(config, field.key, maskSecret(current, mask));
   }

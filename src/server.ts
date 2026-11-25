@@ -62,6 +62,7 @@ import {
   exchangeCode,
   finishAuth,
   googleConfigured,
+  forgetContactsCache,
   listContacts,
   redirectUriFor,
   statusFor,
@@ -511,17 +512,25 @@ async function api(request: IncomingMessage, response: ServerResponse, url: URL,
   }
 
   if (path === '/google/contacts' && method === 'GET') {
-    const listed = await listContacts(loadConfig());
+    // The picker opens on whatever was read last and asks again behind it, so `refresh=1` is the
+    // background pass and a plain GET is the instant one.
+    const listed = await listContacts(loadConfig(), { refresh: url.searchParams.get('refresh') === '1' });
     if (listed.error) {
-      jsonResponse(response, 200, { ok: false, error: listed.error, contacts: [] });
+      jsonResponse(response, 200, { ok: false, error: listed.error, people: [] });
       return true;
     }
-    jsonResponse(response, 200, { ok: true, contacts: listed.contacts ?? [] });
+    jsonResponse(response, 200, {
+      ok: true,
+      people: listed.people ?? [],
+      fetchedAt: listed.fetchedAt ?? 0,
+      cached: listed.cached === true,
+    });
     return true;
   }
 
   if (path === '/google/disconnect' && method === 'POST') {
     saveConfig({ google: { refreshToken: '' } });
+    forgetContactsCache();
     jsonResponse(response, 200, { ok: true });
     return true;
   }

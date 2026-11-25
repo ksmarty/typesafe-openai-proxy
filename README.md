@@ -1031,16 +1031,21 @@ redirect address.
 2. Register `https://<BASE_URL>/api/google/callback`. Settings → Google Contacts shows the exact
    URL with a copy button, and *Use this address* fills the base in from the address you opened the
    dashboard at; leaving the field empty means the same thing.
-3. Paste the client ID and secret, then *Connect Google* in the import dialog and tick the people
-   you want.
+3. Paste the client ID and secret, then *Connect Google* in the import dialog.
 
-Rows already in the list show disabled, one row per address so a phone and an email are two
-choices, and nothing is imported unless it is ticked. Aliases come along with them.
+The picker is two steps: the list is one line per person, and picking one shows their numbers and
+addresses to choose between. Nothing is imported until you pick one, an address already in the list
+shows disabled, and aliases come along with the contact.
 
-The refresh token is stored in `data/config.json`, is never returned through the API (the same
-masking as every other secret), and **Disconnect** clears it — imported contacts stay. Reading the
-list happens when the dialog opens, never from a cached copy, so a number changed in Google is the
-number that gets texted.
+The list is read once and kept for five minutes, so opening the dialog is instant; it is read again
+in the background each time the dialog opens, so a contact renamed in Google appears without
+waiting, and a failed check leaves the list you already had alone rather than emptying it.
+
+The refresh token is stored in `data/config.json` and never returned through the API (the same
+masking as every other secret). It is not a thing to paste, so it is shown as a connection state:
+Settings → **Google Contacts** → *Connection* says whether the account is connected and offers
+**Disconnect**, which clears the token — imported contacts stay, they are ordinary rows in this
+proxy now.
 
 **When it is left alone.** Filling in a contact is all it takes: the reader is on by default and
 stays harmless with an empty list, because there is no name to resolve and the sentence is left to

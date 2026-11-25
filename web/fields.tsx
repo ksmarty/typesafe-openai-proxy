@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import Autocomplete from '@mui/material/Autocomplete';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
-import Checkbox from '@mui/material/Checkbox';
 import InputAdornment from '@mui/material/InputAdornment';
 import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
@@ -15,6 +14,8 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import Paper from '@mui/material/Paper';
+import Radio from '@mui/material/Radio';
+import RadioGroup from '@mui/material/RadioGroup';
 import Slider from '@mui/material/Slider';
 import Stack from '@mui/material/Stack';
 import Switch from '@mui/material/Switch';
@@ -33,6 +34,8 @@ import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ContactsIcon from '@mui/icons-material/Contacts';
 import CheckIcon from '@mui/icons-material/Check';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
 import KeyIcon from '@mui/icons-material/Key';
@@ -63,6 +66,7 @@ import {
   getGoogleContacts,
   getGoogleStatus,
   startGoogleAuth,
+  type GooglePerson,
   type GoogleStatus,
 } from './api';
 
@@ -899,41 +903,59 @@ function GoogleImportDialog({
   onAdd: (rows: Contact[]) => void;
 }) {
   const [status, setStatus] = useState<GoogleStatus | null>(null);
-  const [contacts, setContacts] = useState<Contact[] | null>(null);
-  const [chosen, setChosen] = useState<string[]>([]);
+  const [people, setPeople] = useState<GooglePerson[] | null>(null);
+  const [picked, setPicked] = useState<GooglePerson | null>(null);
+  const [choice, setChoice] = useState('');
   const [filter, setFilter] = useState('');
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
-  const load = async (silent = false) => {
-    if (!silent) setBusy(true);
-    setError('');
+  /**
+   * Read the list, from the server's copy first and from Google second.
+   *
+   * `refresh` is the background pass: it re-reads and swaps in what changed, and a failure there
+   * is deliberately silent — an address book already on screen is worth more than an error about
+   * not being able to check it.
+   */
+  const load = async (refresh: boolean) => {
+    if (refresh) setRefreshing(true);
+    else setBusy(true);
     try {
       const next = await getGoogleStatus();
       setStatus(next);
       if (!next.connected) {
-        setContacts(null);
+        setPeople(null);
         return;
       }
-      const listed = await getGoogleContacts();
+      const listed = await getGoogleContacts(refresh);
       if (!listed.ok) {
+        if (refresh) return;
         setError(listed.error ?? 'Google refused to list the contacts.');
-        setContacts([]);
+        setPeople((current) => current ?? []);
         return;
       }
-      setContacts(listed.contacts);
+      if (!refresh) setError('');
+      setPeople(listed.people);
     } catch (problem) {
+      if (refresh) return;
       setError(problem instanceof Error ? problem.message : String(problem));
     } finally {
-      setBusy(false);
+      if (refresh) setRefreshing(false);
+      else setBusy(false);
     }
   };
 
   useEffect(() => {
     if (!open) return;
-    setChosen([]);
+    setPicked(null);
+    setChoice('');
     setFilter('');
-    void load();
+    setError('');
+    void (async () => {
+      await load(false);
+      await load(true);
+    })();
     // The consent tab closes itself; this one gets focus back, which is when to look again.
     const again = () => void load(true);
     window.addEventListener('focus', again);
@@ -954,48 +976,71 @@ function GoogleImportDialog({
     }
   };
 
-  const forget = async () => {
-    setBusy(true);
-    setError('');
-    try {
-      await disconnectGoogle();
-      setContacts(null);
-      await load(true);
-    } catch (problem) {
-      setError(problem instanceof Error ? problem.message : String(problem));
-    } finally {
-      setBusy(false);
-    }
+  const known = new Set(existing.map((row) => row.address.trim().toLowerCase()).filter(Boolean));
+  const needl = filter.trim().toLowerCase();
+  const visible = (people ?? []).filter((person) => {
+    if (!needl) return true;
+    const said = [person.name, ...person.aliases, ...person.addresses.map((one) => one.value)]
+      .join(' ')
+      .toLowerCase();
+    return said.includes(needl);
+  });
+
+  const add = () => {
+    if (!picked || !choice) return;
+    onAdd([
+      picked.aliases.length > 0
+        ? { name: picked.name, address: choice, aliases: picked.aliases }
+        : { name: picked.name, address: choice },
+    ]);
+    setPicked(null);
+    setChoice('');
   };
 
-  const known = new Set(existing.map((row) => row.address.trim().toLowerCase()).filter(Boolean));
-  const needle = filter.trim().toLowerCase();
-  const visible = (contacts ?? []).filter(
-    (row) => !needle || `${row.name} ${row.address}`.toLowerCase().includes(needle),
-  );
-  const toggle = (address: string) => {
-    setChosen((current) =>
-      current.includes(address) ? current.filter((one) => one !== address) : [...current, address],
-    );
-  };
-  const add = () => {
-    const picked = (contacts ?? []).filter((row) => chosen.includes(row.address));
-    if (picked.length > 0) onAdd(picked);
-    setChosen([]);
-    onClose();
+  const countOf = (person: GooglePerson): string => {
+    const phones = person.addresses.filter((one) => one.kind === 'phone').length;
+    const mails = person.addresses.length - phones;
+    const parts: string[] = [];
+    if (phones > 0) parts.push(`${phones} number${phones === 1 ? '' : 's'}`);
+    if (mails > 0) parts.push(`${mails} email${mails === 1 ? '' : 's'}`);
+    return parts.join(', ');
   };
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
-      <DialogTitle>Import from Google Contacts</DialogTitle>
+      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+        {picked ? (
+          <>
+            <IconButton size="small" aria-label="Back to the contacts" onClick={() => setPicked(null)}>
+              <ArrowBackIcon fontSize="small" />
+            </IconButton>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography variant="h6" sx={{ lineHeight: 1.2 }}>
+                {picked.name || '(no name)'}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {picked.aliases.length > 0 ? `also called ${picked.aliases.join(', ')} — ` : ''}
+                pick a number or an address
+              </Typography>
+            </Box>
+          </>
+        ) : (
+          <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 1, minWidth: 0 }}>
+            <Typography variant="h6">Import from Google Contacts</Typography>
+            {refreshing ? (
+              <Typography variant="caption" color="text.secondary">
+                checking for changes…
+              </Typography>
+            ) : null}
+          </Box>
+        )}
+      </DialogTitle>
       <DialogContent dividers>
         <Stack spacing={1.5}>
           {error ? <Alert severity="error">{error}</Alert> : null}
 
           {status && !status.configured ? (
-            <Alert severity="info">
-              Add an OAuth client first, under Settings, Google Contacts.
-            </Alert>
+            <Alert severity="info">Add an OAuth client first, under Settings, Google Contacts.</Alert>
           ) : null}
 
           {status && status.configured && !status.connected ? (
@@ -1011,7 +1056,7 @@ function GoogleImportDialog({
                 <CopyButton text={status.redirectUri} />
               </Stack>
               <Typography variant="caption" color="text.secondary">
-                Add it to the OAuth client in Google Cloud, then connect. Read-only, revocable here.
+                Add it to the OAuth client in Google Cloud, then connect. Read-only.
               </Typography>
               <Box>
                 <Button variant="outlined" size="small" onClick={() => void connect()} disabled={busy}>
@@ -1021,13 +1066,13 @@ function GoogleImportDialog({
             </Stack>
           ) : null}
 
-          {busy && !contacts ? (
+          {busy && !people ? (
             <Typography variant="caption" color="text.secondary">
               Reading Google Contacts…
             </Typography>
           ) : null}
 
-          {contacts ? (
+          {people && !picked ? (
             <>
               <TextField
                 size="small"
@@ -1043,32 +1088,35 @@ function GoogleImportDialog({
                       <TableRow>
                         <TableCell sx={{ border: 0 }}>
                           <Typography variant="caption" color="text.secondary">
-                            {contacts.length === 0
+                            {people.length === 0
                               ? 'That Google account has no contacts with a phone number or an email address.'
                               : 'No contact matches that.'}
                           </Typography>
                         </TableCell>
                       </TableRow>
                     ) : null}
-                    {visible.map((row) => {
-                      const have = known.has(row.address.trim().toLowerCase());
+                    {visible.map((person) => {
+                      const have = person.addresses.every((one) => known.has(one.value.toLowerCase()));
                       return (
-                        <TableRow key={row.address} hover={!have}>
-                          <TableCell padding="checkbox" sx={{ border: 0 }}>
-                            <Checkbox
-                              size="small"
-                              disabled={have}
-                              checked={chosen.includes(row.address)}
-                              onChange={() => toggle(row.address)}
-                              slotProps={{ input: { 'aria-label': `Import ${row.name}` } }}
-                            />
-                          </TableCell>
+                        <TableRow
+                          key={person.name}
+                          hover
+                          onClick={() => {
+                            setPicked(person);
+                            setChoice('');
+                          }}
+                          sx={{ cursor: 'pointer', opacity: have ? 0.6 : 1 }}
+                        >
                           <TableCell sx={{ border: 0 }}>
-                            <Typography variant="body2">{row.name || '(no name)'}</Typography>
+                            <Typography variant="body2">{person.name || '(no name)'}</Typography>
                             <Typography variant="caption" color="text.secondary">
-                              {row.address}
+                              {person.aliases.length > 0 ? `${person.aliases.join(', ')} · ` : ''}
+                              {countOf(person)}
                               {have ? ' — already in this list' : ''}
                             </Typography>
+                          </TableCell>
+                          <TableCell sx={{ border: 0 }} align="right">
+                            <ChevronRightIcon fontSize="small" sx={{ color: 'text.disabled' }} />
                           </TableCell>
                         </TableRow>
                       );
@@ -1076,20 +1124,45 @@ function GoogleImportDialog({
                   </TableBody>
                 </Table>
               </Box>
-              <Box>
-                <Button size="small" color="inherit" onClick={() => void forget()} disabled={busy}>
-                  Disconnect
-                </Button>
-              </Box>
             </>
+          ) : null}
+
+          {picked ? (
+            <RadioGroup value={choice} onChange={(event) => setChoice(event.target.value)}>
+              {picked.addresses.map((address) => {
+                const have = known.has(address.value.toLowerCase());
+                return (
+                  <FormControlLabel
+                    key={address.value}
+                    value={address.value}
+                    disabled={have}
+                    control={<Radio size="small" />}
+                    label={
+                      <Box>
+                        <Typography variant="body2" sx={{ fontFamily: monoFont }}>
+                          {address.value}
+                        </Typography>
+                        {have ? (
+                          <Typography variant="caption" color="text.secondary">
+                            already in this list
+                          </Typography>
+                        ) : null}
+                      </Box>
+                    }
+                  />
+                );
+              })}
+            </RadioGroup>
           ) : null}
         </Stack>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" onClick={add} disabled={chosen.length === 0}>
-          {chosen.length === 0 ? 'Add contacts' : `Add ${chosen.length} contact${chosen.length === 1 ? '' : 's'}`}
-        </Button>
+        <Button onClick={onClose}>Done</Button>
+        {picked ? (
+          <Button variant="contained" onClick={add} disabled={!choice}>
+            Add this contact
+          </Button>
+        ) : null}
       </DialogActions>
     </Dialog>
   );
@@ -1165,6 +1238,70 @@ function RedirectField({ field, config, onChange }: ControlProps) {
     </Stack>
   );
 }
+/**
+ * The Google connection, as a state rather than a token.
+ *
+ * A refresh token is not something anybody types, so showing it masked and asking the reader to
+ * clear the field to disconnect was a puzzle. This shows whether the account is connected and
+ * offers the one action that matters — and the token stays masked in the settings API either way.
+ */
+function ConnectionField({ field }: ControlProps) {
+  const [connected, setConnected] = useState<boolean | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let live = true;
+    void getGoogleStatus()
+      .then((next) => {
+        if (live) setConnected(next.connected);
+      })
+      .catch(() => {
+        if (live) setConnected(null);
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const disconnect = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await disconnectGoogle();
+      setConnected(false);
+    } catch (problem) {
+      setError(problem instanceof Error ? problem.message : String(problem));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Stack spacing={0.5}>
+      <Typography variant="body2">{field.label}</Typography>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+        <Typography variant="caption" color="text.secondary">
+          {connected === null ? 'No connection saved.' : connected ? 'Connected to Google, read-only.' : 'Not connected.'}
+        </Typography>
+        {connected ? (
+          <Button size="small" color="inherit" onClick={() => void disconnect()} disabled={busy}>
+            Disconnect
+          </Button>
+        ) : null}
+      </Stack>
+      {error ? (
+        <Typography variant="caption" color="error">
+          {error}
+        </Typography>
+      ) : (
+        <Typography variant="caption" color="text.secondary">
+          {field.help}
+        </Typography>
+      )}
+    </Stack>
+  );
+}
 
 export function FieldControl(props: ControlProps) {
   const { field, config, onChange } = props;
@@ -1174,6 +1311,7 @@ export function FieldControl(props: ControlProps) {
   if (field.type === 'rules') return <RulesField {...props} />;
   if (field.type === 'contacts') return <ContactsField {...props} />;
   if (field.type === 'redirect') return <RedirectField {...props} />;
+  if (field.type === 'connection') return <ConnectionField {...props} />;
 
   if (field.type === 'checkbox') {
     return (
