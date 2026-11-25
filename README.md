@@ -971,7 +971,49 @@ one from the call — "Set pasta timer.", "Paused pasta timer.", "Extended 10 mi
 house that would rather hear nothing can add a silent rule for `timer.*`; the default rules are
 about devices and leave the timers speaking.
 
-### Only what Assist can see
+### Messages
+
+"Text Sarah that I'm running late." [ha-bluebubbles](https://github.com/helv-io/ha-bluebubbles)
+sends iMessage, RCS and SMS through a BlueBubbles server, and it registers exactly one service:
+`bluebubbles.send_message`, with `addresses` (one or more numbers or addresses, comma-separated)
+and `message`. It registers **no assistant tool** — there is no `llm.py` in the integration — so
+Home Assistant never offers the model anything to call, and a proxy that only builds tool calls
+could only watch. This reader therefore *does* the thing instead of routing it: it reads the
+sentence, resolves the name against a contact list kept in this proxy's own settings, calls the
+service over the Home Assistant WebSocket with the `HA_URL` and `HA_TOKEN` the catalog already
+uses, and answers the turn with a sentence.
+
+| Said | Sent |
+| --- | --- |
+| "text Sarah that I'm running late" | `addresses: "+15551234567"`, `message: "I'm running late"` |
+| "send a text to Mum saying the door is open" | the same shape, to Mum's number |
+| "text Sarah and Mum that dinner is ready" | one message, both addresses |
+| "message sarah@example.com I'll be late" | the address as said, no contact needed |
+| "imessage +1 555 123 4567 that the cat is out" | the number as said |
+
+**Contacts live here, not in Home Assistant.** The name is what has to be resolved and this is
+what resolves it, so the list belongs in Settings → **Messages** — a row per person, a name and
+the number or address it sends to. A helper entity in Home Assistant would need an automation to
+stay in step with itself, and the service still takes addresses rather than entity ids. A name
+resolves by the **whole name first**, then by its first word: "Sarah Bell" and "Sarah" can both
+exist, and "Sarah" alone reaches Sarah. Two contacts whose first word is the same ("Sarah Bell"
+and "Sarah Jones") make the house ask *"Who do you mean — Sarah Bell or Sarah Jones?"* rather
+than pick one, and a name it does not know is answered with where to add it — never forwarded to
+a model that might invent an address.
+
+**Ask first** is on by default: the turn says *"Should I text Sarah “I'm running late”?"* and
+sends on "yes", using the same armed question and time window as every other confirmation
+(`SPEECH_CONFIRM_SECONDS`, 90 s). Turn it off for one-step sending. **What is said afterwards is
+what happened**: "Sent it to Sarah." only once the service returned; a refusal or a timeout is
+spoken as *"I couldn't send that to Sarah: <the reason>"*, because a message that did not go out
+must never sound like one that did.
+
+**When it is left alone.** The reader is off by default (`MESSAGING=1`, or Settings → Messages →
+*Read message sentences here*) so a house that never sends anything is untouched. A sentence it
+cannot finish — an unknown name, two Sarahs, a service setting that is not `domain.service`, a
+contact with no address — is answered or forwarded rather than half-sent. Nothing about a message
+is cached: the body is taken from the sentence as said and the call goes out on the turn.
+
 
 The catalog asks Home Assistant which entities are exposed to the conversation agent
 (`homeassistant/expose_entity/list`) and lists only those, because that is the same list the
@@ -1222,6 +1264,10 @@ The backend-related variables are worth naming, because there is no default deci
 | `TRAVEL` | `1` | `0` hands travel questions back to your model |
 | `TRAVEL_MODE` | `auto` | `auto` keeps whatever mode Home Assistant is set to; or `DRIVE`, `WALK`, `BICYCLE`, `TRANSIT`, `TWO_WHEELER` |
 | `SUITE` | `1` | `0` hands sums, conversions, web and Wikipedia searches and nearby places back to your model |
+| `MESSAGING` | `0` | `1` reads "text Sarah that I'm running late" and sends it through ha-bluebubbles itself |
+| `MESSAGING_CONFIRM` | `1` | `0` sends without asking first |
+| `MESSAGING_SERVICE` | `bluebubbles.send_message` | the `domain.service` a message is sent with |
+| `MESSAGING_CONTACTS` | *(empty)* | contacts as `Name=+15551234567`, separated by `;` or newlines — afterwards editable in Settings → Messages |
 
 ### One key for both servers
 
@@ -1251,6 +1297,9 @@ different provider is used for prose. Nothing changes when the flag is off.
 - **A journey that needs a departure time or a waypoint** — "how long to get to Leeds tomorrow at
   eight" and "… via Sheffield" are forwarded, because `get_route` takes one destination and the
   proxy will not guess the rest.
+- **A message with an attachment, a group chat, or a reply into an existing thread** —
+  `bluebubbles.send_message` also takes `attachment`, `media_url` and `chat_guid`, and the reader
+  fills only `addresses` and `message`, so those are forwarded.
 - Anything where a gate fails. That is the point.
 
 ## Development

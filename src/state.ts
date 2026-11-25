@@ -25,7 +25,7 @@ export const stats = {
 export type Stats = typeof stats;
 
 export interface PendingConfirmation {
-  plan: Extract<Plan, { kind: 'tool' } | { kind: 'calls' }>;
+  plan: Extract<Plan, { kind: 'tool' } | { kind: 'calls' } | { kind: 'send' }>;
   utterance: string;
   expiresAt: number;
 }

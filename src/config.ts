@@ -4,6 +4,19 @@ import { allFields, clampSettings, getPath, isMaskedValue, maskSecrets, pruneInv
 
 export type DecisionBackend = 'none' | 'systemone' | 'heuristic';
 
+/**
+ * One row of the message contacts: who is spoken, and where a message goes.
+ *
+ * The address is what `bluebubbles.send_message` takes for one recipient — an email address
+ * or a phone number, the same two things iMessage, RCS and SMS are addressed by.
+ */
+export interface Contact {
+  /** The spoken name, matched whole first and by its first word after that. */
+  name: string;
+  /** A phone number (`+15551234567`) or an email address (`sarah@example.com`). */
+  address: string;
+}
+
 /** One line of "what to say" policy: silent or spoken for a matching intent. */
 export interface SpeechRule {
   /** `HassTurnOn`, `light`, `turn_on`, `todo.add`, or `todo.*`. */
@@ -307,6 +320,33 @@ export interface Config {
     enabled: boolean;
   };
   /**
+   * Messages, sent by name through ha-bluebubbles.
+   *
+   * "Text Sarah that I'm running late" names a person, not an entity, and ha-bluebubbles is a
+   * transport: it registers `bluebubbles.send_message` and no LLM-API tool, so Home Assistant
+   * never offers anything an Assist turn could call. The proxy therefore does the sending
+   * itself — it reads the sentence, resolves the name against `contacts`, calls the service
+   * over Home Assistant's websocket, and answers the turn with what it did.
+   *
+   * The contacts live here rather than in Home Assistant because it is the proxy that has to
+   * turn a spoken name into an address; a helper entity in the house would need one more
+   * automation to stay in step, and would be dead weight for everyone without the
+   * integration.
+   */
+  messaging: {
+    /** Read "text Sarah …" here instead of leaving it to the model. */
+    enabled: boolean;
+    /**
+     * Ask before sending. A message cannot be unsent, so a house that shares an assistant
+     * between several people may want the question — "Should I text Sarah …?" — first.
+     */
+    confirm: boolean;
+    /** The service that sends: `bluebubbles.send_message` unless something wraps it. */
+    service: string;
+    /** Spoken names, and the phone number or email address each one means. */
+    contacts: Contact[];
+  };
+  /**
    * Was that sentence meant for the assistant?
    *
    * A voice assistant hears the whole room, and anything the fast path declines is
@@ -473,6 +513,10 @@ export function defaultConfig(): Config {
     reminders: { enabled: true },
     timers: { enabled: true },
     media: { enabled: true },
+    // Off by default: sending a message names a person rather than a device, so the contacts
+    // have to be filled in before the reader can do anything useful. Forwarding until then
+    // keeps a house that never texts behaving exactly as it did.
+    messaging: { enabled: false, confirm: true, service: 'bluebubbles.send_message', contacts: [] },
     // On by default: an overheard remark answered with an action is the failure this
     // exists to prevent, and the judge declines to speak unless it is sure.
     listening: { enabled: true, confidence: 0.75, local: true },
@@ -632,6 +676,29 @@ function applyEnv(config: Config): void {
   }
   if (env.MEDIA !== undefined && env.MEDIA !== '') {
     config.media.enabled = /^(1|true|yes|on)$/i.test(env.MEDIA);
+  }
+  if (env.MESSAGING !== undefined && env.MESSAGING !== '') {
+    config.messaging.enabled = /^(1|true|yes|on)$/i.test(env.MESSAGING);
+  }
+  if (env.MESSAGING_CONFIRM !== undefined && env.MESSAGING_CONFIRM !== '') {
+    config.messaging.confirm = /^(1|true|yes|on)$/i.test(env.MESSAGING_CONFIRM);
+  }
+  if (env.MESSAGING_SERVICE) config.messaging.service = env.MESSAGING_SERVICE;
+  // `Sarah=+15551234567,Bob=bob@example.com` — one row per `;`, `,` or newline, so a container
+  // can carry the whole address book without a volume. A row without a `=` is skipped rather
+  // than sending to a made-up address.
+  if (env.MESSAGING_CONTACTS) {
+    const contacts: Contact[] = [];
+    for (const row of env.MESSAGING_CONTACTS.split(/[;\n]/)) {
+      for (const part of row.split(',')) {
+        const separator = part.indexOf('=');
+        if (separator <= 0) continue;
+        const name = part.slice(0, separator).trim();
+        const address = part.slice(separator + 1).trim();
+        if (name && address) contacts.push({ name, address });
+      }
+    }
+    if (contacts.length > 0) config.messaging.contacts = contacts;
   }
 }
 

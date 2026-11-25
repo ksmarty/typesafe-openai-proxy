@@ -84,7 +84,7 @@ function domainsOf(entities: CatalogEntity[]): string[] {
 function wsQuery<T>(
   url: string,
   token: string,
-  messages: { type: string; optional?: boolean }[],
+  messages: { type: string; optional?: boolean; [key: string]: unknown }[],
   timeoutMs = 8000,
   onSkip?: (type: string, reason: string) => void,
 ): Promise<T[]> {
@@ -182,6 +182,48 @@ function wsQuery<T>(
       finish();
     });
   });
+}
+
+export interface CallServiceResult {
+  ok: boolean;
+  result?: unknown;
+  error?: string;
+}
+
+/**
+ * Call one Home Assistant service, and say whether it worked.
+ *
+ * The fast path answers most sentences with a tool call because Home Assistant executes those
+ * itself. Some things are only services, though — ha-bluebubbles sends a message and registers
+ * no assistant tool — and there is no tool call to make. This is the same websocket the catalog
+ * is read over, so it needs nothing but the URL and token the proxy already has, and it never
+ * throws: a refused or unanswered call comes back as `{ ok: false, error }` so the turn can say
+ * so instead of claiming the message went out.
+ */
+export async function callService(
+  config: Config,
+  service: string,
+  data: Record<string, unknown>,
+  timeoutMs = 15000,
+): Promise<CallServiceResult> {
+  const base = config.catalog.haUrl.replace(/\/+$/, '');
+  if (!base || !config.catalog.haToken) {
+    return { ok: false, error: 'Home Assistant URL and token are not configured' };
+  }
+  const [domain, name] = service.split('.');
+  if (!domain || !name) return { ok: false, error: `"${service}" is not a domain.service name` };
+  const wsUrl = `${base.replace(/^http/, 'ws')}/api/websocket`;
+  try {
+    const [result] = await wsQuery<unknown>(
+      wsUrl,
+      config.catalog.haToken,
+      [{ type: 'call_service', domain, service: name, service_data: data, return_response: false }],
+      timeoutMs,
+    );
+    return { ok: true, result };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 interface RegistryEntity {

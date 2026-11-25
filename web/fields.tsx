@@ -38,6 +38,7 @@ import type { SettingsField } from '../src/schema.js';
 import { previewForRule } from '../src/speech.js';
 import { generateToken } from '../src/token.js';
 import {
+  asContacts,
   asNumber,
   asRules,
   asString,
@@ -45,6 +46,7 @@ import {
   readPath,
   writePath,
   type Config,
+  type Contact,
   type SpeechRule,
   type TemplateRecord,
   type TemplateSlot,
@@ -609,12 +611,150 @@ function RulesField({ field, config, onChange }: ControlProps) {
   );
 }
 
+/**
+ * The contacts a spoken name is resolved against.
+ *
+ * Each row is one name and the number or address it sends to: "Sarah" → +15551234567. A name
+ * resolves by the whole name first and then by its first word, so two contacts called Sarah
+ * make the house ask instead of guessing — which is why the name column is the key, not the
+ * address. Rows are held here while they are typed and written whole, so a row that is still
+ * missing its address is not dropped between keystrokes.
+ */
+function ContactsField({ field, config, onChange }: ControlProps) {
+  const theme = useTheme();
+  const stacked = useMediaQuery(theme.breakpoints.down('sm'));
+  const [rows, setRows] = useState<Contact[]>(() => asContacts(readPath(config, field.key)));
+  const [pending, setPending] = useState<number | null>(null);
+
+  const write = (next: Contact[]) => {
+    setRows(next);
+    onChange(field.key, next);
+  };
+  const patch = (index: number, change: Partial<Contact>) => {
+    const next = rows.slice();
+    const current = next[index];
+    if (!current) return;
+    next[index] = { ...current, ...change };
+    write(next);
+  };
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= rows.length) return;
+    const next = rows.slice();
+    const [item] = next.splice(index, 1);
+    if (!item) return;
+    next.splice(target, 0, item);
+    write(next);
+  };
+  const confirming = pending !== null ? rows[pending] : undefined;
+
+  return (
+    <Stack spacing={1.5}>
+      <Typography variant="body2" component="label">
+        {field.label}
+      </Typography>
+      {field.help ? (
+        <Typography variant="caption" color="text.secondary">
+          {field.help}
+        </Typography>
+      ) : null}
+
+      {rows.length === 0 ? (
+        <Typography variant="caption" color="text.secondary">
+          No contacts yet — add one so “text Sarah that I’m on my way” knows where to go.
+        </Typography>
+      ) : null}
+
+      <Stack spacing={1}>
+        {rows.map((contact, index) => (
+          <Paper key={index} variant="outlined" sx={{ p: 1.25 }}>
+            <Stack
+              direction={stacked ? 'column' : 'row'}
+              spacing={1.25}
+              sx={{ alignItems: stacked ? 'stretch' : 'center' }}
+            >
+              <Stack direction="row" spacing={0.25} sx={{ alignItems: 'center', flexShrink: 0 }}>
+                <IconButton
+                  size="small"
+                  aria-label="Move up"
+                  disabled={index === 0}
+                  onClick={() => move(index, -1)}
+                >
+                  <ArrowUpwardIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  aria-label="Move down"
+                  disabled={index === rows.length - 1}
+                  onClick={() => move(index, 1)}
+                >
+                  <ArrowDownwardIcon fontSize="small" />
+                </IconButton>
+                <IconButton size="small" aria-label="Remove contact" onClick={() => setPending(index)}>
+                  <DeleteIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+              <TextField
+                size="small"
+                label="Name"
+                placeholder="Sarah"
+                value={contact.name}
+                onChange={(event) => patch(index, { name: event.target.value })}
+                sx={{ flex: '0 0 auto', width: { xs: '100%', sm: 200 } }}
+              />
+              <TextField
+                size="small"
+                label="Phone or email"
+                placeholder="+15551234567"
+                value={contact.address}
+                onChange={(event) => patch(index, { address: event.target.value })}
+                helperText={contact.address.trim() ? undefined : 'Needed before a message can be sent.'}
+                sx={{ flex: 1, minWidth: 0 }}
+              />
+            </Stack>
+          </Paper>
+        ))}
+      </Stack>
+
+      <Box>
+        <Button size="small" startIcon={<AddIcon />} onClick={() => write([...rows, { name: '', address: '' }])}>
+          Add a contact
+        </Button>
+      </Box>
+
+      <Dialog open={pending !== null} onClose={() => setPending(null)} maxWidth="xs" fullWidth>
+        <DialogTitle>Remove this contact?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {confirming
+              ? `“Text ${confirming.name || 'them'} …” will be handed to the model again instead of being sent, and no message will go to ${confirming.address || 'that address'}.`
+              : ''}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPending(null)}>Keep it</Button>
+          <Button
+            color="error"
+            onClick={() => {
+              if (pending !== null) write(rows.filter((_row, position) => position !== pending));
+              setPending(null);
+            }}
+          >
+            Remove
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Stack>
+  );
+}
+
 export function FieldControl(props: ControlProps) {
   const { field, config, onChange } = props;
 
   if (field.type === 'slider') return <SliderField {...props} />;
   if (field.type === 'templates') return <TemplateField {...props} />;
   if (field.type === 'rules') return <RulesField {...props} />;
+  if (field.type === 'contacts') return <ContactsField {...props} />;
 
   if (field.type === 'checkbox') {
     return (

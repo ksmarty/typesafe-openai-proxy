@@ -74,6 +74,30 @@ export interface SpeechRule {
   say?: string;
 }
 
+export interface Contact {
+  name: string;
+  address: string;
+}
+
+/**
+ * A contact list is free-form, so anything unreadable is dropped rather than crashing a field.
+ *
+ * A row without a name is kept out: it resolves nothing. An address may be empty while it is
+ * still being typed, and the send asks for one rather than guessing.
+ */
+export function asContacts(value: unknown): Contact[] {
+  if (!Array.isArray(value)) return [];
+  const out: Contact[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== 'object') continue;
+    const row = item as Record<string, unknown>;
+    const name = asString(row.name).trim();
+    if (!name) continue;
+    out.push({ name, address: asString(row.address).trim() });
+  }
+  return out;
+}
+
 /** A rule list is free-form, so anything unreadable is dropped rather than crashing a field. */
 export function asRules(value: unknown): SpeechRule[] {
   if (!Array.isArray(value)) return [];

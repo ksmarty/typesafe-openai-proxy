@@ -194,10 +194,29 @@ export interface ClarifyPlan {
   options?: string[];
 }
 
+/**
+ * A message the proxy sends itself, because the transport registers no LLM tool.
+ *
+ * ha-bluebubbles offers `bluebubbles.send_message` and nothing an Assist turn could call, so
+ * "text Sarah that I'm running late" cannot become a tool call. The plan carries the service,
+ * the addresses the spoken name resolved to, and the body as the speaker said it.
+ */
+export interface SendPlan {
+  kind: 'send';
+  /** `bluebubbles.send_message`, or whatever `messaging.service` names. */
+  service: string;
+  /** Phone numbers or email addresses, already resolved from the spoken names. */
+  addresses: string[];
+  /** Who was spoken to, for the sentence said back. */
+  contact: string;
+  /** The body, taken from the sentence and never invented. */
+  message: string;
+}
+
 export interface ConfirmPlan {
   kind: 'confirm';
   text: string;
-  pending: ToolCallPlan | MultiCallPlan;
+  pending: ToolCallPlan | MultiCallPlan | SendPlan;
 }
 
 export interface ForwardPlan {
@@ -222,7 +241,15 @@ export interface IgnorePlan {
   silence: string;
 }
 
-export type Plan = ToolCallPlan | MultiCallPlan | ClarifyPlan | ConfirmPlan | ForwardPlan | TextPlan | IgnorePlan;
+export type Plan =
+  | ToolCallPlan
+  | MultiCallPlan
+  | SendPlan
+  | ClarifyPlan
+  | ConfirmPlan
+  | ForwardPlan
+  | TextPlan
+  | IgnorePlan;
 
 export interface RouteResult {
   plan: Plan;

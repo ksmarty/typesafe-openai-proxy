@@ -11,9 +11,10 @@ import type { ServerResponse } from 'node:http';
 
 import { ACTION_VERBS } from './actions.js';
 
-import { getCatalog, homeSignature, homeZoneCoordinates } from './catalog.js';
+import { callService, getCatalog, homeSignature, homeZoneCoordinates } from './catalog.js';
 import { directStatePlan } from './answer.js';
 import { mediaPlan } from './media.js';
+import { messagingPlan, sendServiceData, spokenConfirm, spokenFailure, spokenSend } from './messaging.js';
 import { musicPlan } from './music.js';
 import { reminderPlan } from './reminders.js';
 import { timerPlan } from './timers.js';
@@ -64,6 +65,7 @@ import type {
   OpenAIMessage,
   Plan,
   RouteResult,
+  SendPlan,
   ToolCall,
   TraceEntry,
 } from './types.js';
@@ -704,6 +706,72 @@ export async function runPipeline(
     };
   };
 
+  /**
+   * Record a message this proxy sends itself.
+   *
+   * Every other reader hands Home Assistant a tool call and lets it run. ha-bluebubbles
+   * registers a *service* and no assistant tool, so there is nothing to hand over: the trace
+   * carries the call the proxy is about to make itself, and the dispatch below either asks the
+   * house first or makes it on the spot.
+   */
+  const localMessage = (plan: SendPlan, reason: string, mode: 'send' | 'confirm'): PipelineResult => {
+    const entry: TraceEntry = {
+      id: uid('trace'),
+      at: startedAt,
+      utterance,
+      route: mode,
+      reason,
+      tool: plan.service,
+      args: sendServiceData(plan),
+      gates: [],
+      category: 'command',
+      action: 'send_message',
+      ...(plan.contact ? { target: plan.contact } : {}),
+      backend: 'off',
+      catalogSource: catalog.source,
+      catalogExposure: catalog.exposure,
+      toolsOffered,
+      timings: { catalogMs, questionsMs: 0, decideMs: 0 },
+      totalMs: Date.now() - startedAt,
+    };
+    noteTrace(entry);
+    stats.requests += 1;
+    if (mode === 'send') stats.toolCalls += 1;
+    stats.routable += 1;
+    recordTurn(request, systemPrompt, entry);
+    return {
+      route: {
+        plan: mode === 'confirm' ? { kind: 'confirm', text: spokenConfirm(plan), pending: plan } : plan,
+        gates: [],
+        reason,
+        category: 'command',
+        action: 'send_message',
+        ...(plan.contact ? { target: plan.contact } : {}),
+      },
+      entry,
+    };
+  };
+
+  // \"Text Sarah that I'm running late\": ha-bluebubbles sends iMessage, RCS and SMS, but it
+  // registers a service and no assistant tool, so the model is never offered anything to call.
+  // This reader therefore acts rather than describing: it resolves the spoken name against the
+  // contacts in settings and calls the service itself. Off by default, so a house that never
+  // sends a message is untouched — and a sentence it cannot read (an unknown name, two Sarahs,
+  // a service that is not domain.service) falls through to the model as it did before.
+  let messagingNote: string | undefined;
+  if (active.routing.enabled && active.messaging.enabled) {
+    const messaging = messagingPlan({ utterance, config: active });
+    if (messaging && 'error' in messaging) messagingNote = `messaging: ${messaging.error}`;
+    else if (messaging?.kind === 'ask') return localCall({ kind: 'clarify', text: messaging.text }, messaging.reason);
+    else if (messaging?.kind === 'send') {
+      return localMessage(
+        messaging.plan,
+        messaging.reason,
+        active.messaging.confirm ? 'confirm' : 'send',
+      );
+    }
+  }
+
   let musicNote: string | undefined;
   if (active.routing.enabled && active.music.enabled) {
     const music = musicPlan({
@@ -1035,7 +1103,7 @@ export async function runPipeline(
   // A forwarded music or media sentence says why it was not played here, so the trace answers
   // the question instead of the person asking it twice.
   if (entry.route === 'forward') {
-    const note = mediaNote ?? musicNote;
+    const note = messagingNote ?? mediaNote ?? musicNote;
     if (note) entry.reason = `${entry.reason} (${note})`;
   }
 
@@ -1408,6 +1476,26 @@ export async function handleChatCompletions(
     } else if (YES.test(utterance)) {
       pendingConfirmations.delete(key);
       const confirmedId = uid('trace');
+      if (pending.plan.kind === 'send') {
+        // The armed question was "Should I text Sarah …?", and there is no tool to emit for it.
+        const sending = pending.plan;
+        rememberTrace({
+          id: confirmedId,
+          at: Date.now(),
+          utterance,
+          route: 'send',
+          reason: `confirmed by the speaker (${pending.utterance})`,
+          tool: sending.service,
+          args: sendServiceData(sending),
+          gates: [],
+          category: 'command',
+          action: 'send_message',
+          ...(sending.contact ? { target: sending.contact } : {}),
+          backend: 'confirmation',
+        });
+        await sendMessage(active, options(), sending, response, confirmedId);
+        return;
+      }
       emitToolCall(response, options(), pending.plan, confirmedId);
       rememberTrace({
         id: confirmedId,
@@ -1452,6 +1540,7 @@ export async function handleChatCompletions(
           localPlan.kind === 'calls' ||
           localPlan.kind === 'clarify' ||
           localPlan.kind === 'confirm' ||
+          localPlan.kind === 'send' ||
           localPlan.kind === 'ignore');
       if (local && usable) {
         const note = `decision unavailable (${error.message}) — read locally instead`;
@@ -1500,6 +1589,10 @@ export async function handleChatCompletions(
       });
       respondText(options(), plan.text, response);
       return;
+    case 'send':
+      // Nothing to emit: ha-bluebubbles has no assistant tool, so the proxy makes the call.
+      await sendMessage(active, options(), plan, response, result.entry.id);
+      return;
     case 'forward':
     default: {
       // A forwarded turn is as slow as the model server is; measure it, because that
@@ -1518,6 +1611,28 @@ export async function handleChatCompletions(
       break;
     }
   }
+}
+
+/**
+ * Send the message and answer with what actually happened.
+ *
+ * The proxy is the one talking to Home Assistant here, so the turn ends with a sentence it can
+ * honestly say: "Sent it to Sarah." only once the service returned, and the reason when it did
+ * not. A failure is spoken rather than swallowed — a message that never went out must never
+ * sound like one that did.
+ */
+async function sendMessage(
+  config: Config,
+  options: ChunkOptions,
+  plan: SendPlan,
+  response: ServerResponse,
+  turnId: string,
+): Promise<void> {
+  const outcome = await callService(config, plan.service, sendServiceData(plan));
+  const failure = outcome.error || 'Home Assistant refused the request';
+  const text = outcome.ok ? spokenSend(plan) : spokenFailure(plan, failure);
+  updateTrace(turnId, { said: text, ...(outcome.ok ? {} : { error: failure }) });
+  respondText(options, text, response);
 }
 
 /**

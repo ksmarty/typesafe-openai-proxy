@@ -7,7 +7,7 @@
  */
 
 import { ACTIONS, DOMAIN_LABELS, INTENTS } from './actions.js';
-import type { DecisionThresholds, SpeechRule } from './config.js';
+import type { Contact, DecisionThresholds, SpeechRule } from './config.js';
 
 export type FieldType =
   | 'text'
@@ -17,7 +17,8 @@ export type FieldType =
   | 'checkbox'
   | 'select'
   | 'templates'
-  | 'rules';
+  | 'rules'
+  | 'contacts';
 
 export interface SettingsField {
   /** Dotted path into the config object, e.g. `routing.thresholds.entity`. */
@@ -409,6 +410,39 @@ export function settingsGroups(): SettingsGroup[] {
       ],
     },
     {
+      id: 'messaging',
+      title: 'Messages',
+      description:
+        'Reads “text Sarah that I’m running late” and sends it through ha-bluebubbles. The integration registers a service but no assistant tool, so the proxy sends the message itself: it resolves the name against the contacts below and calls the service on your Home Assistant.',
+      fields: [
+        {
+          key: 'messaging.enabled',
+          label: 'Read message sentences here',
+          type: 'checkbox',
+          help: 'Off leaves every “text …”, “message …” and “send a text to …” sentence to the model server. Needs Home Assistant URL and token under Home Assistant, because the proxy calls the service itself.',
+        },
+        {
+          key: 'messaging.confirm',
+          label: 'Ask before sending',
+          type: 'checkbox',
+          help: 'Says the message back and waits for “yes” before anything leaves the house. A message cannot be unsent.',
+        },
+        {
+          key: 'messaging.service',
+          label: 'Service that sends',
+          type: 'text',
+          placeholder: 'bluebubbles.send_message',
+          help: 'Domain and service as Home Assistant knows them. Only change this if a script of your own wraps the send.',
+        },
+        {
+          key: 'messaging.contacts',
+          label: 'Contacts',
+          type: 'contacts',
+          help: 'The names you say, and the phone number or email address each one means. A name is matched whole first, then by its first word, so “text Sarah” works for “Sarah Miller”; two Sarahs is a question, never a guess.',
+        },
+      ],
+    },
+    {
       id: 'reminders',
       title: 'Reminders',
       description:
@@ -794,6 +828,22 @@ function coerce(field: SettingsField, value: unknown): unknown {
         state: slot('state'),
         unknown: slot('unknown'),
       };
+    }
+    return out;
+  }
+  if (field.type === 'contacts') {
+    if (!Array.isArray(value)) return undefined;
+    const out: Contact[] = [];
+    for (const item of value.slice(0, 100)) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      const name = typeof row.name === 'string' ? row.name.trim().slice(0, 60) : '';
+      const address = typeof row.address === 'string' ? row.address.trim().slice(0, 120) : '';
+      // A row with no name resolves nothing and is dropped. An address may still be empty
+      // while it is being typed: the editor saves as it goes, and a send to a contact with no
+      // address asks for one instead of guessing.
+      if (!name) continue;
+      out.push({ name, address });
     }
     return out;
   }
