@@ -216,6 +216,40 @@ function nameOf(value: unknown): string {
   return '';
 }
 
+/**
+ * The other things this person answers to.
+ *
+ * Two fields carry them, and both are worth having: `nicknames` is what the account calls them
+ * ("Mom", "Dad"), and `relations` is how they are related to the account holder ("mother",
+ * "spouse") — which is exactly the word a household says out loud. "Text mom" works for a
+ * contact whose name is something else entirely.
+ */
+function aliasesOf(value: { nicknames?: unknown; relations?: unknown }, name: string): string[] {
+  const said = new Set<string>([name.toLowerCase()]);
+  const out: string[] = [];
+  const add = (alias: string): void => {
+    const trimmed = alias.trim();
+    const key = trimmed.toLowerCase();
+    if (!trimmed || said.has(key)) return;
+    said.add(key);
+    out.push(trimmed);
+  };
+  if (Array.isArray(value.nicknames)) {
+    for (const entry of value.nicknames) {
+      const record = recordOf(entry);
+      if (record) add(textOf(record.value));
+    }
+  }
+  if (Array.isArray(value.relations)) {
+    for (const entry of value.relations) {
+      const record = recordOf(entry);
+      if (!record) continue;
+      add(textOf(record.type) || textOf(record.formattedType));
+    }
+  }
+  return out;
+}
+
 /** Numbers as E.164 where Google knows it, because that is what BlueBubbles wants. */
 function phonesOf(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
@@ -256,11 +290,12 @@ export function parseConnections(payload: unknown): Contact[] {
     const record = recordOf(person);
     if (!record) continue;
     const name = nameOf(record.names);
+    const aliases = aliasesOf(record, name);
     for (const address of [...phonesOf(record.phoneNumbers), ...emailsOf(record.emailAddresses)]) {
       const key = address.toLowerCase();
       if (seen.has(key)) continue;
       seen.add(key);
-      out.push({ name, address });
+      out.push(aliases.length > 0 ? { name, address, aliases } : { name, address });
     }
   }
   return out.sort((left, right) => left.name.localeCompare(right.name));
@@ -284,7 +319,7 @@ export async function listContacts(
   let pageToken = '';
   for (let page = 0; page < MAX_PAGES; page += 1) {
     const url = new URL(PEOPLE_URL);
-    url.searchParams.set('personFields', 'names,phoneNumbers,emailAddresses');
+    url.searchParams.set('personFields', 'names,nicknames,relations,phoneNumbers,emailAddresses');
     url.searchParams.set('pageSize', '1000');
     if (pageToken) url.searchParams.set('pageToken', pageToken);
     let payload: unknown = null;

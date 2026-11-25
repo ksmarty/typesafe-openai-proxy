@@ -15,6 +15,11 @@ export interface Contact {
   name: string;
   /** A phone number (`+15551234567`) or an email address (`sarah@example.com`). */
   address: string;
+  /**
+   * Other things this person answers to: "mom", a nickname, or the relationship Google knows
+   * them by. Matched after every contact's own name, so an alias can never shadow a person.
+   */
+  aliases?: string[];
 }
 
 /** One line of "what to say" policy: silent or spoken for a matching intent. */

@@ -3,6 +3,7 @@ import Autocomplete from '@mui/material/Autocomplete';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
+import InputAdornment from '@mui/material/InputAdornment';
 import Chip from '@mui/material/Chip';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
@@ -31,6 +32,8 @@ import AddIcon from '@mui/icons-material/Add';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ContactsIcon from '@mui/icons-material/Contacts';
+import CheckIcon from '@mui/icons-material/Check';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import DeleteIcon from '@mui/icons-material/Delete';
 import KeyIcon from '@mui/icons-material/Key';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -630,6 +633,34 @@ function RulesField({ field, config, onChange }: ControlProps) {
  * address. Rows are held here while they are typed and written whole, so a row that is still
  * missing its address is not dropped between keystrokes.
  */
+/**
+ * The other names one contact answers to, edited as a comma-separated line.
+ *
+ * The text is held locally while it is being typed: writing "Mo, M" back as a parsed list would
+ * eat the comma the moment it was pressed, and the reader could never type the second alias.
+ */
+function AliasField({ contact, onChange }: { contact: Contact; onChange: (aliases: string[]) => void }) {
+  const [text, setText] = useState(() => (contact.aliases ?? []).join(', '));
+  return (
+    <TextField
+      size="small"
+      label="Also called"
+      placeholder="mom, mother"
+      value={text}
+      onChange={(event) => {
+        setText(event.target.value);
+        onChange(
+          event.target.value
+            .split(',')
+            .map((alias) => alias.trim())
+            .filter(Boolean),
+        );
+      }}
+      sx={{ flex: '0 0 auto', width: { xs: '100%', sm: 160 } }}
+    />
+  );
+}
+
 function ContactsField({ field, config, onChange }: ControlProps) {
   const theme = useTheme();
   const stacked = useMediaQuery(theme.breakpoints.down('sm'));
@@ -732,6 +763,10 @@ function ContactsField({ field, config, onChange }: ControlProps) {
                 helperText={contact.address.trim() ? undefined : 'Needed before a message can be sent.'}
                 sx={{ flex: 1, minWidth: 0 }}
               />
+              <AliasField
+                contact={contact}
+                onChange={(aliases) => patch(index, aliases.length > 0 ? { aliases } : { aliases: undefined })}
+              />
             </Stack>
           </Paper>
         ))}
@@ -801,6 +836,57 @@ function ContactsField({ field, config, onChange }: ControlProps) {
  * appear here without a restart, and a stale copy in this page is one more thing that can make
  * "text Sarah" go to an address she no longer has.
  */
+/**
+ * Put a string on the clipboard.
+ *
+ * The dashboard is served over plain http on a home network often enough that `navigator.clipboard`
+ * is unavailable (it needs a secure context), so the textarea trick is the fallback rather than a
+ * nicety: the copy button has to work where the proxy actually runs.
+ */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // fall through to the selection-based copy
+  }
+  try {
+    const area = document.createElement('textarea');
+    area.value = text;
+    area.setAttribute('readonly', '');
+    area.style.position = 'fixed';
+    area.style.top = '0';
+    area.style.opacity = '0';
+    document.body.appendChild(area);
+    area.select();
+    const copied = document.execCommand('copy');
+    document.body.removeChild(area);
+    return copied;
+  } catch {
+    return false;
+  }
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <IconButton
+      size="small"
+      aria-label={copied ? 'Copied' : `Copy ${text}`}
+      title={copied ? 'Copied' : 'Copy'}
+      onClick={() => {
+        void copyToClipboard(text).then((ok) => {
+          if (!ok) return;
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        });
+      }}
+    >
+      {copied ? <CheckIcon fontSize="small" color="success" /> : <ContentCopyIcon fontSize="small" />}
+    </IconButton>
+  );
+}
+
 function GoogleImportDialog({
   open,
   onClose,
@@ -908,20 +994,24 @@ function GoogleImportDialog({
 
           {status && !status.configured ? (
             <Alert severity="info">
-              Add an OAuth client first, under Settings, Google Contacts. The client ID and secret
-              come from your own Google Cloud project: Google has to trust the redirect address,
-              and a client shipped with the proxy could not be trusted for yours.
+              Add an OAuth client first, under Settings, Google Contacts.
             </Alert>
           ) : null}
 
           {status && status.configured && !status.connected ? (
             <Stack spacing={1.5}>
-              <Typography variant="body2">
-                Connect the Google account whose contacts you want to read. Access is read-only,
-                and the connection can be removed again here.
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ fontFamily: monoFont }}>
-                redirect URI: {status.redirectUri}
+              <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ fontFamily: monoFont, wordBreak: 'break-all' }}
+                >
+                  redirect URI: {status.redirectUri}
+                </Typography>
+                <CopyButton text={status.redirectUri} />
+              </Stack>
+              <Typography variant="caption" color="text.secondary">
+                Add it to the OAuth client in Google Cloud, then connect. Read-only, revocable here.
               </Typography>
               <Box>
                 <Button variant="outlined" size="small" onClick={() => void connect()} disabled={busy}>
@@ -1005,6 +1095,77 @@ function GoogleImportDialog({
   );
 }
 
+/**
+ * The redirect URI, with the address Google would come back to filled in beside it.
+ *
+ * The URI has to be registered in Google Cloud character for character, so the field the reader
+ * copies from has to be the field that is actually used: an empty setting still redirects to this
+ * dashboard's own address, and that address is what the copy button copies.
+ */
+function RedirectField({ field, config, onChange }: ControlProps) {
+  const value = asString(readPath(config, field.key));
+  const [suggested, setSuggested] = useState('');
+
+  useEffect(() => {
+    let live = true;
+    getGoogleStatus()
+      .then((status) => {
+        if (live) setSuggested(status.redirectUri);
+      })
+      .catch(() => {
+        // A server that cannot answer yet is not a reason to hide the field.
+      });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const effective = value.trim() || suggested;
+  const offersFill = Boolean(suggested) && value.trim() !== suggested;
+
+  return (
+    <Stack spacing={0.75}>
+      <TextField
+        label={field.label}
+        placeholder={field.placeholder}
+        value={value}
+        helperText={field.help}
+        onChange={(event) => onChange(field.key, event.target.value)}
+        slotProps={
+          effective
+            ? {
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <CopyButton text={effective} />
+                    </InputAdornment>
+                  ),
+                },
+              }
+            : undefined
+        }
+      />
+      {effective ? (
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ fontFamily: monoFont, wordBreak: 'break-all' }}
+        >
+          {value.trim() ? 'Google comes back to ' : 'Empty uses this dashboard’s address: '}
+          {effective}
+        </Typography>
+      ) : null}
+      {offersFill ? (
+        <Box>
+          <Button size="small" onClick={() => onChange(field.key, suggested)}>
+            Use this address
+          </Button>
+        </Box>
+      ) : null}
+    </Stack>
+  );
+}
+
 export function FieldControl(props: ControlProps) {
   const { field, config, onChange } = props;
 
@@ -1012,6 +1173,7 @@ export function FieldControl(props: ControlProps) {
   if (field.type === 'templates') return <TemplateField {...props} />;
   if (field.type === 'rules') return <RulesField {...props} />;
   if (field.type === 'contacts') return <ContactsField {...props} />;
+  if (field.type === 'redirect') return <RedirectField {...props} />;
 
   if (field.type === 'checkbox') {
     return (

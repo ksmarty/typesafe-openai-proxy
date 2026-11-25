@@ -152,19 +152,36 @@ function firstWord(name: string): string {
  * and only the configured contacts can say where "Sarah" stops. The longest name wins, so a
  * contact listed as "Sarah Miller" beats one listed as "Sarah".
  */
+export function aliasesOf(contact: Contact): string[] {
+  return (contact.aliases ?? []).map((alias) => alias.trim()).filter(Boolean);
+}
+
+/**
+ * Every way one contact can be addressed, the name first.
+ *
+ * "Mom" is an alias of a contact whose name is "Sarah Miller": the alias resolves the
+ * recipient, and the reply still names the contact, because that is who was messaged.
+ */
+function spokenForms(contact: Contact): string[] {
+  return [contact.name, ...aliasesOf(contact)];
+}
+
 function contactPrefix(rest: string, contacts: Contact[]): MessagingSentence | null {
   const spoken = rest.trim();
-  let best: { name: string; body: string } | null = null;
+  const lowered = spoken.toLowerCase();
+  let best: { name: string; body: string; length: number } | null = null;
   for (const contact of contacts) {
-    const name = normaliseName(contact.name);
-    if (!name) continue;
-    if (spoken.toLowerCase().slice(0, name.length) !== name) continue;
-    const after = spoken.slice(name.length);
-    // The name has to be a word, not the start of one: "Sam" is not the start of "Samantha".
-    if (!/^[\s,:-]/.test(after)) continue;
-    const body = tidyBody(after.replace(/^[\s,:-]+/, ''));
-    if (!body) continue;
-    if (!best || name.length > normaliseName(best.name).length) best = { name: contact.name, body };
+    for (const form of spokenForms(contact)) {
+      const name = normaliseName(form);
+      if (!name) continue;
+      if (lowered.slice(0, name.length) !== name) continue;
+      const after = spoken.slice(name.length);
+      // The name has to be a word, not the start of one: "Sam" is not the start of "Samantha".
+      if (!/^[\s,:-]/.test(after)) continue;
+      const body = tidyBody(after.replace(/^[\s,:-]+/, ''));
+      if (!body) continue;
+      if (!best || name.length > best.length) best = { name: contact.name, body, length: name.length };
+    }
   }
   return best ? { recipients: [best.name], message: best.body } : null;
 }
@@ -253,10 +270,24 @@ export function matchContact(contacts: Contact[], spoken: string): NameMatch {
   if (whole.length === 1 && whole[0]) return { kind: 'contact', contact: whole[0] };
   if (whole.length > 1) return { kind: 'ambiguous', options: whole.map((contact) => contact.name) };
 
+  // Aliases come after every real name, so an alias can never shadow a person: "Mom" is only
+  // consulted once no contact is actually called that.
+  const byAlias = contacts.filter((contact) =>
+    aliasesOf(contact).some((alias) => normaliseName(alias) === said),
+  );
+  if (byAlias.length === 1 && byAlias[0]) return { kind: 'contact', contact: byAlias[0] };
+  if (byAlias.length > 1) return { kind: 'ambiguous', options: byAlias.map((contact) => contact.name) };
+
   const word = said.split(' ')[0] ?? said;
   const byFirst = contacts.filter((contact) => firstWord(contact.name) === word);
   if (byFirst.length === 1 && byFirst[0]) return { kind: 'contact', contact: byFirst[0] };
   if (byFirst.length > 1) return { kind: 'ambiguous', options: byFirst.map((contact) => contact.name) };
+
+  const byAliasWord = contacts.filter((contact) =>
+    aliasesOf(contact).some((alias) => firstWord(alias) === word && Boolean(alias)),
+  );
+  if (byAliasWord.length === 1 && byAliasWord[0]) return { kind: 'contact', contact: byAliasWord[0] };
+  if (byAliasWord.length > 1) return { kind: 'ambiguous', options: byAliasWord.map((contact) => contact.name) };
   return { kind: 'unknown' };
 }
 

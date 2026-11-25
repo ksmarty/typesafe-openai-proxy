@@ -50,6 +50,36 @@ const CONNECTIONS = {
   ],
 };
 
+const WITH_ALIASES = {
+  connections: [
+    {
+      names: [{ displayName: 'Sarah Bell', metadata: { primary: true } }],
+      nicknames: [{ value: 'Mom' }, { value: 'Sarah Bell' }],
+      relations: [{ person: 'Sarah Bell', type: 'mother' }],
+      phoneNumbers: [{ value: '+15551234567' }],
+    },
+    {
+      names: [{ displayName: 'Bob Bell' }],
+      relations: [{ person: 'Bob Bell', type: 'father' }],
+      phoneNumbers: [{ value: '+15550001111' }, { value: '+15550002222' }],
+    },
+  ],
+};
+
+test('a nickname or a relationship becomes an alias on every row of that person', () => {
+  assert.deepEqual(parseConnections(WITH_ALIASES), [
+    { name: 'Bob Bell', address: '+15550001111', aliases: ['father'] },
+    { name: 'Bob Bell', address: '+15550002222', aliases: ['father'] },
+    { name: 'Sarah Bell', address: '+15551234567', aliases: ['Mom', 'mother'] },
+  ]);
+});
+
+test('a person with no nickname or relation has no aliases field at all', () => {
+  for (const row of parseConnections(CONNECTIONS)) {
+    assert.equal('aliases' in row, false);
+  }
+});
+
 test('a connection becomes one row per address, with the canonical phone form', () => {
   assert.deepEqual(parseConnections(CONNECTIONS), [
     { name: 'Mum Bell', address: '+15559876543' },

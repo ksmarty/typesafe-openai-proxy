@@ -18,7 +18,8 @@ export type FieldType =
   | 'select'
   | 'templates'
   | 'rules'
-  | 'contacts';
+  | 'contacts'
+  | 'redirect';
 
 export interface SettingsField {
   /** Dotted path into the config object, e.g. `routing.thresholds.entity`. */
@@ -413,32 +414,32 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'messaging',
       title: 'Messages',
       description:
-        'Reads “text Sarah that I’m running late” — or “tell Sarah I’m running late” — and sends it through ha-bluebubbles. The integration registers a service but no assistant tool, so the proxy sends the message itself: it resolves the name against the contacts below and calls the service on your Home Assistant.',
+        'Reads “text Sarah that I’m running late” and sends it through ha-bluebubbles. The integration has no assistant tool, so the proxy sends it itself, over the Home Assistant connection under Home Assistant.',
       fields: [
         {
           key: 'messaging.enabled',
           label: 'Read message sentences here',
           type: 'checkbox',
-          help: 'Off leaves every “text …”, “tell Sarah …”, “message …” and “send a text to …” sentence to the model server, even with contacts filled in. Needs Home Assistant URL and token under Home Assistant, because the proxy calls the service itself.',
+          help: 'Off leaves them to the model server.',
         },
         {
           key: 'messaging.confirm',
           label: 'Ask before sending',
           type: 'checkbox',
-          help: 'Says the message back and waits for “yes” before anything leaves the house. A message cannot be unsent.',
+          help: 'Says it back and waits for “yes”. A message cannot be unsent.',
         },
         {
           key: 'messaging.service',
           label: 'Service that sends',
           type: 'text',
           placeholder: 'bluebubbles.send_message',
-          help: 'Domain and service as Home Assistant knows them. Only change this if a script of your own wraps the send.',
+          help: 'Only change it if a script of your own wraps the send.',
         },
         {
           key: 'messaging.contacts',
           label: 'Contacts',
           type: 'contacts',
-          help: 'The names you say, and the phone number or email address each one means. A name is matched whole first, then by its first word, so “text Sarah” works for “Sarah Miller”; two Sarahs is a question, never a guess.',
+          help: 'A name, its number, and anything else that person answers to — “mom”, a nickname, a relationship. Two people with the same name is a question, never a guess.',
         },
       ],
     },
@@ -446,33 +447,33 @@ export function settingsGroups(): SettingsGroup[] {
       id: 'google',
       title: 'Google Contacts',
       description:
-        'Fills the contact list above from the Google account you already keep it in, instead of typing every name and number. Read-only, through an OAuth client of your own: the proxy stores the refresh token it gets back and never writes to the account.',
+        'Reads your contacts out of Google, read-only, so nobody types them in. Needs your own OAuth client: the proxy keeps the token it gets back and never writes to the account.',
       fields: [
         {
           key: 'google.clientId',
           label: 'OAuth client ID',
           type: 'text',
           placeholder: '1234567890-abc.apps.googleusercontent.com',
-          help: 'From a Google Cloud project with the People API enabled: Credentials → Create credentials → OAuth client ID → Web application. Enable the People API on that project first, or the list comes back empty.',
+          help: 'Google Cloud project with the People API enabled, then Credentials → OAuth client ID → Web application.',
         },
         {
           key: 'google.clientSecret',
           label: 'OAuth client secret',
           type: 'password',
-          help: 'Beside the client id on the same credentials page. Stored in data/config.json and masked everywhere it is read back.',
+          help: 'Stored in data/config.json, masked here.',
         },
         {
           key: 'google.redirectUri',
           label: 'Redirect URI',
-          type: 'text',
+          type: 'redirect',
           placeholder: 'https://proxy.example.com/api/google/callback',
-          help: 'Has to match a redirect URI on that OAuth client character for character. Leave it empty to use this dashboard’s own address, which is what a loopback client needs.',
+          help: 'Register this exact URL on the OAuth client. Empty means the address this dashboard is opened at.',
         },
         {
           key: 'google.refreshToken',
           label: 'Connection',
           type: 'password',
-          help: 'Filled in by “Connect Google” on the Messages page. Clear it to disconnect; the contacts already imported stay where they are.',
+          help: 'Filled in by Connect Google on the Messages page. Clear it to disconnect.',
         },
       ],
     },
@@ -877,7 +878,16 @@ function coerce(field: SettingsField, value: unknown): unknown {
       // while it is being typed: the editor saves as it goes, and a send to a contact with no
       // address asks for one instead of guessing.
       if (!name) continue;
-      out.push({ name, address });
+      // Aliases are another way to say this person's name, so a row without them is the
+      // common case and stays a row without them rather than gaining an empty array.
+      const aliases = Array.isArray(row.aliases)
+        ? row.aliases
+            .filter((alias): alias is string => typeof alias === 'string')
+            .map((alias) => alias.trim().slice(0, 60))
+            .filter(Boolean)
+            .slice(0, 8)
+        : [];
+      out.push(aliases.length > 0 ? { name, address, aliases } : { name, address });
     }
     return out;
   }

@@ -1007,6 +1007,14 @@ and "Sarah Jones") make the house ask *"Who do you mean — Sarah Bell or Sarah 
 than pick one, and a name it does not know is answered with where to add it — never forwarded to
 a model that might invent an address.
 
+**One person, several names.** Each row carries optional *aliases*: "mom", a nickname, or a
+relationship. They are matched **after** every contact's own name, so an alias can never shadow
+somebody actually called that, and two people sharing one (two contacts both aliased "mom") is the
+same question as two Sarahs. The reply names the contact, not the alias — *"Sent it to Sarah Bell."*
+— because that is who was messaged. The Google import fills aliases in from `nicknames` and
+`relations`, so a contact whose name is "Sarah Bell" answers to "text mom I'm running late" with
+nothing typed by hand.
+
 **Ask first** is on by default: the turn says *"Should I text Sarah “I'm running late”?"* and
 sends on "yes", using the same armed question and time window as every other confirmation
 (`SPEECH_CONFIRM_SECONDS`, 90 s). Turn it off for one-step sending. **What is said afterwards is
@@ -1014,16 +1022,20 @@ what happened**: "Sent it to Sarah." only once the service returned; a refusal o
 spoken as *"I couldn't send that to Sarah: <the reason>"*, because a message that did not go out
 must never sound like one that did.
 
-**Importing from Google Contacts.** Typing numbers in is not the point, so Settings → **Messages** →
-*Import from Google* reads the contacts from the Google account you already keep them in. It is
-read-only (`contacts.readonly`), through an OAuth client **of your own**: Google has to trust the
-redirect address, so a client shipped with this proxy could not work for yours. Create one in
-Google Cloud → Credentials → OAuth client ID → *Web application*, add
-`https://<your-proxy>/api/google/callback` as a redirect URI (Settings → Google Contacts shows the
-exact one to register; empty means "this dashboard's own address", which is the loopback case
-Google allows without a verification review), paste the client ID and secret in, then **Connect
-Google** and pick names from the list. Rows already in the list are shown disabled, one row per
-address so a person's phone and email are two choices, and nothing is imported unless you tick it.
+**Importing from Google Contacts.** Settings → **Messages** → *Import from Google* reads the
+contacts from the Google account you keep them in, so nobody types numbers in. Read-only
+(`contacts.readonly`), through an OAuth client **of your own**, because Google has to trust the
+redirect address.
+
+1. Google Cloud → Credentials → OAuth client ID → *Web application*.
+2. Register `https://<BASE_URL>/api/google/callback`. Settings → Google Contacts shows the exact
+   URL with a copy button, and *Use this address* fills the base in from the address you opened the
+   dashboard at; leaving the field empty means the same thing.
+3. Paste the client ID and secret, then *Connect Google* in the import dialog and tick the people
+   you want.
+
+Rows already in the list show disabled, one row per address so a phone and an email are two
+choices, and nothing is imported unless it is ticked. Aliases come along with them.
 
 The refresh token is stored in `data/config.json`, is never returned through the API (the same
 masking as every other secret), and **Disconnect** clears it — imported contacts stay. Reading the

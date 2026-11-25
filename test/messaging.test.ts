@@ -76,6 +76,10 @@ function config(patch: (base: Config) => Config = (base) => base): Config {
   });
 }
 
+function aliased(): Config {
+  return config((base) => ({ ...base, messaging: { ...base.messaging, contacts: WITH_ALIASES } }));
+}
+
 async function say(utterance: string, active: Config) {
   const response = fakeResponse();
   await handleChatCompletions(
@@ -296,6 +300,50 @@ test('“tell Sarah …” and “let Sarah know …” read the same way', () =
     recipients: ['+15551234567'],
     message: 'the car is outside',
   });
+});
+
+const WITH_ALIASES: Contact[] = [
+  { name: 'Sarah Bell', address: '+15551234567', aliases: ['Mom'] },
+  { name: 'Bob Bell', address: '+15559876543', aliases: ['Dad'] },
+];
+
+test('an alias reaches a contact whose name is something else', () => {
+  // After a spoken separator the word is carried as said; the plan resolves it to the contact.
+  assert.deepEqual(readMessagingSentence('text mom that I am on my way', WITH_ALIASES), {
+    recipients: ['mom'],
+    message: 'I am on my way',
+  });
+  // With no separator only the contacts can say where the name ends, so the alias is resolved
+  // here and the reply names who was messaged.
+  assert.deepEqual(readMessagingSentence('text Mom I am on my way', WITH_ALIASES), {
+    recipients: ['Sarah Bell'],
+    message: 'I am on my way',
+  });
+  const plan = messagingPlan({ utterance: 'tell dad I will be late', config: aliased() });
+  assert.equal(plan?.kind, 'send');
+  assert.deepEqual(plan && 'plan' in plan ? plan.plan.addresses : [], ['+15559876543']);
+  assert.deepEqual(plan && 'plan' in plan ? plan.plan.contact : '', 'Bob Bell');
+});
+
+test('a real name beats an alias, and two people sharing one is a question', () => {
+  // Someone actually called "Mom" outranks an alias on someone else.
+  const named = matchContact(
+    [
+      { name: 'Sarah Bell', address: '+15551234567', aliases: ['Mom'] },
+      { name: 'Mom', address: '+15550001111' },
+    ],
+    'mom',
+  );
+  assert.deepEqual(named, { kind: 'contact', contact: { name: 'Mom', address: '+15550001111' } });
+
+  const shared = matchContact(
+    [
+      { name: 'Sarah Bell', address: '+15551234567', aliases: ['Mom'] },
+      { name: 'Bob Bell', address: '+15559876543', aliases: ['Mom'] },
+    ],
+    'mom',
+  );
+  assert.equal(shared.kind, 'ambiguous');
 });
 
 test('“tell me a joke” is never a message', () => {

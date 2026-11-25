@@ -77,6 +77,8 @@ export interface SpeechRule {
 export interface Contact {
   name: string;
   address: string;
+  /** What this person also answers to: "mom", a nickname, a relationship from Google. */
+  aliases?: string[];
 }
 
 /**
@@ -93,7 +95,10 @@ export function asContacts(value: unknown): Contact[] {
     const row = item as Record<string, unknown>;
     const name = asString(row.name).trim();
     if (!name) continue;
-    out.push({ name, address: asString(row.address).trim() });
+    const aliases = Array.isArray(row.aliases)
+      ? row.aliases.map((alias) => asString(alias).trim()).filter(Boolean)
+      : [];
+    out.push(aliases.length > 0 ? { name, address: asString(row.address).trim(), aliases } : { name, address: asString(row.address).trim() });
   }
   return out;
 }
