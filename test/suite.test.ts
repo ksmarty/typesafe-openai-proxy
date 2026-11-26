@@ -284,6 +284,52 @@ test('the answer to a spoken sum is said out loud, not forwarded', async () => {
   }
 });
 
+test('a sentence that ends in a full stop is still read as a sum', async () => {
+  // Speech-to-text ends a sentence with a full stop, not a question mark: the satellite sent
+  // "What's two plus two." and the trailing period made "two." a word the readers could not
+  // translate, so the turn fell through to conversation and was forwarded.
+  assert.deepEqual(readSuiteQuestion("What's two plus two.")?.args, {
+    operation: 'expression',
+    data: ['2+2'],
+  });
+  // A period inside a decimal still means a decimal.
+  assert.deepEqual(readSuiteQuestion('what is 2.5 plus 2.5.')?.args, {
+    operation: 'expression',
+    data: ['2.5+2.5'],
+  });
+  assert.deepEqual(readSuiteQuestion('how many grams in 8 ounces.')?.args, {
+    amount: '8',
+    from_unit: 'ounce',
+    to_unit: 'gram',
+  });
+
+  const upstream = await upstreamSaying('unused');
+  try {
+    clearCatalogCache();
+    issuedCalls.clear();
+    turnBySession.clear();
+    trace.length = 0;
+    const active = config(upstream.url);
+    const asked = await ask("What's two plus two.", active);
+    const call = asked.body.choices[0].message.tool_calls?.[0];
+    assert.ok(call, `expected a call, got ${asked.raw.slice(0, 200)}`);
+    assert.equal(trace[0]?.route, 'tool');
+    assert.equal(trace[0]?.action, 'calculate');
+    assert.equal(trace[0]?.backend, 'off');
+
+    // Home Assistant offers the integration's tools under their bare names as well
+    // (`calculate`, not `llm_intents__calculate`), and both spellings have to be found.
+    const bare = TOOLS.map((tool) => ({
+      ...tool,
+      function: { ...tool.function, name: tool.function.name.replace('llm_intents__', '') },
+    }));
+    const bareAsked = await ask("What's two plus two.", active, bare);
+    assert.equal(bareAsked.body.choices[0].message.tool_calls?.[0]?.function.name, 'calculate');
+  } finally {
+    await upstream.close();
+  }
+});
+
 test('a nearby place becomes a find_places call', async () => {
   const upstream = await upstreamSaying('unused');
   try {

@@ -686,7 +686,9 @@ to digits, `+ - * / % **` and brackets, because that is all the integration's ca
 Numbers may be *said* rather than typed — "two plus two", "twenty two times three", "one hundred
 and five minus five" — because a sum arrives from a microphone and speech-to-text hands over words,
 not digits. A run of number words is read as one number, and "and" only joins a scaled one, so "two
-and two" is two numbers rather than twenty-two and is forwarded.
+and two" is two numbers rather than twenty-two and is forwarded. The sentence may end with a full
+stop rather than a question mark — that is what a transcriber writes — and a full stop inside a
+decimal ("2.5") still means a decimal.
 "how much is a pint of milk?" is not a sum and is forwarded. A sentence that names a device in the
 catalog is never sent to a search engine, and a place is only looked for when the sentence asks for
 one nearby. The other tools — `get_weather_forecast`, `search_youtube`, `play_video`,

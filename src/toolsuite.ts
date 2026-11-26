@@ -289,12 +289,19 @@ export interface SuiteQuestion {
   about: string;
 }
 
-/** Lower case, with the arithmetic kept: what the maths readers match against. */
+/**
+ * Lower case, with the arithmetic kept: what the maths readers match against.
+ *
+ * A full stop only means something inside a decimal number. Speech-to-text ends the sentence
+ * with one ("What's two plus two."), and a period left on the last word made it a word the
+ * readers could not translate, so the whole sentence was refused and forwarded instead.
+ */
 function maths(text: string): string {
   return text
     .toLowerCase()
     .replace(/[’']/g, '')
     .replace(/[^a-z0-9+\-*/%().\s]/g, ' ')
+    .replace(/\.(?=\s|$)/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
 }
