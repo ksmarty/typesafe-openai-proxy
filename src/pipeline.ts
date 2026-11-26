@@ -1324,9 +1324,11 @@ export async function handleChatCompletions(
     }
     // A question is owed an answer. The quiet default is written for commands — nobody wants
     // the house narrated — but applying it to a question is how "is the door locked?" came
-    // back as nothing at all. Only a round the proxy did not issue takes this path, so the
-    // existing behaviour for its own calls does not change.
-    const owedAnswer = !ownerFromCalls && previousTurn?.category === 'query';
+    // back as nothing at all. It covers the proxy's own calls too: "what's two plus two?"
+    // is answered by asking `calculate`, and "quiet after a tool call" then left the person
+    // with no answer at all. A rule that silences the call still wins, so nothing that was
+    // deliberately quiet becomes noisy.
+    const owedAnswer = previousTurn?.category === 'query' && silenced === 0;
     // A rule that said "Speak it" or showed a custom sentence is an instruction to say
     // something, so the silence marker is not an acceptable outcome for that round.
     const askedForSpeech = ruled.some((rule) => rule?.mode === 'speak' || rule?.mode === 'custom');

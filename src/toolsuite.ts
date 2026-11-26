@@ -328,6 +328,82 @@ const SUM_WORDS: [RegExp, string][] = [
   [/(\d)\s*x\s*(\d)/g, '$1*$2'],
 ];
 
+/** Number words as values, so "two plus two" becomes something to calculate. */
+const NUMBER_WORDS: Record<string, number> = {
+  zero: 0,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+  eleven: 11,
+  twelve: 12,
+  thirteen: 13,
+  fourteen: 14,
+  fifteen: 15,
+  sixteen: 16,
+  seventeen: 17,
+  eighteen: 18,
+  nineteen: 19,
+  twenty: 20,
+  thirty: 30,
+  forty: 40,
+  fifty: 50,
+  sixty: 60,
+  seventy: 70,
+  eighty: 80,
+  ninety: 90,
+};
+
+/** The scales a spoken number can carry: "three hundred and five". */
+const SCALE_WORDS: Record<string, number> = { hundred: 100, thousand: 1000 };
+
+/**
+ * Spoken numbers as digits: "what's two plus two" -> "2+2".
+ *
+ * People say their sums, and speech only hands over digits when they are written down.
+ * A run of number words is read as one number ("twenty two" is 22, not 20 and 2); "and"
+ * joins a scaled number ("one hundred and five") because that is the only place it appears
+ * inside a number, so "two and two" stays two numbers and the expression is refused below
+ * rather than silently becoming 22.
+ */
+function digitiseNumbers(text: string): string {
+  const tokens = text.split(' ');
+  const out: string[] = [];
+  let index = 0;
+  while (index < tokens.length) {
+    const first = tokens[index] ?? '';
+    if (!(first in NUMBER_WORDS) && !(first in SCALE_WORDS)) {
+      out.push(first);
+      index += 1;
+      continue;
+    }
+    let value = 0;
+    let scaled = false;
+    while (index < tokens.length) {
+      const token = tokens[index] ?? '';
+      const next = tokens[index + 1] ?? '';
+      if (token in NUMBER_WORDS) {
+        value += NUMBER_WORDS[token] as number;
+        index += 1;
+      } else if (token in SCALE_WORDS) {
+        value = (value || 1) * (SCALE_WORDS[token] as number);
+        scaled = true;
+        index += 1;
+      } else if (token === 'and' && scaled && (next in NUMBER_WORDS || next in SCALE_WORDS)) {
+        index += 1;
+      } else break;
+    }
+    out.push(String(value));
+  }
+  return out.join(' ');
+}
+
 /** An expression `calculate`'s AST walk will accept, and nothing else. */
 const SAFE_EXPRESSION = /^[-+*/().\d%]+$/;
 
@@ -341,10 +417,9 @@ const SAFE_EXPRESSION = /^[-+*/().\d%]+$/;
  */
 function readCalculation(text: string): SuiteQuestion | null {
   const said = maths(text);
-  if (!/\d/.test(said)) return null;
   const opening = CALC_OPENINGS.find((phrase) => said.startsWith(`${phrase} `));
   if (!opening) return null;
-  let body = said.slice(opening.length).trim();
+  let body = digitiseNumbers(said.slice(opening.length).trim());
   for (const [pattern, replacement] of SUM_WORDS) body = body.replace(pattern, replacement);
   body = body.replace(/\s+/g, '');
   if (!body || !/\d/.test(body)) return null;

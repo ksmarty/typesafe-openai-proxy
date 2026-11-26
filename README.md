@@ -670,6 +670,7 @@ Five of them can also be asked for by name, before a model turn is spent on the 
 | --- | --- | --- |
 | "what's 12 times 8?" | `calculate` with `12*8` | "That's 96." |
 | "what is 15% of 240?" | `calculate` with `15*0.01*240` | "That's 36." |
+| "what's two plus two?" | `calculate` with `2+2` | "That's 4." |
 | "how many grams in 8 ounces?" | `unit_convert`, ounce → gram | "8 ounces is 226.8 grams." |
 | "convert 2 cups to ml" | `unit_convert`, cup → ml | "2 cups is 473.2 ml." |
 | "search wikipedia for Alan Turing" | `search_wikipedia` | the model, from the summary |
@@ -682,6 +683,10 @@ proxy can say in one true sentence is said locally.
 
 An arithmetic sentence has to *be* arithmetic to be read here: the whole expression has to reduce
 to digits, `+ - * / % **` and brackets, because that is all the integration's calculator accepts.
+Numbers may be *said* rather than typed — "two plus two", "twenty two times three", "one hundred
+and five minus five" — because a sum arrives from a microphone and speech-to-text hands over words,
+not digits. A run of number words is read as one number, and "and" only joins a scaled one, so "two
+and two" is two numbers rather than twenty-two and is forwarded.
 "how much is a pint of milk?" is not a sum and is forwarded. A sentence that names a device in the
 catalog is never sent to a search engine, and a place is only looked for when the sentence asks for
 one nearby. The other tools — `get_weather_forecast`, `search_youtube`, `play_video`,
@@ -1142,6 +1147,12 @@ is read from the announcement, the rule matches, and the sentence is built from 
 a route is spoken locally, and a tool whose result nobody here can phrase (a web page, a
 forecast) is handed to the model instead of being silenced. A rule that asks for speech never
 produces `[pause:1.5s]`.
+
+A question is owed an answer when the call was the proxy's *own*, too — the same bug seen from the
+other side. "What's two plus two?" is answered by asking `calculate`, and **Say nothing** then
+swallowed the answer, leaving a pause and no number. The question now outranks the quiet default,
+so the result is spoken ("That's 4."), or handed to the model when the result is prose. A rule that
+matches the call still wins, so a domain you have silenced stays silent.
 
 ## Answering a state question
 

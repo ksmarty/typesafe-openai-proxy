@@ -164,6 +164,28 @@ test('the house is never sent to a search engine', () => {
   assert.equal(readSuiteQuestion('find the nearest kitchen light', homes), null);
 });
 
+test('a sum said in words becomes digits', () => {
+  // People say their sums: "two plus two" carries no digit at all.
+  assert.deepEqual(readSuiteQuestion("what's two plus two?"), {
+    tool: 'calculate',
+    args: { operation: 'expression', data: ['2+2'] },
+    about: '2+2',
+  });
+  // A run of number words is one number, not several.
+  assert.deepEqual(readSuiteQuestion('what is twenty two times three')?.args, {
+    operation: 'expression',
+    data: ['22*3'],
+  });
+  // "and" only joins a scaled number, so this is 105 minus 5.
+  assert.deepEqual(readSuiteQuestion('what is one hundred and five minus five')?.args, {
+    operation: 'expression',
+    data: ['105-5'],
+  });
+  // Two numbers joined by "and" are not a number, and a sentence without arithmetic is not a sum.
+  assert.equal(readSuiteQuestion('what is two and two'), null);
+  assert.equal(readSuiteQuestion('what is the best way to cook rice'), null);
+});
+
 test('a sum is spoken as its answer, not as the expression', () => {
   const said = spokenToolResult(
     'llm_intents__calculate',
@@ -217,6 +239,46 @@ test('a sum becomes a calculate call, with no model turn', async () => {
     assert.equal(entry?.action, 'calculate');
     assert.equal(entry?.backend, 'off', 'no model was consulted');
     assert.match(entry?.reason ?? '', /no model call/);
+  } finally {
+    await upstream.close();
+  }
+});
+
+test('the answer to a spoken sum is said out loud, not forwarded', async () => {
+  const upstream = await upstreamSaying('unused');
+  try {
+    clearCatalogCache();
+    issuedCalls.clear();
+    turnBySession.clear();
+    trace.length = 0;
+    const active = config(upstream.url);
+
+    const asked = await ask("what's two plus two?", active);
+    const call = asked.body.choices[0].message.tool_calls?.[0];
+    assert.ok(call, `expected a call, got ${asked.raw.slice(0, 200)}`);
+    assert.deepEqual(JSON.parse(call.function.arguments), { operation: 'expression', data: ['2+2'] });
+
+    // Home Assistant runs the call and replays it: this is the round that owes the answer.
+    const { state, response } = fakeResponse();
+    await handleChatCompletions(
+      {
+        model: 'm',
+        stream: false,
+        tools: TOOLS,
+        messages: [
+          { role: 'system', content: PROMPT },
+          { role: 'user', content: "what's two plus two?" },
+          { role: 'assistant', content: null, tool_calls: [call] },
+          { role: 'tool', tool_call_id: call.id, content: JSON.stringify({ result: { value: 4 } }) },
+        ],
+      } as never,
+      '{"model":"m"}',
+      response,
+      active,
+    );
+    // "Quiet after a tool call" is written for commands; a question still gets its answer.
+    const answer = JSON.parse(state.body).choices[0].message.content as string;
+    assert.equal(answer, "That's 4.");
   } finally {
     await upstream.close();
   }
