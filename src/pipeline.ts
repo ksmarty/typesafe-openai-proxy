@@ -21,7 +21,7 @@ import { timerPlan } from './timers.js';
 import { clockNow, isTimeQuestion, spokenTime } from './clock.js';
 import { readWeatherQuestion, requestedSummaryLanguage, weatherAnswer, weatherFor } from './weather.js';
 import { readSportsQuestion, sportsAnswer, sportsFor } from './sports.js';
-import { looksLikeChatter } from './chatter.js';
+import { looksLikeChatter, looksLikeQuestion } from './chatter.js';
 import { cancelPlan } from './cancel.js';
 import { looksLikeRollCall } from './rollcall.js';
 import { judgeAddressee } from './addressee.js';
@@ -56,7 +56,14 @@ import {
 import { splitClauses } from './compound.js';
 import { decide, DecisionUnavailable } from './systemone.js';
 import { descriptorFromAnnouncement, findTool, inventoryFor, parseToolArguments } from './toolcall.js';
-import { needsModelWords, readSuiteQuestion, readTravelQuestion, spokenToolResult, travelArgs } from './toolsuite.js';
+import {
+  needsModelWords,
+  readLooseCalculation,
+  readSuiteQuestion,
+  readTravelQuestion,
+  spokenToolResult,
+  travelArgs,
+} from './toolsuite.js';
 import type {
   Answer,
   Catalog,
@@ -861,7 +868,12 @@ export async function runPipeline(
   // decision call would cost a round trip and could nudge a device; the model server is the
   // right reader for it.
   if (active.routing.enabled) {
-    const chatter = looksLikeChatter(utterance, catalog);
+    // A question is the decision model's to classify, not this filter's: the questionnaire
+    // already separates `query` from `information` from `unclear`, and the model can weigh a
+    // sentence the keyword list cannot ("who won the game last night"). The filter keeps the
+    // work it is good at — a terse aside that asks nothing at all ("thanks", "never mind") —
+    // where a model round trip would buy nothing.
+    const chatter = looksLikeQuestion(utterance) ? null : looksLikeChatter(utterance, catalog);
     if (chatter) {
       // "ignore that", "no you", "thanks": the model is the right reader for a reply to the
       // assistant, but a remark that was never addressed to it is answered with silence.
@@ -1017,6 +1029,27 @@ export async function runPipeline(
         plan: { kind: 'forward', reason: 'compound request: at least one clause is not something the fast path can call' },
         gates: [...result.gates, ...clauseGates],
         reason: 'compound request: at least one clause is not something the fast path can call',
+      };
+    }
+  }
+
+  // The model read the sentence as a question about the world rather than about the house —
+  // and it cannot answer it itself: its answers are choices, so it can say "this is
+  // information" but never "2+2". The readers ran first and declined, because the strict reader
+  // wants an opening that introduces arithmetic and a spoken question need not have one. They
+  // get one more look now, with the opening allowed to be anything: if what is left is
+  // arithmetic and nothing else, the proxy issues the call itself.
+  if (active.suite.enabled && result.plan.kind === 'forward' && result.category === 'information') {
+    const loose = readLooseCalculation(utterance);
+    const tool = loose ? findTool(inventory, loose.tool) : undefined;
+    if (loose && tool) {
+      result = {
+        plan: { kind: 'tool', tool: tool.name, args: loose.args, targets: [loose.about], action: loose.tool },
+        gates: result.gates,
+        reason: `${loose.tool} for ${loose.about} — the model called it information and the reader found the sum, no second model call`,
+        category: 'query',
+        action: loose.tool,
+        target: loose.about,
       };
     }
   }

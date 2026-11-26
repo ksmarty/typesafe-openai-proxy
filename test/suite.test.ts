@@ -15,7 +15,7 @@ import { clearCatalogCache } from '../src/catalog.js';
 import { defaultConfig, type Config } from '../src/config.js';
 import { handleChatCompletions } from '../src/pipeline.js';
 import { issuedCalls, trace, turnBySession } from '../src/state.js';
-import { needsModelWords, readSuiteQuestion, spokenToolResult } from '../src/toolsuite.js';
+import { needsModelWords, readLooseCalculation, readSuiteQuestion, spokenToolResult } from '../src/toolsuite.js';
 import type { OpenAITool } from '../src/types.js';
 
 const PROMPT = [
@@ -416,5 +416,130 @@ test('a web result is phrased by the model, not announced as Done', async () => 
     assert.match(forwarded?.reason ?? '', /prose/);
   } finally {
     await upstream.close();
+  }
+});
+
+/** A stub that answers the decision model and the upstream model on one port. */
+async function stubServers(answers: Record<string, unknown>) {
+  const server: Server = createServer((request, response) => {
+    let raw = '';
+    request.on('data', (chunk) => {
+      raw += String(chunk);
+    });
+    request.on('end', () => {
+      response.writeHead(200, { 'content-type': 'application/json' });
+      if ((request.url ?? '').includes('systemone')) {
+        response.end(
+          JSON.stringify({ model: 'jev-test', answers, usage: { input_tokens: 1, output_tokens: 1 } }),
+        );
+        return;
+      }
+      response.end(
+        JSON.stringify({
+          choices: [{ index: 0, message: { role: 'assistant', content: 'I am the fallback model.' }, finish_reason: 'stop' }],
+        }),
+      );
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  const port = typeof address === 'object' && address ? address.port : 0;
+  return {
+    upstream: `http://127.0.0.1:${port}/v1`,
+    systemone: `http://127.0.0.1:${port}/v1/systemone`,
+    close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+  };
+}
+
+/** The decision model's answer to a question about the world: not about the house, but asked of us. */
+const INFORMATION_ANSWERS = {
+  category: {
+    type: 'choice',
+    choice: 'information',
+    probabilities: { command: 0.02, query: 0.04, information: 0.93, cancel: 0.0, unclear: 0.01 },
+    confidence: 0.93,
+  },
+  addressed: { type: 'noul', noul: 0.94 },
+};
+
+function configWithDecision(upstreamUrl: string, systemoneUrl: string): Config {
+  const base = config(upstreamUrl);
+  return {
+    ...base,
+    decision: {
+      ...base.decision,
+      backend: 'systemone',
+      baseUrl: systemoneUrl,
+      model: 'jev-test',
+      apiKey: '',
+      cache: false,
+    },
+  };
+}
+
+test('a sum said without an opening is read once the model calls it a question', () => {
+  assert.deepEqual(readLooseCalculation('two plus two'), {
+    tool: 'calculate',
+    args: { operation: 'expression', data: ['2+2'] },
+    about: '2+2',
+  });
+  assert.deepEqual(readLooseCalculation('what about two plus two')?.args, {
+    operation: 'expression',
+    data: ['2+2'],
+  });
+  assert.deepEqual(readLooseCalculation('and 6 times 7')?.args, { operation: 'expression', data: ['6*7'] });
+
+  // A number on its own is not a sum, "and" joins two numbers rather than one, and a word the
+  // reader did not translate is refused instead of being sent as a broken expression.
+  assert.equal(readLooseCalculation('what is 42'), null);
+  assert.equal(readLooseCalculation('two and two'), null);
+  assert.equal(readLooseCalculation('what is the capital of france'), null);
+});
+
+test('an information verdict gives the readers one more look before forwarding', async () => {
+  const stub = await stubServers(INFORMATION_ANSWERS);
+  try {
+    clearCatalogCache();
+    issuedCalls.clear();
+    turnBySession.clear();
+    trace.length = 0;
+    const active = configWithDecision(stub.upstream, stub.systemone);
+
+    const { body } = await ask('what about two plus two', active);
+    const call = body.choices[0].message.tool_calls?.[0];
+    assert.ok(call, `expected a call, got ${JSON.stringify(body).slice(0, 200)}`);
+    assert.equal(call.function.name, 'llm_intents__calculate');
+    assert.deepEqual(JSON.parse(call.function.arguments), { operation: 'expression', data: ['2+2'] });
+
+    const entry = trace.find((row) => row.route === 'tool');
+    assert.ok(entry, 'the turn is traced as a tool call');
+    assert.equal(entry?.action, 'calculate');
+    assert.equal(entry?.category, 'query', 'the answer is owed, so the speech round says it');
+    assert.equal(entry?.backend, 'systemone', 'the model was asked before the reader looked again');
+    assert.match(entry?.reason ?? '', /the model called it information/);
+  } finally {
+    await stub.close();
+  }
+});
+
+test('a question the readers cannot answer reaches the model instead of being called chatter', async () => {
+  const stub = await stubServers(INFORMATION_ANSWERS);
+  try {
+    clearCatalogCache();
+    issuedCalls.clear();
+    turnBySession.clear();
+    trace.length = 0;
+    const active = configWithDecision(stub.upstream, stub.systemone);
+
+    const { body } = await ask('what is the capital of france', active);
+    assert.equal(body.choices[0].message.tool_calls, undefined, 'no tool is called');
+    assert.equal(body.choices[0].message.content, 'I am the fallback model.');
+
+    const entry = trace[0];
+    assert.equal(entry?.route, 'forward');
+    assert.equal(entry?.backend, 'systemone', 'the decision model was asked, not skipped');
+    assert.doesNotMatch(entry?.reason ?? '', /conversation, not a command/);
+  } finally {
+    await stub.close();
   }
 });

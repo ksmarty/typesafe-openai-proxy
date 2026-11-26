@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { looksLikeChatter } from '../src/chatter.js';
+import { looksLikeChatter, looksLikeQuestion } from '../src/chatter.js';
 import type { Catalog } from '../src/types.js';
 
 const catalog: Catalog = {
@@ -54,4 +54,28 @@ test('a plain state question is answered from the catalog without the model', as
   assert.equal(directStatePlan(catalog, 'is it on?'), null);
   assert.equal(directStatePlan(catalog, 'is the light that is not named on?'), null);
   assert.equal(directStatePlan(catalog, 'turn on the desk lamp'), null);
+});
+
+test('a question is the decision model\'s to read, not the chatter filter\'s', () => {
+  const questions = [
+    'what day is it today',
+    'what is the date',
+    'why is the sky blue',
+    'who won the game last night',
+    'what is the capital of france',
+    'how come the sky is red',
+    'is that right?',
+    'what?',
+    "what's two plus two",
+    'tell me a joke',
+  ];
+  for (const text of questions) {
+    assert.equal(looksLikeQuestion(text), true, `"${text}" asks something`);
+  }
+
+  // An aside asks nothing, and still costs no model round trip.
+  for (const text of ['thanks', 'never mind', 'ignore that', 'no you', 'okay', 'wait']) {
+    assert.equal(looksLikeQuestion(text), false, `"${text}" is an aside`);
+    assert.ok(looksLikeChatter(text, catalog), `"${text}" is still conversation`);
+  }
 });

@@ -30,6 +30,26 @@ const LEADING_COMMAND_VERB = new RegExp(`^(${COMMAND_VERBS})\\b`);
 /** A sentence longer than this is not a terse aside; let the model read it. */
 const MAX_WORDS = 6;
 
+/** Openers that ask something of the world rather than react to the conversation. */
+const QUESTION_OPENER =
+  /^(what|whats|which|whichever|whose|who|whom|why|when|where|how|is|are|was|were|am|do|does|did|can|could|should|would|will|shall|any|tell me)\b/;
+
+/**
+ * Whether the sentence asks a question, whether or not the transcriber wrote the question mark.
+ *
+ * A question is the decision model's to classify, not the chatter filter's: the questionnaire
+ * already separates a `query` from `information` from `unclear`, and the model can weigh a
+ * sentence the keyword list cannot ("who won the game last night"). The chatter filter stays
+ * for what it is good at — a terse aside that carries no question at all ("thanks", "never
+ * mind") — where a model round trip would buy nothing.
+ */
+export function looksLikeQuestion(text: string): boolean {
+  const spoken = normalise(text);
+  if (!spoken) return false;
+  if (/\?\s*$/.test(text.trim())) return true;
+  return QUESTION_OPENER.test(spoken);
+}
+
 /**
  * Whether the sentence contains a verb that makes it an instruction, whatever else it holds.
  * Exported because "this could be a command" is the guard every other reader needs before it

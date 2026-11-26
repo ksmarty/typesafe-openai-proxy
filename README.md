@@ -341,6 +341,20 @@ it is unsure about still goes through the decision model, and a sentence that na
 room always does. The one exception is the sentence that means "end the turn" (see above): that
 reader runs first, so "nevermind" never reaches your model server at all.
 
+A question is never chatter. "What day is it today", "why is the sky blue", "what is the capital
+of France" open with the same words the filter used to claim, and used to be forwarded with the
+decision model never asked — `backend: "off"` in the trace was the tell. Any sentence that ends
+in a question mark, or opens with what/which/who/why/when/where/how/is/are/do/does/did/can/should/
+would/will/any/"tell me", now reaches the decision model, which has `query`, `information` and
+`unclear` to choose between. The cheap readers still run in front of it, so the questions they
+answer cost nothing.
+
+When the model calls a question `information` — knowledge, not a reading of the house — the readers
+get one more look before the sentence is forwarded, because a sentence with no opening word ("and
+6 times 7", "what about two plus two") is still a sum. One that the readers can now resolve becomes
+a `calculate` call whose answer is spoken; one they cannot still goes to the model server, which is
+where it belonged all along.
+
 ### When it was not addressed to the assistant
 
 A microphone hears the whole room. "Did you see the game last night", "my wife says the door is

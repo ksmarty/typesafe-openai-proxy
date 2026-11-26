@@ -438,6 +438,43 @@ function readCalculation(text: string): SuiteQuestion | null {
   };
 }
 
+/**
+ * Words a question is dressed in, dropped from the front of a loose sum. Only the front: a
+ * word anywhere else is the sentence talking about something other than arithmetic.
+ */
+const LOOSE_FILLER =
+  /^(what|whats|which|how|much|many|is|are|was|were|about|and|so|then|ok|okay|well|tell|me|the|answer|to|for|of|please|now|calculate|work|out|solve)\b\s*/;
+
+/**
+ * Read a bare sum — "two plus two", "and 6 times 7" — once the decision model has read the
+ * sentence as a question rather than a command.
+ *
+ * The strict reader wants the sentence to open with a phrase that introduces arithmetic
+ * ("what's …"), because that is what a command and an aside look like from the outside. Here
+ * the model has already said the sentence asks something, so the opening is allowed to be
+ * anything a question is dressed in, and what is left has to be arithmetic and nothing else:
+ * a digit, at least one operator, and no word this reader did not translate.
+ */
+export function readLooseCalculation(text: string): SuiteQuestion | null {
+  const said = maths(text);
+  if (!said) return null;
+  let body = digitiseNumbers(said);
+  for (const [pattern, replacement] of SUM_WORDS) body = body.replace(pattern, replacement);
+  for (let before = ''; before !== body; ) {
+    before = body;
+    body = body.replace(LOOSE_FILLER, '');
+  }
+  body = body.replace(/\s+/g, '');
+  if (!body || !/\d/.test(body)) return null;
+  if (!/[+\-*/%]/.test(body)) return null;
+  if (!SAFE_EXPRESSION.test(body)) return null;
+  return {
+    tool: 'calculate',
+    args: { operation: 'expression', data: [body] },
+    about: body,
+  };
+}
+
 /** How each unit is written in the integration's arguments. */
 const UNIT_WORDS: [string, string][] = [
   ['fluid ounces', 'fluid_ounce'],
